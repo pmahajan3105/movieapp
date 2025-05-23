@@ -1,0 +1,17 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+Project: CineAI Movie Recommendation App
+Stack: Next.js 14, TypeScript, Supabase, Tailwind, Shadcn/ui
+Architecture: App Router, Server Components, API Routes
+Styling: Tailwind CSS only, no inline styles
+State: React Query for server state, Context for auth
+AI: Groq API for LLM, OMDb for movie data
+Patterns: 
+- Use async/await, not .then()
+- Prefer server components where possible
+- Use Zod for validation
+- Handle errors with try/catch
+- Always type function parameters and returns
