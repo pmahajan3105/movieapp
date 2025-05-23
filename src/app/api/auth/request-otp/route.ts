@@ -1,78 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
-import { z } from 'zod'
-
-const requestOtpSchema = z.object({
-  email: z.string().email('Invalid email address'),
-})
+import type { Database } from '@/lib/supabase/types'
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { email } = requestOtpSchema.parse(body)
+    const { email } = await request.json()
 
-    const supabase = createRouteHandlerClient({ 
-      cookies: () => cookies()
+    if (!email) {
+      return NextResponse.json({ error: 'Email is required' }, { status: 400 })
+    }
+
+    // Create Supabase client with proper cookie handling
+    const cookieStore = cookies()
+    const supabase = createRouteHandlerClient<Database>({ 
+      cookies: () => cookieStore 
     })
 
-    // Send OTP to email
+    // Send magic link to email
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
         shouldCreateUser: true,
-        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/auth/callback`,
-      }
+        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
+      },
     })
 
     if (error) {
-      console.error('OTP request error:', error)
-      
-      // Handle specific error cases
-      if (error.message.includes('rate limit')) {
-        return NextResponse.json(
-          { 
-            error: 'Too many requests. Please wait a moment before trying again.',
-            code: 'RATE_LIMIT'
-          }, 
-          { status: 429 }
-        )
-      }
-
-      return NextResponse.json(
-        { 
-          error: 'Failed to send verification code. Please try again.',
-          code: 'OTP_SEND_FAILED'
-        }, 
-        { status: 400 }
-      )
+      console.error('Magic link request error:', error)
+      return NextResponse.json({ 
+        error: error.message,
+        details: error
+      }, { status: 400 })
     }
 
     return NextResponse.json({ 
-      success: true, 
-      message: 'Verification code sent successfully',
-      email 
+      success: true,
+      message: 'Magic link sent! Check your email and click the link to sign in.',
+      type: 'magic_link'
     })
 
   } catch (error) {
-    console.error('Request OTP error:', error)
-    
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { 
-          error: 'Invalid email address',
-          code: 'VALIDATION_ERROR'
-        }, 
-        { status: 400 }
-      )
-    }
-
-    return NextResponse.json(
-      { 
-        error: 'Internal server error',
-        code: 'INTERNAL_ERROR'
-      }, 
-      { status: 500 }
-    )
+    console.error('Request magic link error:', error)
+    return NextResponse.json({ 
+      error: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 })
   }
 } 

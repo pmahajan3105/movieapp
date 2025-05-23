@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     const { email, token } = verifyOtpSchema.parse(body)
 
     const supabase = createRouteHandlerClient({ 
-      cookies: () => cookies()
+      cookies
     })
 
     // Verify OTP

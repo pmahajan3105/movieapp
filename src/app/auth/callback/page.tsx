@@ -17,37 +17,66 @@ export default function AuthCallbackPage() {
       try {
         // Get the code from URL parameters
         const code = searchParams.get('code')
+        const error_param = searchParams.get('error')
+        const error_description = searchParams.get('error_description')
+        
+        console.log('🔗 Magic link callback - code:', code, 'error:', error_param)
+        
+        if (error_param) {
+          console.error('Auth callback error from URL:', error_param, error_description)
+          setStatus('error')
+          setMessage(`Authentication failed: ${error_description || error_param}`)
+          return
+        }
         
         if (code) {
           // Exchange the code for a session
           const { data, error } = await supabase.auth.exchangeCodeForSession(code)
           
+          console.log('🔐 Exchange code result - data:', data, 'error:', error)
+          
           if (error) {
             console.error('Auth callback error:', error)
             setStatus('error')
-            setMessage('Authentication failed. Please try again.')
+            setMessage(`Authentication failed: ${error.message}`)
             return
           }
 
-          if (data.user) {
+          if (data?.user && data?.session) {
+            console.log('✅ User authenticated:', data.user.email)
             setStatus('success')
             setMessage('Authentication successful! Redirecting...')
             
-            // Check if user has completed onboarding
-            const { data: profile } = await supabase
-              .from('user_profiles')
-              .select('onboarding_completed')
-              .eq('id', data.user.id)
-              .single()
+            // Create user profile if it doesn't exist (fallback)
+            try {
+              const { error: profileError } = await supabase
+                .from('user_profiles')
+                .upsert({
+                  id: data.user.id,
+                  email: data.user.email!,
+                  full_name: data.user.user_metadata?.full_name || data.user.email!.split('@')[0],
+                  onboarding_completed: true
+                }, {
+                  onConflict: 'id'
+                })
 
-            // Redirect based on onboarding status
-            setTimeout(() => {
-              if (profile?.onboarding_completed) {
-                router.push('/dashboard/swipe')
+              if (profileError) {
+                console.error('Profile creation error:', profileError)
+                // Don't fail the auth flow for profile errors
               } else {
-                router.push('/dashboard/preferences')
+                console.log('✅ User profile created/updated')
               }
-            }, 2000)
+            } catch (profileError) {
+              console.error('Profile creation failed:', profileError)
+            }
+
+            // Redirect to dashboard
+            setTimeout(() => {
+              router.push('/dashboard')
+            }, 1500)
+          } else {
+            setStatus('error')
+            setMessage('No user session created. Please try again.')
           }
         } else {
           // No code provided, this might be an error case

@@ -12,12 +12,8 @@ export default function Home() {
 
   useEffect(() => {
     if (!loading && user) {
-      // User is authenticated, redirect to appropriate page
-      if (user.onboarding_completed) {
-        router.push('/dashboard/swipe');
-      } else {
-        router.push('/dashboard/preferences');
-      }
+      // User is authenticated, redirect to dashboard
+      router.push('/dashboard');
     }
   }, [user, loading, router]);
 

@@ -15,10 +15,10 @@ const loginSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>
 
 interface LoginFormProps {
-  onOtpSent: (email: string) => void
+  onMagicLinkSent: (email: string) => void
 }
 
-export function LoginForm({ onOtpSent }: LoginFormProps) {
+export function LoginForm({ onMagicLinkSent }: LoginFormProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -46,10 +46,10 @@ export function LoginForm({ onOtpSent }: LoginFormProps) {
       const result = await response.json()
 
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to send verification code')
+        throw new Error(result.error || 'Failed to send magic link')
       }
 
-      onOtpSent(data.email)
+      onMagicLinkSent(data.email)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred')
     } finally {
@@ -98,19 +98,19 @@ export function LoginForm({ onOtpSent }: LoginFormProps) {
           {isLoading ? (
             <div className="flex items-center space-x-2">
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              <span>Sending verification code...</span>
+              <span>Sending magic link...</span>
             </div>
           ) : (
-            'Send verification code'
+            'Send magic link'
           )}
         </Button>
       </form>
 
       <div className="mt-6 text-center text-sm text-gray-600">
         <p>
-          We&apos;ll send you a 6-digit verification code via email.
+          We&apos;ll send you a magic link via email.
           <br />
-          No password required!
+          Click the link to sign in - no password required!
         </p>
       </div>
     </div>

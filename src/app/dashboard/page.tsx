@@ -1,151 +1,81 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { Sparkles, Zap, Users, TrendingUp } from 'lucide-react'
-import { MovieSpotlight, CategoryRow, QuickRateCard } from '@/components/movies'
+import { Film, Zap, TrendingUp, MessageCircle } from 'lucide-react'
 import { ChatBar } from '@/components/chat'
 import { Button } from '@/components/ui/button'
-import type { 
-  DailySpotlight, 
-  BrowseCategory, 
-  Movie, 
-  DashboardState 
-} from '@/types'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import type { Movie } from '@/types'
 
-const MOCK_MOVIES: Movie[] = [
-  {
-    id: '1',
-    title: 'Blade Runner 2049',
-    year: 2017,
-    genre: ['Sci-Fi', 'Drama', 'Thriller'],
-    director: ['Denis Villeneuve'],
-    cast: ['Ryan Gosling', 'Harrison Ford', 'Ana de Armas'],
-    plot: 'Young Blade Runner K discovers a secret that could change the course of humanity.',
-    poster_url: 'https://image.tmdb.org/t/p/w500/gajva2L0rPYkEWjzgFlBXCAVBE5.jpg',
-    rating: 8.0,
-    runtime: 164,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  },
-  {
-    id: '2',
-    title: 'The Matrix',
-    year: 1999,
-    genre: ['Sci-Fi', 'Action'],
-    director: ['The Wachowskis'],
-    cast: ['Keanu Reeves', 'Laurence Fishburne', 'Carrie-Anne Moss'],
-    plot: 'A computer programmer discovers reality as he knows it is actually a simulation.',
-    poster_url: 'https://image.tmdb.org/t/p/w500/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg',
-    rating: 8.7,
-    runtime: 136,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  },
-  {
-    id: '3',
-    title: 'Interstellar',
-    year: 2014,
-    genre: ['Sci-Fi', 'Drama', 'Adventure'],
-    director: ['Christopher Nolan'],
-    cast: ['Matthew McConaughey', 'Anne Hathaway', 'Jessica Chastain'],
-    plot: 'A team of explorers travel through a wormhole in space in an attempt to ensure humanity&apos;s survival.',
-    poster_url: 'https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg',
-    rating: 8.6,
-    runtime: 169,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  }
-]
-
-const MOCK_SPOTLIGHTS: DailySpotlight[] = [
-  {
-    id: '1',
-    user_id: 'user-1',
-    movie_id: '1',
-    movie: MOCK_MOVIES[0],
-    position: 1,
-    ai_reason: 'Based on your love for visually stunning sci-fi films and appreciation for deep philosophical themes, this Denis Villeneuve masterpiece combines breathtaking cinematography with thought-provoking questions about humanity and identity.',
-    confidence_score: 0.95,
-    generated_date: new Date().toISOString().split('T')[0],
-    viewed: false,
-    created_at: new Date().toISOString()
-  },
-  {
-    id: '2',
-    user_id: 'user-1',
-    movie_id: '2',
-    movie: MOCK_MOVIES[1],
-    position: 2,
-    ai_reason: 'Your interest in groundbreaking cinema and innovative storytelling makes this a perfect match. The Matrix revolutionized action films and explores themes of reality and consciousness that align with your viewing preferences.',
-    confidence_score: 0.87,
-    generated_date: new Date().toISOString().split('T')[0],
-    viewed: false,
-    created_at: new Date().toISOString()
-  }
-]
-
-const MOCK_CATEGORIES: BrowseCategory[] = [
-  {
-    id: '1',
-    user_id: 'user-1',
-    category_name: 'Mind-Bending Sci-Fi',
-    ai_description: 'Films that challenge perception and explore the nature of reality, perfect for viewers who enjoy thought-provoking narratives',
-    movie_ids: ['1', '2', '3'],
-    movies: MOCK_MOVIES,
-    generated_date: new Date().toISOString().split('T')[0],
-    position: 1,
-    created_at: new Date().toISOString()
-  },
-  {
-    id: '2',
-    user_id: 'user-1',
-    category_name: 'Visually Stunning Epics',
-    ai_description: 'Cinematographically magnificent films that showcase the art of visual storytelling',
-    movie_ids: ['1', '3'],
-    movies: [MOCK_MOVIES[0], MOCK_MOVIES[2]],
-    generated_date: new Date().toISOString().split('T')[0],
-    position: 2,
-    created_at: new Date().toISOString()
-  }
-]
+interface SimplifiedDashboardState {
+  recommendations: Movie[]
+  topMovies: Movie[]
+  selectedMovie: Movie | null
+  isLoading: boolean
+}
 
 export default function DashboardPage() {
   const { user, loading } = useAuth()
-  const router = useRouter()
-  const [state, setState] = useState<DashboardState>({
-    spotlights: MOCK_SPOTLIGHTS,
-    categories: MOCK_CATEGORIES,
+  const [state, setState] = useState<SimplifiedDashboardState>({
+    recommendations: [],
+    topMovies: [],
     selectedMovie: null,
-    chatHistory: [],
-    quickRateMovies: [],
-    isQuickRateMode: false
+    isLoading: true
   })
   const [isChatLoading, setIsChatLoading] = useState(false)
 
   useEffect(() => {
-    if (!loading && user) {
-      // Redirect based on onboarding status
-      if (user.onboarding_completed) {
-        router.push('/dashboard/swipe')
-      } else {
-        router.push('/dashboard/preferences')
+    // Load recommendations and movies
+    const loadData = async () => {
+      try {
+        setState(prev => ({ ...prev, isLoading: true }))
+
+        // Fetch recommendations
+        const recsResponse = await fetch('/api/recommendations?limit=6')
+        const recsData = await recsResponse.json()
+
+        // Fetch top movies
+        const moviesResponse = await fetch('/api/movies?limit=12')
+        const moviesData = await moviesResponse.json()
+
+        setState(prev => ({
+          ...prev,
+          recommendations: recsData.success ? recsData.data : [],
+          topMovies: moviesData.success ? moviesData.data : [],
+          isLoading: false
+        }))
+      } catch (error) {
+        console.error('Error loading data:', error)
+        setState(prev => ({ ...prev, isLoading: false }))
       }
-    } else if (!loading && !user) {
-      // Not authenticated, redirect to login
-      router.push('/auth/login')
     }
-  }, [user, loading, router])
 
-  const handleRate = (movieId: string, interested: boolean, rating?: number) => {
-    console.log('Rating movie:', { movieId, interested, rating })
-    // TODO: Implement API call to save rating
-  }
+    if (!loading) {
+      loadData()
+    }
+  }, [loading])
 
-  const handleAddToWatchlist = (movieId: string) => {
-    console.log('Adding to watchlist:', movieId)
-    // TODO: Implement API call to add to watchlist
+  const handleRate = async (movieId: string, interested: boolean, rating?: number) => {
+    try {
+      const response = await fetch('/api/ratings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          movie_id: movieId,
+          interested,
+          rating,
+          user_id: user?.id || 'anonymous'
+        })
+      })
+      
+      if (response.ok) {
+        console.log('Rating saved successfully')
+        // Optionally refresh recommendations
+      }
+    } catch (error) {
+      console.error('Error saving rating:', error)
+    }
   }
 
   const handleChatMessage = async (message: string) => {
@@ -153,202 +83,292 @@ export default function DashboardPage() {
     console.log('Chat message:', message)
     // TODO: Implement AI chat API call
     
-    // Simulate API delay
+    // Simulate API delay for now
     setTimeout(() => {
       setIsChatLoading(false)
     }, 2000)
   }
 
-  const handleStartQuickRate = () => {
-    setState(prev => ({
-      ...prev,
-      isQuickRateMode: true,
-      quickRateMovies: MOCK_MOVIES.slice(0, 10) // Get 10 movies for quick rating
-    }))
+  if (loading || state.isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+        <div className="sm:mx-auto sm:w-full sm:max-w-md">
+          <div className="flex justify-center">
+            <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          </div>
+          <p className="mt-4 text-center text-sm text-gray-600">
+            Loading your personalized movie recommendations...
+          </p>
+        </div>
+      </div>
+    )
   }
-
-  const handleQuickRateMovie = (interested: boolean) => {
-    setState(prev => {
-      const currentMovie = prev.quickRateMovies[0]
-      if (currentMovie) {
-        handleRate(currentMovie.id, interested)
-      }
-
-      const remainingMovies = prev.quickRateMovies.slice(1)
-      
-      if (remainingMovies.length === 0) {
-        // Quick rate session complete
-        return {
-          ...prev,
-          isQuickRateMode: false,
-          quickRateMovies: []
-        }
-      }
-
-      return {
-        ...prev,
-        quickRateMovies: remainingMovies
-      }
-    })
-  }
-
-  const currentQuickRateMovie = state.quickRateMovies[0]
-  const quickRateProgress = state.quickRateMovies.length > 0 
-    ? ((10 - state.quickRateMovies.length) / 10) * 100 
-    : 0
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Main Content */}
-      <main className="pb-20"> {/* Bottom padding for chat bar */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          
-          {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              Discover Your Next Favorite Movie
-            </h1>
-            <p className="text-gray-600">
-              AI-curated recommendations based on your unique taste
-            </p>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Welcome back! 🎬
+          </h1>
+          <p className="text-gray-600">
+            Discover your next favorite movie with AI-powered recommendations
+          </p>
+        </div>
+
+        {/* Quick Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Recommendations</CardTitle>
+              <Film className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{state.recommendations.length}</div>
+              <p className="text-xs text-muted-foreground">
+                Personalized picks for you
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Top Movies</CardTitle>
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{state.topMovies.length}</div>
+              <p className="text-xs text-muted-foreground">
+                Highest rated films
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">AI Assistant</CardTitle>
+              <MessageCircle className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">Ready</div>
+              <p className="text-xs text-muted-foreground">
+                Ask for movie recommendations
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* AI Chat Section */}
+        <section className="mb-8">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                Chat with CineAI
+              </CardTitle>
+              <CardDescription>
+                Tell me what kind of movies you&apos;re in the mood for!
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ChatBar
+                onSendMessage={handleChatMessage}
+                isLoading={isChatLoading}
+                placeholder="What kind of movie are you looking for today?"
+              />
+            </CardContent>
+          </Card>
+        </section>
+
+        {/* Recommendations Section */}
+        <section className="mb-12">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                <Zap className="w-6 h-6 text-purple-500" />
+                Recommended for You
+              </h2>
+              <p className="text-gray-600 mt-1">
+                Based on popular movies and ratings
+              </p>
+            </div>
           </div>
 
-          {/* Quick Rate Mode */}
-          {state.isQuickRateMode && currentQuickRateMovie ? (
-            <div className="mb-8">
-              <div className="bg-white rounded-xl shadow-lg p-6">
-                <div className="mb-4">
-                  <div className="flex justify-between items-center mb-2">
-                    <h2 className="text-xl font-bold text-gray-900">Quick Rate</h2>
-                    <span className="text-sm text-gray-600">
-                      {10 - state.quickRateMovies.length + 1} of 10
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-purple-600 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${quickRateProgress}%` }}
-                    />
-                  </div>
-                </div>
-                
-                <div className="flex justify-center">
-                  <QuickRateCard
-                    movie={currentQuickRateMovie}
-                    onRate={handleQuickRateMovie}
-                    className="max-w-md"
-                  />
-                </div>
-              </div>
+          {state.recommendations.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {state.recommendations.map((movie) => (
+                <MovieCard 
+                  key={movie.id} 
+                  movie={movie} 
+                  onRate={handleRate}
+                  showRating={true}
+                />
+              ))}
             </div>
           ) : (
-            <>
-              {/* Daily Spotlights */}
-              <section className="mb-12">
-                <div className="flex justify-between items-center mb-6">
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                      <Sparkles className="w-6 h-6 text-purple-500" />
-                      Today&apos;s Spotlights
-                    </h2>
-                    <p className="text-gray-600 mt-1">
-                      5 hand-picked movies just for you
-                    </p>
-                  </div>
-                  
-                  <Button
-                    onClick={handleStartQuickRate}
-                    variant="outline"
-                    className="border-purple-300 text-purple-600 hover:bg-purple-50"
-                  >
-                    <Zap className="w-4 h-4 mr-2" />
-                    Quick Rate
-                  </Button>
-                </div>
+            <Card>
+              <CardContent className="p-8 text-center">
+                <Film className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No recommendations yet</h3>
+                <p className="text-gray-600 mb-4">Start by rating some movies or chatting with our AI!</p>
+                <Button onClick={() => window.location.reload()}>
+                  Refresh Recommendations
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </section>
 
-                <div className="space-y-6">
-                  {state.spotlights.map((spotlight) => (
-                    <MovieSpotlight
-                      key={spotlight.id}
-                      spotlight={spotlight}
-                      onRate={handleRate}
-                      onAddToWatchlist={handleAddToWatchlist}
-                    />
-                  ))}
-                </div>
-              </section>
+        {/* Top Movies Section */}
+        <section className="mb-12">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                <TrendingUp className="w-6 h-6 text-blue-500" />
+                Top Rated Movies
+              </h2>
+              <p className="text-gray-600 mt-1">
+                Highest rated films in our database
+              </p>
+            </div>
+          </div>
 
-              {/* Browse Categories */}
-              <section className="mb-12">
-                <div className="mb-6">
-                  <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                    <TrendingUp className="w-6 h-6 text-blue-500" />
-                    Browse Categories
-                  </h2>
-                  <p className="text-gray-600 mt-1">
-                    Explore curated collections tailored to your taste
-                  </p>
-                </div>
+          {state.topMovies.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {state.topMovies.slice(0, 8).map((movie) => (
+                <MovieCard 
+                  key={movie.id} 
+                  movie={movie} 
+                  onRate={handleRate}
+                  compact={true}
+                />
+              ))}
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="p-8 text-center">
+                <TrendingUp className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No movies found</h3>
+                <p className="text-gray-600 mb-4">Make sure your database has movie data!</p>
+                <Button onClick={() => window.location.reload()}>
+                  Refresh Movies
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </section>
+      </div>
+    </div>
+  )
+}
 
-                <div className="space-y-8">
-                  {state.categories.map((category) => (
-                    <CategoryRow
-                      key={category.id}
-                      category={category}
-                      movies={category.movies || []}
-                      onMovieClick={(movie) => setState(prev => ({ ...prev, selectedMovie: movie }))}
-                      onRate={handleRate}
-                    />
-                  ))}
-                </div>
-              </section>
+// Simplified Movie Card Component
+interface MovieCardProps {
+  movie: Movie
+  onRate: (movieId: string, interested: boolean, rating?: number) => void
+  compact?: boolean
+  showRating?: boolean
+}
 
-              {/* Getting Started Banner (if no interactions yet) */}
-              <section className="mb-12">
-                <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-xl p-6">
-                  <div className="flex items-start gap-4">
-                    <div className="bg-purple-100 rounded-full p-3">
-                      <Users className="w-6 h-6 text-purple-600" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-purple-900 mb-2">
-                        New here? Let&apos;s find your taste!
-                      </h3>
-                      <p className="text-purple-800 mb-4">
-                        The more you interact, the better our recommendations become. 
-                        Try the Quick Rate mode or chat with our AI to get started.
-                      </p>
-                      <div className="flex gap-3">
-                        <Button
-                          onClick={handleStartQuickRate}
-                          className="bg-purple-600 hover:bg-purple-700 text-white"
-                        >
-                          <Zap className="w-4 h-4 mr-2" />
-                          Start Quick Rating
-                        </Button>
-                        <Button
-                          variant="outline"
-                          className="border-purple-300 text-purple-600 hover:bg-purple-50"
-                        >
-                          <Sparkles className="w-4 h-4 mr-2" />
-                          Chat with AI
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </section>
-            </>
+function MovieCard({ movie, onRate, compact = false, showRating = false }: MovieCardProps) {
+  const [isLiked, setIsLiked] = useState<boolean | null>(null)
+
+  const handleLike = () => {
+    setIsLiked(true)
+    onRate(movie.id, true)
+  }
+
+  const handleDislike = () => {
+    setIsLiked(false)
+    onRate(movie.id, false)
+  }
+
+  return (
+    <Card className="group hover:shadow-lg transition-all duration-300">
+      <CardContent className="p-0">
+        {/* Movie Poster */}
+        <div className={`relative ${compact ? 'aspect-[3/4]' : 'aspect-[4/6]'}`}>
+          {movie.poster_url ? (
+            <img
+              src={movie.poster_url}
+              alt={movie.title}
+              className="w-full h-full object-cover rounded-t-lg"
+            />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-gray-300 to-gray-500 flex items-center justify-center rounded-t-lg">
+              <span className="text-white text-xl font-bold">
+                {movie.title.charAt(0)}
+              </span>
+            </div>
+          )}
+          
+          {/* Rating Badge */}
+          {movie.rating && (
+            <div className="absolute top-2 right-2 bg-black/70 text-white px-2 py-1 rounded text-xs">
+              ⭐ {movie.rating.toFixed(1)}
+            </div>
           )}
         </div>
-      </main>
 
-      {/* Chat Bar */}
-      <ChatBar
-        onSendMessage={handleChatMessage}
-        isLoading={isChatLoading}
-        placeholder="Ask for recommendations, describe your mood, or chat about movies... 🍿"
-      />
-    </div>
+        {/* Movie Info */}
+        <div className="p-4">
+          <h3 className="font-semibold text-gray-900 mb-1 line-clamp-1">
+            {movie.title}
+          </h3>
+          
+          <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+            <span>{movie.year}</span>
+            {movie.runtime && (
+              <>
+                <span>•</span>
+                <span>{movie.runtime}m</span>
+              </>
+            )}
+          </div>
+
+          {/* Genres */}
+          <div className="flex flex-wrap gap-1 mb-3">
+            {movie.genre?.slice(0, 2).map((genre) => (
+              <span
+                key={genre}
+                className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium"
+              >
+                {genre}
+              </span>
+            ))}
+          </div>
+
+          {/* Plot (if not compact) */}
+          {!compact && movie.plot && (
+            <p className="text-gray-700 text-sm mb-3 line-clamp-2">
+              {movie.plot}
+            </p>
+          )}
+
+          {/* Action Buttons */}
+          {showRating && (
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant={isLiked === true ? "default" : "outline"}
+                onClick={handleLike}
+                className="flex-1"
+              >
+                👍 Like
+              </Button>
+              <Button
+                size="sm"
+                variant={isLiked === false ? "destructive" : "outline"}
+                onClick={handleDislike}
+                className="flex-1"
+              >
+                👎 Pass
+              </Button>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   )
 } 

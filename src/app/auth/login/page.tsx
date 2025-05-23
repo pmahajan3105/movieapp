@@ -2,15 +2,15 @@
 
 import { useState } from 'react'
 import { LoginForm } from '@/components/auth/LoginForm'
-import { OtpForm } from '@/components/auth/OtpForm'
+import { MagicLinkSentForm } from '@/components/auth/MagicLinkSentForm'
 
 export default function LoginPage() {
-  const [step, setStep] = useState<'login' | 'otp'>('login')
+  const [step, setStep] = useState<'login' | 'magic-link-sent'>('login')
   const [email, setEmail] = useState('')
 
-  const handleOtpSent = (sentEmail: string) => {
+  const handleMagicLinkSent = (sentEmail: string) => {
     setEmail(sentEmail)
-    setStep('otp')
+    setStep('magic-link-sent')
   }
 
   const handleBackToLogin = () => {
@@ -23,9 +23,9 @@ export default function LoginPage() {
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
           {step === 'login' ? (
-            <LoginForm onOtpSent={handleOtpSent} />
+            <LoginForm onMagicLinkSent={handleMagicLinkSent} />
           ) : (
-            <OtpForm 
+            <MagicLinkSentForm 
               email={email} 
               onBackToLogin={handleBackToLogin} 
             />
