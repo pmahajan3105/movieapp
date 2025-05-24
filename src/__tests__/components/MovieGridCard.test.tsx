@@ -7,11 +7,11 @@ import type { Movie, Rating } from '../../types'
 // Mock Next.js Image component
 jest.mock('next/image', () => ({
   __esModule: true,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   default: function Image({
     src,
     alt,
-    fill: _fill,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    fill,
     ...props
   }: {
     src: string

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -64,50 +64,53 @@ export function OtpForm({ email, onBackToLogin }: OtpFormProps) {
     }
   }, [resendTimer])
 
+  const onSubmit = useCallback(
+    async (data: OtpFormData) => {
+      setIsLoading(true)
+      setError(null)
+
+      try {
+        const response = await fetch('/api/auth/verify-otp', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email,
+            token: data.otp,
+          }),
+        })
+
+        const result = await response.json()
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Verification failed')
+        }
+
+        // Refresh user data
+        await refreshUser()
+
+        // Redirect based on onboarding status
+        if (result.user?.onboarding_completed) {
+          router.push('/dashboard')
+        } else {
+          router.push('/dashboard/preferences')
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An unexpected error occurred')
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    [email, refreshUser, router]
+  )
+
   // Auto-submit when OTP is 6 digits
   useEffect(() => {
     if (otpValue.length === 6 && /^\d{6}$/.test(otpValue)) {
       handleSubmit(onSubmit)()
     }
-  }, [otpValue, handleSubmit])
-
-  const onSubmit = async (data: OtpFormData) => {
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      const response = await fetch('/api/auth/verify-otp', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          token: data.otp,
-        }),
-      })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Verification failed')
-      }
-
-      // Refresh user data
-      await refreshUser()
-
-      // Redirect based on onboarding status
-      if (result.user?.onboarding_completed) {
-        router.push('/dashboard')
-      } else {
-        router.push('/dashboard/preferences')
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred')
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  }, [otpValue, handleSubmit, onSubmit])
 
   const handleResend = async () => {
     setIsResending(true)

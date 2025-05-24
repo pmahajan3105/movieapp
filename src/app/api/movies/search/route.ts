@@ -84,7 +84,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
           },
           searchMeta: {
             query: filters.query || '',
-            appliedFilters: filters,
+            appliedFilters: filters as Record<string, unknown>,
             resultCount: 0,
             executionTime,
           },
@@ -248,7 +248,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
         },
         searchMeta: {
           query: filters.query || '',
-          appliedFilters: filters,
+          appliedFilters: filters as Record<string, unknown>,
           resultCount: sortedMovies.length,
           executionTime,
         },

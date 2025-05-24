@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { ChatMessage } from './ChatMessage'
 import { ChatInput } from './ChatInput'
 import type { ChatMessage as ChatMessageType, ChatApiResponse, PreferenceData } from '@/types/chat'
@@ -19,26 +19,24 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
 
-  // Smart auto-scroll that only scrolls when user is near bottom
-  const scrollToBottom = () => {
-    if (shouldAutoScroll && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' })
+  const scrollToBottom = useCallback(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
     }
-  }
+  }, [])
 
-  // Check if user is near bottom of chat
-  const handleScroll = () => {
+  const handleScroll = useCallback(() => {
     if (messagesContainerRef.current) {
       const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current
-      const isNearBottom = scrollHeight - scrollTop - clientHeight < 100
-      setShouldAutoScroll(isNearBottom)
+      const isAtBottom = scrollHeight - scrollTop - clientHeight < 10
+      setShouldAutoScroll(isAtBottom)
     }
-  }
+  }, [])
 
   // Only auto-scroll when we should
   useEffect(() => {
     scrollToBottom()
-  }, [messages, shouldAutoScroll])
+  }, [messages, shouldAutoScroll, scrollToBottom])
 
   // Auto-scroll when new messages are added (but only if user is at bottom)
   useEffect(() => {
@@ -50,7 +48,7 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
         setTimeout(scrollToBottom, 100)
       }
     }
-  }, [messages.length])
+  }, [messages, scrollToBottom])
 
   // Send initial welcome message
   useEffect(() => {
@@ -140,7 +138,7 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
   return (
     <div className="flex h-full flex-col bg-gray-50" style={{ contain: 'layout style' }}>
       {/* Header */}
-      <div className="border-b border-gray-200 bg-white px-6 py-4 flex-shrink-0">
+      <div className="flex-shrink-0 border-b border-gray-200 bg-white px-6 py-4">
         <div className="flex items-center space-x-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100">
             <span className="text-lg text-purple-600">🎬</span>
@@ -157,13 +155,13 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
       </div>
 
       {/* Messages area */}
-      <div 
-        className="flex-1 overflow-y-auto px-6 py-4" 
-        ref={messagesContainerRef} 
+      <div
+        className="flex-1 overflow-y-auto px-6 py-4"
+        ref={messagesContainerRef}
         onScroll={handleScroll}
-        style={{ 
+        style={{
           scrollBehavior: 'smooth',
-          overscrollBehavior: 'contain' 
+          overscrollBehavior: 'contain',
         }}
       >
         <div className="space-y-4">

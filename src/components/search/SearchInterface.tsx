@@ -30,7 +30,7 @@ export function SearchInterface({
   const [selectedIndex, setSelectedIndex] = useState(-1)
 
   const inputRef = useRef<HTMLInputElement>(null)
-  const timeoutRef = useRef<NodeJS.Timeout>()
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Debounced autocomplete
   useEffect(() => {
