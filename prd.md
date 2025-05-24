@@ -242,58 +242,120 @@ tokensPerMinute: 10000
 }
 }
 
-## 📝 Implementation Updates (v2.1)
+## 📝 Implementation Updates (v2.2)
 
 **Date**: December 2024  
-**Status**: Implemented & Tested
+**Status**: Core Features Complete, Focusing on Search & Filtering
 
-### **Simplified Approach Adopted**
+### **Streamlined Scope (Updated)**
 
-#### **Dashboard-First Design**
-- **Grid-based layout** instead of single-card swipe interface
-- **Integrated chat** directly in dashboard for better UX
-- **Quick stats** showing recommendations and top movies
-- **Multiple movie cards** visible simultaneously for faster browsing
+Based on practical usage and feedback, the scope has been refined to focus on core functionality without feature bloat.
 
-#### **Streamlined Rating System**
-- **Simple like/dislike** buttons instead of complex swipe gestures
-- **Immediate feedback** with visual confirmation
-- **Quick rating** for faster preference learning
+#### **Current Implementation Status**
 
-#### **Practical AI Integration**
-- **Embedded chat interface** in main dashboard
-- **Real-time conversation** with typing indicators
-- **Automatic preference extraction** without complex flows
-- **Context-aware responses** based on user history
+✅ **Authentication System** - Complete with OTP authentication  
+✅ **AI Chat Interface** - Natural conversation flow with preference extraction  
+✅ **Movie Recommendations** - Grid-based display with AI-powered suggestions  
+✅ **Quick Rating System** - Like/dislike functionality for preference learning  
+✅ **Dashboard Interface** - Modern, responsive design with embedded chat  
+✅ **Basic Watchlist** - Add/remove movies, mark watched/unwatched, basic sorting  
+✅ **Testing Infrastructure** - Comprehensive test suite with high coverage  
+✅ **Code Quality** - ESLint, Prettier, Husky pre-commit hooks
 
-#### **Technical Improvements**
-- **Comprehensive testing** with Jest and React Testing Library
-- **Code quality tools** including ESLint, Prettier, Husky
-- **Environment validation** with Zod schemas
-- **Error handling** and loading states throughout
+### **Final Phase - Search & Discovery Enhancement**
 
-### **What Changed from Original Plan**
+🚧 **Priority Features (Next Implementation)**
 
-| Original Plan | Implemented Solution | Reason |
-|---------------|---------------------|---------|
-| Single-card swipe interface | Grid-based dashboard | Better discoverability |
-| Separate onboarding flow | Integrated chat | Smoother UX |
-| Complex swipe gestures | Simple like/dislike buttons | More intuitive |
-| Separate chat page | Embedded chat widget | Better accessibility |
-| Complex mood system | Simplified AI chat | Easier to use |
+#### **Advanced Search & Filtering (SEARCH-01)**
 
-### **Current Implementation Status**
+**Description**: Comprehensive movie search and filtering system
+**Requirements**:
 
-✅ **Authentication System** - Complete with OTP  
-✅ **AI Chat Interface** - Natural conversation flow  
-✅ **Movie Recommendations** - Grid-based display  
-✅ **Quick Rating System** - Like/dislike functionality  
-✅ **Dashboard Interface** - Modern, responsive design  
-✅ **Testing Infrastructure** - Comprehensive test suite  
-✅ **Code Quality** - Linting, formatting, pre-commit hooks  
+- **Global movie search** by title, director, actor, or keyword
+- **Genre-based filtering** with multi-select options
+- **Year range filtering** (e.g., 1990-2000, 2010-2020)
+- **Rating-based filtering** (e.g., 8.0+ IMDb rating)
+- **Combined filters** that work together
+- **Search history** and saved filter presets
+- **Quick filter buttons** for popular categories
 
-🚧 **Next Phase Features**
-- Enhanced movie details page
-- Watchlist functionality
-- Advanced filtering options
-- Movie search capabilities
+**Implementation Details**:
+
+```typescript
+// Search API endpoint
+POST /api/movies/search
+{
+  query?: string,           // "Inception" or "Christopher Nolan"
+  genres?: string[],        // ["Action", "Sci-Fi"]
+  yearRange?: [number, number], // [2010, 2020]
+  minRating?: number,       // 8.0
+  limit?: number           // 20
+}
+
+// Filter presets
+const QUICK_FILTERS = {
+  "Recent Hits": { yearRange: [2020, 2024], minRating: 7.5 },
+  "Classic Cinema": { yearRange: [1950, 1990], minRating: 8.0 },
+  "Hidden Gems": { minRating: 7.8, maxPopularity: 50000 }
+}
+```
+
+#### **Enhanced Movie Discovery**
+
+- **Search suggestions** as you type
+- **Filter result counts** showing how many movies match each filter
+- **Clear all filters** and **save filter preset** options
+- **Search within watchlist** functionality
+
+### **Explicitly Removed Features**
+
+❌ **Not Implementing** (Scope Reduction):
+
+- Enhanced movie details (cast/crew, trailers, similar movies)
+- Watchlist notes and rating system
+- Export functionality
+- Mood-based discovery
+- Mobile touch gestures optimization
+- Social features and sharing
+- Progressive Web App features
+
+### **Technical Implementation Plan**
+
+#### **Database Updates Needed**
+
+```sql
+-- Add search indexes for performance
+CREATE INDEX idx_movies_title_search ON movies USING gin(to_tsvector('english', title));
+CREATE INDEX idx_movies_director_search ON movies USING gin(to_tsvector('english', director));
+CREATE INDEX idx_movies_actors_search ON movies USING gin(to_tsvector('english', array_to_string(actors, ' ')));
+CREATE INDEX idx_movies_genre_gin ON movies USING gin(genre);
+CREATE INDEX idx_movies_year_rating ON movies(year, imdb_rating);
+```
+
+#### **API Endpoints to Implement**
+
+1. `GET /api/movies/search` - Advanced search with filters
+2. `GET /api/movies/genres` - Available genres list
+3. `GET /api/movies/filters/stats` - Filter statistics (counts)
+4. `POST /api/user/search-history` - Save search history
+5. `GET /api/user/filter-presets` - User's saved filter presets
+
+#### **Frontend Components to Build**
+
+1. `SearchInterface` - Main search input with autocomplete
+2. `FilterPanel` - Advanced filtering sidebar
+3. `FilterChips` - Active filter display with remove buttons
+4. `SearchResults` - Paginated search results grid
+5. `QuickFilters` - Preset filter buttons
+
+### **Success Criteria**
+
+The app will be considered **feature-complete** when:
+
+- ✅ Users can search any movie by title/director/actor instantly
+- ✅ Multiple filters can be applied simultaneously
+- ✅ Search results load in < 1 second
+- ✅ Filter combinations show accurate result counts
+- ✅ Search within personal watchlist works seamlessly
+
+### **Final Architecture**

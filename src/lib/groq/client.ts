@@ -5,7 +5,7 @@ const groq = new Groq({
 })
 
 export const GROQ_CONFIG = {
-  model: 'gemma-7b-it' as const,
+  model: 'llama3-8b-8192' as const,
   temperature: 0.7,
   maxTokens: 1000,
   rateLimit: {
@@ -14,4 +14,4 @@ export const GROQ_CONFIG = {
   },
 }
 
-export { groq }
+export default groq

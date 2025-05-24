@@ -1,13 +1,13 @@
-import { logger } from '../logger'
-
-// Mock environment functions
+// Mock environment functions before importing anything
 const mockIsDevelopment = jest.fn()
 const mockIsProduction = jest.fn()
 
 jest.mock('../env', () => ({
-  isDevelopment: mockIsDevelopment,
-  isProduction: mockIsProduction,
+  isDevelopment: () => mockIsDevelopment(),
+  isProduction: () => mockIsProduction(),
 }))
+
+import { logger } from '../logger'
 
 describe('Logger', () => {
   let consoleSpy: {

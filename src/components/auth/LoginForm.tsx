@@ -9,7 +9,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 const loginSchema = z.object({
-  email: z.string().email('Please enter a valid email address'),
+  email: z
+    .string()
+    .min(1, 'Please enter a valid email address')
+    .email('Please enter a valid email address'),
 })
 
 type LoginFormData = z.infer<typeof loginSchema>
@@ -64,7 +67,7 @@ export function LoginForm({ onMagicLinkSent }: LoginFormProps) {
         <p className="text-gray-600">Your personal AI movie recommendation assistant</p>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
         <div className="space-y-2">
           <Label htmlFor="email">Email address</Label>
           <Input

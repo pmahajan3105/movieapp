@@ -14,24 +14,24 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '6')
 
     if (!user_id) {
-      return NextResponse.json({ error: 'Missing user_id parameter' }, { status: 400 })
+      return NextResponse.json({ error: 'Missing user_id' }, { status: 400 })
     }
 
-    // Fetch browse categories
+    // Check if categories exist for today
     const { data, error } = await supabase
       .from('browse_categories')
       .select('*')
       .eq('user_id', user_id)
       .eq('generated_date', date)
-      .order('position', { ascending: true })
+      .order('position')
       .limit(limit)
 
     if (error) {
       console.error('Database error:', error)
-      return NextResponse.json({ error: 'Failed to fetch categories' }, { status: 500 })
+      return NextResponse.json({ error: 'Database error' }, { status: 500 })
     }
 
-    // If no categories exist for today, generate them
+    // If no categories exist, generate them
     if (!data || data.length === 0) {
       const generated = await generateBrowseCategories(user_id, date, limit)
       return NextResponse.json({
@@ -105,13 +105,6 @@ export async function POST(request: NextRequest) {
 
 async function generateBrowseCategories(user_id: string, date: string, limit: number) {
   try {
-    // TODO: In future, filter recommendations based on user preferences
-    // const { data: userProfile } = await supabase
-    //   .from('user_profiles')
-    //   .select('preferences')
-    //   .eq('id', user.id)
-    //   .single()
-
     // Define category templates
     const categoryTemplates = [
       {
@@ -158,12 +151,11 @@ async function generateBrowseCategories(user_id: string, date: string, limit: nu
     // Generate categories with movies
     const categories = await Promise.all(
       selectedTemplates.map(async (template, index) => {
-        // Get movies for this category (simplified - in production, use AI/ML)
+        // Get movies for this category (simple genre-based filtering)
         const { data: movies, error: moviesError } = await supabase
           .from('movies')
           .select('id')
           .overlaps('genre', template.genres)
-          .not('id', 'in', `(SELECT movie_id FROM ratings WHERE user_id = '${user_id}')`)
           .limit(20)
 
         if (moviesError || !movies || movies.length === 0) {

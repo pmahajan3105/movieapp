@@ -3,7 +3,7 @@ import Image from 'next/image'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Heart, Plus, Minus, Star, Calendar, Clock, Play } from 'lucide-react'
+import { Plus, Minus, Star, Calendar, Clock } from 'lucide-react'
 import type { Movie } from '@/types'
 import { toast } from 'react-hot-toast'
 
@@ -13,7 +13,6 @@ interface MovieDetailsModalProps {
   onClose: () => void
   onAddToWatchlist?: (movieId: string) => Promise<void>
   onRemoveFromWatchlist?: (movieId: string) => Promise<void>
-  onRate?: (movieId: string, interested: boolean, rating?: number) => Promise<void>
   isInWatchlist?: boolean
 }
 
@@ -23,12 +22,9 @@ export function MovieDetailsModal({
   onClose,
   onAddToWatchlist,
   onRemoveFromWatchlist,
-  onRate,
   isInWatchlist = false,
 }: MovieDetailsModalProps) {
   const [isLoading, setIsLoading] = useState(false)
-  const [userRating, setUserRating] = useState<number | null>(null)
-  const [actionLoading, setActionLoading] = useState<string | null>(null)
 
   if (!movie) return null
 
@@ -37,7 +33,6 @@ export function MovieDetailsModal({
 
     console.log('🎬 Watchlist action triggered', { movieId: movie.id, isInWatchlist })
 
-    setActionLoading('watchlist')
     setIsLoading(true)
     try {
       if (isInWatchlist) {
@@ -52,39 +47,6 @@ export function MovieDetailsModal({
       toast.error('Failed to update watchlist. Please try again.')
     } finally {
       setIsLoading(false)
-      setActionLoading(null)
-    }
-  }
-
-  const handleRating = async (rating: number) => {
-    if (!movie) return
-
-    console.log('⭐ Rating triggered', { movieId: movie.id, rating })
-
-    setActionLoading('rating')
-    try {
-      setUserRating(rating)
-      await onRate?.(movie.id, true, rating)
-    } catch (error) {
-      console.error('❌ Rating failed:', error)
-      setUserRating(null)
-    } finally {
-      setActionLoading(null)
-    }
-  }
-
-  const handleLikeDislike = async (interested: boolean) => {
-    if (!movie) return
-
-    console.log('👍👎 Like/Dislike triggered', { movieId: movie.id, interested })
-
-    setActionLoading(interested ? 'like' : 'dislike')
-    try {
-      await onRate?.(movie.id, interested)
-    } catch (error) {
-      console.error('❌ Like/dislike failed:', error)
-    } finally {
-      setActionLoading(null)
     }
   }
 
@@ -121,14 +83,14 @@ export function MovieDetailsModal({
             </div>
 
             {/* Action Buttons */}
-            <div className="mt-4 space-y-3">
+            <div className="mt-4">
               <Button
                 onClick={handleWatchlistAction}
-                disabled={isLoading || actionLoading === 'watchlist'}
+                disabled={isLoading}
                 className="w-full"
                 variant={isInWatchlist ? 'outline' : 'default'}
               >
-                {actionLoading === 'watchlist' ? (
+                {isLoading ? (
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                 ) : isInWatchlist ? (
                   <>
@@ -142,69 +104,13 @@ export function MovieDetailsModal({
                   </>
                 )}
               </Button>
-
-              {/* Like/Dislike Buttons */}
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  className="flex-1 hover:border-green-300 hover:bg-green-50"
-                  onClick={() => handleLikeDislike(true)}
-                  disabled={actionLoading === 'like'}
-                >
-                  {actionLoading === 'like' ? (
-                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                  ) : (
-                    <Heart className="mr-2 h-4 w-4" />
-                  )}
-                  Like
-                </Button>
-                <Button
-                  variant="outline"
-                  className="flex-1 hover:border-red-300 hover:bg-red-50"
-                  onClick={() => handleLikeDislike(false)}
-                  disabled={actionLoading === 'dislike'}
-                >
-                  {actionLoading === 'dislike' ? (
-                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                  ) : (
-                    <Minus className="mr-2 h-4 w-4" />
-                  )}
-                  Pass
-                </Button>
-              </div>
-
-              {/* Rating Stars */}
-              <div className="text-center">
-                <p className="mb-2 text-sm text-gray-600">Rate this movie:</p>
-                <div className="flex justify-center space-x-1">
-                  {[1, 2, 3, 4, 5].map(rating => (
-                    <button
-                      key={rating}
-                      onClick={() => handleRating(rating)}
-                      disabled={actionLoading === 'rating'}
-                      className="p-1 transition-transform hover:scale-110 disabled:opacity-50"
-                    >
-                      <Star
-                        className={`h-5 w-5 ${
-                          userRating && rating <= userRating
-                            ? 'fill-yellow-400 text-yellow-400'
-                            : 'text-gray-300 hover:text-yellow-400'
-                        }`}
-                      />
-                    </button>
-                  ))}
-                </div>
-                {userRating && (
-                  <p className="mt-1 text-xs text-gray-600">You rated: {userRating} stars</p>
-                )}
-              </div>
             </div>
           </div>
 
           {/* Movie Details */}
-          <div className="space-y-6 md:col-span-2">
-            {/* Basic Info */}
-            <div className="flex flex-wrap gap-4 text-sm text-gray-600">
+          <div className="md:col-span-2">
+            {/* Movie Metadata */}
+            <div className="mb-4 flex flex-wrap items-center gap-4 text-sm text-gray-600">
               {movie.year && (
                 <div className="flex items-center gap-1">
                   <Calendar className="h-4 w-4" />
@@ -220,19 +126,19 @@ export function MovieDetailsModal({
               {movie.rating && (
                 <div className="flex items-center gap-1">
                   <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                  {movie.rating}/10 IMDb
+                  {movie.rating} IMDb
                 </div>
               )}
             </div>
 
             {/* Genres */}
             {genres.length > 0 && (
-              <div>
-                <h3 className="mb-2 font-semibold">Genres</h3>
+              <div className="mb-4">
+                <h3 className="mb-2 text-sm font-semibold text-gray-900">Genres</h3>
                 <div className="flex flex-wrap gap-2">
-                  {genres.map((genre: string) => (
+                  {genres.map(genre => (
                     <Badge key={genre} variant="secondary">
-                      {genre.trim()}
+                      {genre}
                     </Badge>
                   ))}
                 </div>
@@ -241,17 +147,17 @@ export function MovieDetailsModal({
 
             {/* Plot */}
             {movie.plot && (
-              <div>
-                <h3 className="mb-2 font-semibold">Plot</h3>
-                <p className="leading-relaxed text-gray-700">{movie.plot}</p>
+              <div className="mb-4">
+                <h3 className="mb-2 text-sm font-semibold text-gray-900">Plot</h3>
+                <p className="text-sm leading-relaxed text-gray-700">{movie.plot}</p>
               </div>
             )}
 
             {/* Director */}
-            {movie.director && (
-              <div>
-                <h3 className="mb-2 font-semibold">Director</h3>
-                <p className="text-gray-700">
+            {movie.director && movie.director.length > 0 && (
+              <div className="mb-4">
+                <h3 className="mb-2 text-sm font-semibold text-gray-900">Director</h3>
+                <p className="text-sm text-gray-700">
                   {Array.isArray(movie.director) ? movie.director.join(', ') : movie.director}
                 </p>
               </div>
@@ -259,45 +165,26 @@ export function MovieDetailsModal({
 
             {/* Cast */}
             {actors.length > 0 && (
-              <div>
-                <h3 className="mb-2 font-semibold">Cast</h3>
-                <div className="flex flex-wrap gap-2">
-                  {actors.slice(0, 6).map((actor, index) => (
-                    <Badge key={index} variant="outline">
-                      {actor.trim()}
-                    </Badge>
-                  ))}
-                  {actors.length > 6 && <Badge variant="outline">+{actors.length - 6} more</Badge>}
-                </div>
+              <div className="mb-4">
+                <h3 className="mb-2 text-sm font-semibold text-gray-900">Cast</h3>
+                <p className="text-sm text-gray-700">{actors.slice(0, 5).join(', ')}</p>
               </div>
             )}
 
-            {/* External Links */}
-            <div className="flex gap-3">
-              {movie.imdb_id && (
-                <Button variant="outline" size="sm" asChild>
-                  <a
-                    href={`https://www.imdb.com/title/${movie.imdb_id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <Play className="mr-2 h-4 w-4" />
-                    IMDb
-                  </a>
-                </Button>
+            {/* Additional Movie Info */}
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              {movie.omdb_id && (
+                <div>
+                  <h4 className="text-xs font-medium text-gray-500">OMDB ID</h4>
+                  <p className="text-sm text-gray-900">{movie.omdb_id}</p>
+                </div>
               )}
-              <Button variant="outline" size="sm" asChild>
-                <a
-                  href={`https://www.youtube.com/results?search_query=${encodeURIComponent(
-                    `${movie.title} ${movie.year} trailer`
-                  )}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Play className="mr-2 h-4 w-4" />
-                  Trailer
-                </a>
-              </Button>
+              {movie.imdb_id && (
+                <div>
+                  <h4 className="text-xs font-medium text-gray-500">IMDb ID</h4>
+                  <p className="text-sm text-gray-900">{movie.imdb_id}</p>
+                </div>
+              )}
             </div>
           </div>
         </div>

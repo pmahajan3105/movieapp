@@ -1,11 +1,9 @@
 import Groq from 'groq-sdk'
 
-// Initialize Groq client conditionally
-export const groq = process.env.GROQ_API_KEY
-  ? new Groq({
-      apiKey: process.env.GROQ_API_KEY,
-    })
-  : null
+// Initialize Groq client
+export const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY,
+})
 
 // Groq configuration
 export const groqConfig = {
