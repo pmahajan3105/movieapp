@@ -3,15 +3,12 @@ import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const movieId = params.id
+    const { id: movieId } = await params
     const { searchParams } = new URL(request.url)
     const limit = parseInt(searchParams.get('limit') || '6')
 
@@ -33,11 +30,12 @@ export async function GET(
 
     // Find similar movies based on:
     // 1. Shared genres (highest priority)
-    // 2. Same director (medium priority) 
+    // 2. Same director (medium priority)
     // 3. Similar year range (lowest priority)
     let query = supabase
       .from('movies')
-      .select(`
+      .select(
+        `
         id,
         title,
         year,
@@ -48,7 +46,8 @@ export async function GET(
         rating,
         runtime,
         created_at
-      `)
+      `
+      )
       .neq('id', movieId) // Exclude the current movie
 
     // Find movies with overlapping genres
@@ -68,26 +67,28 @@ export async function GET(
     // Score and sort the movies based on similarity
     const scoredMovies = (similarMovies || []).map(movie => {
       let score = 0
-      
+
       // Genre matching (0-3 points)
       if (movie.genre && currentMovie.genre) {
         const sharedGenres = movie.genre.filter((g: string) => currentMovie.genre.includes(g))
         score += sharedGenres.length
       }
-      
+
       // Director matching (2 points)
       if (movie.director && currentMovie.director) {
-        const sharedDirectors = movie.director.filter((d: string) => currentMovie.director.includes(d))
+        const sharedDirectors = movie.director.filter((d: string) =>
+          currentMovie.director.includes(d)
+        )
         if (sharedDirectors.length > 0) score += 2
       }
-      
+
       // Year proximity (0-1 points)
       if (movie.year && currentMovie.year) {
         const yearDiff = Math.abs(movie.year - currentMovie.year)
         if (yearDiff <= 5) score += 1
         else if (yearDiff <= 10) score += 0.5
       }
-      
+
       // Rating bonus (higher rated movies get slight boost)
       if (movie.rating) {
         score += movie.rating / 10
@@ -116,4 +117,4 @@ export async function GET(
     console.error('API error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-} 
+}

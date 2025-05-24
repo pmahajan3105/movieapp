@@ -144,8 +144,8 @@ export const QuickRateCard: React.FC<QuickRateCardProps> = ({ movie, onRate, cla
         {/* Runtime and additional info */}
         <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
           {movie.runtime && <span>{movie.runtime} minutes</span>}
-          {movie.cast && movie.cast.length > 0 && (
-            <span className="ml-2 truncate">{movie.cast.slice(0, 2).join(', ')}</span>
+          {movie.actors && movie.actors.length > 0 && (
+            <span className="ml-2 truncate">{movie.actors.slice(0, 2).join(', ')}</span>
           )}
         </div>
       </div>

@@ -35,7 +35,7 @@ export type Database = {
           genre: string[]
           plot: string
           poster_url: string
-          imdb_rating: number
+          rating: number
           runtime: number
           director: string
           actors: string[]
@@ -54,7 +54,7 @@ export type Database = {
           genre: string[]
           plot: string
           poster_url: string
-          imdb_rating: number
+          rating: number
           runtime: number
           director: string
           actors: string[]
@@ -73,7 +73,7 @@ export type Database = {
           genre?: string[]
           plot?: string
           poster_url?: string
-          imdb_rating?: number
+          rating?: number
           runtime?: number
           director?: string
           actors?: string[]

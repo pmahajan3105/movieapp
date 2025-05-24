@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { createServerClient } from '@/lib/supabase/client'
 
 export async function GET(request: NextRequest) {
   try {
+    const supabase = await createServerClient()
     const { searchParams } = new URL(request.url)
     const limit = parseInt(searchParams.get('limit') || '20')
     const genre = searchParams.get('genre')
@@ -44,7 +40,7 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error('Database error:', error)
-      return NextResponse.json({ error: 'Failed to fetch movies' }, { status: 500 })
+      return NextResponse.json({ success: false, error: 'Failed to fetch movies' }, { status: 500 })
     }
 
     return NextResponse.json({
@@ -59,17 +55,18 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error('API error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
 }
 
 // Get single movie by ID
 export async function POST(request: NextRequest) {
   try {
+    const supabase = await createServerClient()
     const { movie_id } = await request.json()
 
     if (!movie_id) {
-      return NextResponse.json({ error: 'Movie ID is required' }, { status: 400 })
+      return NextResponse.json({ success: false, error: 'Movie ID is required' }, { status: 400 })
     }
 
     const { data: movie, error } = await supabase
@@ -96,7 +93,7 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('Database error:', error)
-      return NextResponse.json({ error: 'Movie not found' }, { status: 404 })
+      return NextResponse.json({ success: false, error: 'Movie not found' }, { status: 404 })
     }
 
     return NextResponse.json({
@@ -105,6 +102,6 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error('API error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -5,6 +5,7 @@ export interface Movie {
   year?: number
   genre?: string[]
   director?: string[]
+  actors?: string[]
   plot?: string
   poster_url?: string
   rating?: number
@@ -86,6 +87,34 @@ export interface ChatBarProps {
   isLoading?: boolean
   placeholder?: string
   disabled?: boolean
+  className?: string
+}
+
+export interface CategoryRowProps {
+  category: {
+    category_name: string
+    ai_description: string
+    generated_date: string
+  }
+  movies: Movie[]
+  onRate: (movieId: string, interested: boolean) => void
+  className?: string
+}
+
+export interface MovieGridCardProps {
+  movie: Movie
+  userRating?: Rating
+  onRate: (movieId: string, interested: boolean, rating?: number) => void
+  onAddToWatchlist: (movieId: string) => void
+  size?: 'sm' | 'md' | 'lg'
+  showRating?: boolean
+  className?: string
+}
+
+export interface QuickRateCardProps {
+  movie: Movie
+  onRate: (interested: boolean) => void
+  className?: string
 }
 
 // API Response Types

@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { Movie, WatchlistItem } from '@/types'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from 'react-hot-toast'
+import Image from 'next/image'
 
 export const dynamic = 'force-dynamic'
 
@@ -142,7 +143,11 @@ export default function MovieDetailPage() {
   }
 
   // Update watchlist item
-  const handleUpdateWatchlist = async (updates: { watched?: boolean; rating?: number; notes?: string }) => {
+  const handleUpdateWatchlist = async (updates: {
+    watched?: boolean
+    rating?: number
+    notes?: string
+  }) => {
     if (!watchlistItem) return
 
     try {
@@ -177,23 +182,25 @@ export default function MovieDetailPage() {
   }
 
   // Star rating component
-  const StarRating = ({ rating, onRatingChange, readonly = false }: { 
-    rating: number; 
-    onRatingChange?: (rating: number) => void;
-    readonly?: boolean;
+  const StarRating = ({
+    rating,
+    onRatingChange,
+    readonly = false,
+  }: {
+    rating: number
+    onRatingChange?: (rating: number) => void
+    readonly?: boolean
   }) => {
     return (
       <div className="flex space-x-1">
-        {[1, 2, 3, 4, 5].map((star) => (
+        {[1, 2, 3, 4, 5].map(star => (
           <button
             key={star}
             onClick={() => !readonly && onRatingChange?.(star)}
             disabled={readonly}
             className={`text-2xl ${
-              star <= rating 
-                ? 'text-yellow-400' 
-                : 'text-gray-300'
-            } ${!readonly ? 'hover:text-yellow-400 cursor-pointer' : 'cursor-default'} transition-colors`}
+              star <= rating ? 'text-yellow-400' : 'text-gray-300'
+            } ${!readonly ? 'cursor-pointer hover:text-yellow-400' : 'cursor-default'} transition-colors`}
           >
             ★
           </button>
@@ -212,19 +219,19 @@ export default function MovieDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="flex min-h-96 items-center justify-center">
+        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-blue-600"></div>
       </div>
     )
   }
 
   if (!movie) {
     return (
-      <div className="text-center py-12">
-        <h1 className="text-2xl font-bold text-gray-900 mb-4">Movie Not Found</h1>
+      <div className="py-12 text-center">
+        <h1 className="mb-4 text-2xl font-bold text-gray-900">Movie Not Found</h1>
         <button
           onClick={() => router.push('/dashboard')}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          className="rounded-lg bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700"
         >
           Back to Dashboard
         </button>
@@ -233,12 +240,12 @@ export default function MovieDetailPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="mx-auto max-w-6xl">
       {/* Breadcrumb Navigation */}
       <nav className="mb-6">
         <button
           onClick={() => router.push('/dashboard')}
-          className="text-blue-600 hover:text-blue-800 flex items-center space-x-2"
+          className="flex items-center space-x-2 text-blue-600 hover:text-blue-800"
         >
           <span>←</span>
           <span>Back to Dashboard</span>
@@ -246,18 +253,22 @@ export default function MovieDetailPage() {
       </nav>
 
       {/* Movie Details Header */}
-      <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-        <div className="flex flex-col md:flex-row gap-6">
+      <div className="mb-6 rounded-lg bg-white p-6 shadow-lg">
+        <div className="flex flex-col gap-6 md:flex-row">
           {/* Movie Poster */}
           <div className="flex-shrink-0">
             {movie.poster_url ? (
-              <img
-                src={movie.poster_url}
-                alt={movie.title}
-                className="w-64 h-96 object-cover rounded-lg shadow-md"
-              />
+              <div className="relative h-96 w-64">
+                <Image
+                  src={movie.poster_url}
+                  alt={movie.title}
+                  fill
+                  className="rounded-lg object-cover shadow-md"
+                  sizes="(max-width: 768px) 100vw, 256px"
+                />
+              </div>
             ) : (
-              <div className="w-64 h-96 bg-gray-200 rounded-lg flex items-center justify-center">
+              <div className="flex h-96 w-64 items-center justify-center rounded-lg bg-gray-200">
                 <span className="text-gray-500">No Poster</span>
               </div>
             )}
@@ -265,9 +276,9 @@ export default function MovieDetailPage() {
 
           {/* Movie Info */}
           <div className="flex-1">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">{movie.title}</h1>
-            
-            <div className="flex flex-wrap items-center gap-4 text-gray-600 mb-4">
+            <h1 className="mb-2 text-3xl font-bold text-gray-900">{movie.title}</h1>
+
+            <div className="mb-4 flex flex-wrap items-center gap-4 text-gray-600">
               {movie.year && <span>{movie.year}</span>}
               {movie.runtime && <span>{movie.runtime} min</span>}
               {movie.rating && (
@@ -282,10 +293,10 @@ export default function MovieDetailPage() {
             {movie.genre && movie.genre.length > 0 && (
               <div className="mb-4">
                 <div className="flex flex-wrap gap-2">
-                  {movie.genre.map((genre) => (
+                  {movie.genre.map(genre => (
                     <span
                       key={genre}
-                      className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full"
+                      className="rounded-full bg-blue-100 px-3 py-1 text-sm text-blue-800"
                     >
                       {genre}
                     </span>
@@ -314,8 +325,8 @@ export default function MovieDetailPage() {
             {/* Plot */}
             {movie.plot && (
               <div className="mb-6">
-                <h3 className="font-semibold text-gray-900 mb-2">Plot</h3>
-                <p className="text-gray-700 leading-relaxed">{movie.plot}</p>
+                <h3 className="mb-2 font-semibold text-gray-900">Plot</h3>
+                <p className="leading-relaxed text-gray-700">{movie.plot}</p>
               </div>
             )}
 
@@ -328,7 +339,7 @@ export default function MovieDetailPage() {
                     <button
                       onClick={handleAddToWatchlist}
                       disabled={addingToWatchlist}
-                      className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                      className="rounded-lg bg-blue-600 px-6 py-2 text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
                     >
                       {addingToWatchlist ? 'Adding...' : '+ Add to Watchlist'}
                     </button>
@@ -336,7 +347,7 @@ export default function MovieDetailPage() {
                     <div className="flex items-center space-x-4">
                       <button
                         onClick={() => handleUpdateWatchlist({ watched: !watchlistItem.watched })}
-                        className={`px-6 py-2 rounded-lg transition-colors ${
+                        className={`rounded-lg px-6 py-2 transition-colors ${
                           watchlistItem.watched
                             ? 'bg-green-600 text-white hover:bg-green-700'
                             : 'bg-gray-600 text-white hover:bg-gray-700'
@@ -344,10 +355,10 @@ export default function MovieDetailPage() {
                       >
                         {watchlistItem.watched ? '✓ Watched' : 'Mark as Watched'}
                       </button>
-                      
+
                       <button
                         onClick={handleRemoveFromWatchlist}
-                        className="text-red-600 hover:text-red-800 px-4 py-2 border border-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                        className="rounded-lg border border-red-600 px-4 py-2 text-red-600 transition-colors hover:bg-red-50 hover:text-red-800"
                       >
                         Remove
                       </button>
@@ -361,7 +372,7 @@ export default function MovieDetailPage() {
                 href={getTrailerUrl(movie)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 transition-colors"
+                className="rounded-lg bg-red-600 px-6 py-2 text-white transition-colors hover:bg-red-700"
               >
                 🎬 Watch Trailer
               </a>
@@ -371,17 +382,15 @@ export default function MovieDetailPage() {
 
         {/* User Rating and Notes (if in watchlist) */}
         {user && watchlistItem && (
-          <div className="mt-6 pt-6 border-t border-gray-200">
-            <h3 className="font-semibold text-gray-900 mb-4">Your Review</h3>
-            
+          <div className="mt-6 border-t border-gray-200 pt-6">
+            <h3 className="mb-4 font-semibold text-gray-900">Your Review</h3>
+
             {/* Rating */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Your Rating
-              </label>
+              <label className="mb-2 block text-sm font-medium text-gray-700">Your Rating</label>
               <StarRating
                 rating={userRating}
-                onRatingChange={(rating) => {
+                onRatingChange={rating => {
                   setUserRating(rating)
                   handleUpdateWatchlist({ rating })
                 }}
@@ -390,19 +399,17 @@ export default function MovieDetailPage() {
 
             {/* Notes */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Your Notes
-              </label>
+              <label className="mb-2 block text-sm font-medium text-gray-700">Your Notes</label>
               {!showNotesForm ? (
                 <div>
                   {userNotes ? (
-                    <p className="text-gray-700 bg-gray-50 p-3 rounded-lg mb-2">{userNotes}</p>
+                    <p className="mb-2 rounded-lg bg-gray-50 p-3 text-gray-700">{userNotes}</p>
                   ) : (
-                    <p className="text-gray-500 italic mb-2">No notes added yet</p>
+                    <p className="mb-2 italic text-gray-500">No notes added yet</p>
                   )}
                   <button
                     onClick={() => setShowNotesForm(true)}
-                    className="text-blue-600 hover:text-blue-800 text-sm"
+                    className="text-sm text-blue-600 hover:text-blue-800"
                   >
                     {userNotes ? 'Edit Notes' : 'Add Notes'}
                   </button>
@@ -411,9 +418,9 @@ export default function MovieDetailPage() {
                 <div>
                   <textarea
                     value={userNotes}
-                    onChange={(e) => setUserNotes(e.target.value)}
+                    onChange={e => setUserNotes(e.target.value)}
                     placeholder="Add your thoughts about this movie..."
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-2"
+                    className="mb-2 w-full rounded-lg border border-gray-300 p-3 focus:border-transparent focus:ring-2 focus:ring-blue-500"
                     rows={3}
                   />
                   <div className="flex space-x-2">
@@ -422,7 +429,7 @@ export default function MovieDetailPage() {
                         handleUpdateWatchlist({ notes: userNotes })
                         setShowNotesForm(false)
                       }}
-                      className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                      className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white transition-colors hover:bg-blue-700"
                     >
                       Save
                     </button>
@@ -431,7 +438,7 @@ export default function MovieDetailPage() {
                         setUserNotes(watchlistItem.notes || '')
                         setShowNotesForm(false)
                       }}
-                      className="text-gray-600 hover:text-gray-800 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                      className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-800"
                     >
                       Cancel
                     </button>
@@ -445,50 +452,56 @@ export default function MovieDetailPage() {
 
       {/* Similar Movies Section */}
       {similarMovies.length > 0 && (
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Similar Movies</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {similarMovies.map((similarMovie) => (
+        <div className="rounded-lg bg-white p-6 shadow-lg">
+          <h2 className="mb-6 text-2xl font-bold text-gray-900">Similar Movies</h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+            {similarMovies.map(similarMovie => (
               <div
                 key={similarMovie.id}
                 onClick={() => router.push(`/dashboard/movie/${similarMovie.id}`)}
-                className="cursor-pointer group"
+                className="group cursor-pointer"
               >
                 <div className="relative">
                   {similarMovie.poster_url ? (
-                    <img
-                      src={similarMovie.poster_url}
-                      alt={similarMovie.title}
-                      className="w-full h-64 object-cover rounded-lg shadow-md group-hover:shadow-lg transition-shadow"
-                    />
+                    <div className="relative h-64 w-full">
+                      <Image
+                        src={similarMovie.poster_url}
+                        alt={similarMovie.title}
+                        fill
+                        className="rounded-lg object-cover shadow-md transition-shadow group-hover:shadow-lg"
+                        sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 200px"
+                      />
+                    </div>
                   ) : (
-                    <div className="w-full h-64 bg-gray-200 rounded-lg flex items-center justify-center group-hover:bg-gray-300 transition-colors">
-                      <span className="text-gray-500 text-sm">No Poster</span>
+                    <div className="flex h-64 w-full items-center justify-center rounded-lg bg-gray-200 transition-colors group-hover:bg-gray-300">
+                      <span className="text-sm text-gray-500">No Poster</span>
                     </div>
                   )}
-                  
+
                   {/* Overlay on hover */}
-                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 rounded-lg transition-all duration-200 flex items-center justify-center">
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                      <span className="text-white font-semibold bg-black bg-opacity-75 px-3 py-1 rounded-full text-sm">
+                  <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black bg-opacity-0 transition-all duration-200 group-hover:bg-opacity-20">
+                    <div className="opacity-0 transition-opacity group-hover:opacity-100">
+                      <span className="rounded-full bg-black bg-opacity-75 px-3 py-1 text-sm font-semibold text-white">
                         View Details
                       </span>
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="mt-2">
-                  <h3 className="font-medium text-gray-900 text-sm line-clamp-2 group-hover:text-blue-600 transition-colors">
+                  <h3 className="line-clamp-2 text-sm font-medium text-gray-900 transition-colors group-hover:text-blue-600">
                     {similarMovie.title}
                   </h3>
-                  <div className="flex items-center justify-between mt-1">
+                  <div className="mt-1 flex items-center justify-between">
                     {similarMovie.year && (
-                      <span className="text-gray-500 text-xs">{similarMovie.year}</span>
+                      <span className="text-xs text-gray-500">{similarMovie.year}</span>
                     )}
                     {similarMovie.rating && (
                       <div className="flex items-center space-x-1">
-                        <span className="text-yellow-400 text-xs">★</span>
-                        <span className="text-gray-600 text-xs">{similarMovie.rating.toFixed(1)}</span>
+                        <span className="text-xs text-yellow-400">★</span>
+                        <span className="text-xs text-gray-600">
+                          {similarMovie.rating.toFixed(1)}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -500,4 +513,4 @@ export default function MovieDetailPage() {
       )}
     </div>
   )
-} 
+}

@@ -7,10 +7,8 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 const navigation = [
-  { name: 'Discover', href: '/dashboard/swipe' },
-  { name: 'Watchlist', href: '/dashboard/watchlist' },
-  { name: 'Mood Search', href: '/dashboard/mood' },
-  { name: 'Preferences', href: '/dashboard/preferences' },
+  { name: 'Dashboard', href: '/dashboard' },
+  { name: 'Watchlist', href: '/watchlist' },
 ]
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

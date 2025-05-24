@@ -3,15 +3,12 @@ import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const movieId = params.id
+    const { id: movieId } = await params
 
     if (!movieId) {
       return NextResponse.json({ error: 'Movie ID is required' }, { status: 400 })
@@ -20,13 +17,13 @@ export async function GET(
     // Fetch the movie details
     const { data: movie, error } = await supabase
       .from('movies')
-      .select(`
+      .select(
+        `
         id,
         title,
         year,
         genre,
         director,
-        cast,
         plot,
         poster_url,
         rating,
@@ -34,9 +31,10 @@ export async function GET(
         omdb_id,
         imdb_id,
         tmdb_id,
-        metadata,
-        created_at
-      `)
+        created_at,
+        updated_at
+      `
+      )
       .eq('id', movieId)
       .single()
 
@@ -56,4 +54,4 @@ export async function GET(
     console.error('API error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-} 
+}

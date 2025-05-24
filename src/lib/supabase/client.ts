@@ -1,8 +1,5 @@
-import {
-  createClientComponentClient,
-  createServerComponentClient,
-} from '@supabase/auth-helpers-nextjs'
-import { createServerActionClient } from '@supabase/auth-helpers-nextjs'
+import { createBrowserClient } from '@supabase/ssr'
+import { createServerClient as createSSRServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { cache } from 'react'
 import { Database } from './types'
@@ -19,20 +16,47 @@ import type {
   RecommendationQueueInsert,
 } from './types'
 
-// Singleton client for client components
-export const supabase = createClientComponentClient<Database>()
-
-// Server client for server components
-export const createServerClient = cache(() => {
-  const cookieStore = cookies()
-  return createServerComponentClient<Database>({ cookies: () => cookieStore })
-})
-
-// Server action client
-export const createActionClient = () => {
-  const cookieStore = cookies()
-  return createServerActionClient<Database>({ cookies: () => cookieStore })
+// Browser client for client components
+export function createBrowserSupabaseClient() {
+  return createBrowserClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
 }
+
+// Singleton client for client components
+export const supabase = createBrowserSupabaseClient()
+
+// Server client for server components and API routes
+export const createServerClient = cache(async () => {
+  const cookieStore = await cookies()
+
+  return createSSRServerClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(
+          cookiesToSet: Array<{ name: string; value: string; options?: Record<string, unknown> }>
+        ) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              cookieStore.set(name, value, options)
+            })
+          } catch (error) {
+            // The `setAll` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing
+            // user sessions.
+            console.warn('Failed to set cookies in server component:', error)
+          }
+        },
+      },
+    }
+  )
+})
 
 // ============================================================================
 // AUTH HELPERS

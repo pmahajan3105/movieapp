@@ -71,11 +71,11 @@ class Logger {
 
     // In production, you might want to send to external logging service
     if (isProduction() && (level === 'error' || level === 'warn')) {
-      this.sendToExternalLogger(entry)
+      this.sendToExternalLogger()
     }
   }
 
-  private async sendToExternalLogger(_entry: LogEntry): Promise<void> {
+  private async sendToExternalLogger(): Promise<void> {
     // Placeholder for external logging service (e.g., Sentry, LogRocket, etc.)
     // Example:
     // await fetch('/api/logs', {

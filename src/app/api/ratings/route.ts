@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@/lib/supabase/client'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
-
-// Get user's ratings
-export async function GET(request: NextRequest) {
+// Get user's ratings (like/dislike only)
+export async function GET() {
   try {
-    const { searchParams } = new URL(request.url)
-    const user_id = searchParams.get('user_id')
+    const supabase = await createServerClient()
 
-    if (!user_id) {
-      return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
+    // Get current user
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
     const { data: ratings, error } = await supabase
@@ -22,7 +22,6 @@ export async function GET(request: NextRequest) {
         `
         id,
         movie_id,
-        rating,
         interested,
         interaction_type,
         rated_at,
@@ -36,12 +35,15 @@ export async function GET(request: NextRequest) {
         )
       `
       )
-      .eq('user_id', user_id)
+      .eq('user_id', user.id)
       .order('rated_at', { ascending: false })
 
     if (error) {
       console.error('Database error:', error)
-      return NextResponse.json({ error: 'Failed to fetch ratings' }, { status: 500 })
+      return NextResponse.json(
+        { success: false, error: 'Failed to fetch ratings' },
+        { status: 500 }
+      )
     }
 
     return NextResponse.json({
@@ -50,28 +52,39 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error('API error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
 }
 
-// Add or update a rating
+// Add or update a like/dislike rating
 export async function POST(request: NextRequest) {
   try {
-    const { user_id, movie_id, rating, interested } = await request.json()
+    const supabase = await createServerClient()
 
-    if (!user_id || !movie_id || interested === undefined) {
+    // Get current user
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { movie_id, interested } = await request.json()
+
+    if (!movie_id || interested === undefined) {
       return NextResponse.json(
-        { error: 'User ID, Movie ID, and interested status are required' },
+        { success: false, error: 'Movie ID and interested status are required' },
         { status: 400 }
       )
     }
 
     const ratingData = {
-      user_id,
+      user_id: user.id,
       movie_id,
-      rating: rating || null,
       interested,
-      interaction_type: rating ? 'quick_rate' : interested ? 'like' : 'dislike',
+      interaction_type: interested ? 'like' : 'dislike',
       source: 'api',
     }
 
@@ -85,7 +98,7 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('Database error:', error)
-      return NextResponse.json({ error: 'Failed to save rating' }, { status: 500 })
+      return NextResponse.json({ success: false, error: 'Failed to save rating' }, { status: 500 })
     }
 
     return NextResponse.json({
@@ -95,28 +108,43 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error('API error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
 }
 
 // Delete a rating
 export async function DELETE(request: NextRequest) {
   try {
-    const { user_id, movie_id } = await request.json()
+    const supabase = await createServerClient()
 
-    if (!user_id || !movie_id) {
-      return NextResponse.json({ error: 'User ID and Movie ID are required' }, { status: 400 })
+    // Get current user
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { movie_id } = await request.json()
+
+    if (!movie_id) {
+      return NextResponse.json({ success: false, error: 'Movie ID is required' }, { status: 400 })
     }
 
     const { error } = await supabase
       .from('ratings')
       .delete()
-      .eq('user_id', user_id)
+      .eq('user_id', user.id)
       .eq('movie_id', movie_id)
 
     if (error) {
       console.error('Database error:', error)
-      return NextResponse.json({ error: 'Failed to delete rating' }, { status: 500 })
+      return NextResponse.json(
+        { success: false, error: 'Failed to delete rating' },
+        { status: 500 }
+      )
     }
 
     return NextResponse.json({
@@ -125,6 +153,6 @@ export async function DELETE(request: NextRequest) {
     })
   } catch (error) {
     console.error('API error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
 }

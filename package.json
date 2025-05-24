@@ -20,9 +20,11 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",
+    "@radix-ui/react-dialog": "^1.1.14",
     "@radix-ui/react-label": "^2.1.7",
     "@radix-ui/react-slot": "^1.2.3",
     "@supabase/auth-helpers-nextjs": "^0.10.0",
+    "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.49.8",
     "@tanstack/react-query": "^5.76.2",
     "@types/uuid": "^10.0.0",
@@ -39,6 +41,7 @@
     "react-hot-toast": "^2.5.2",
     "react-swipeable": "^7.0.2",
     "tailwind-merge": "^3.3.0",
+    "tailwindcss-animate": "^1.0.7",
     "uuid": "^11.1.0",
     "zod": "^3.25.23"
   },

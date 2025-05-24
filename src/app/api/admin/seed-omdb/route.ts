@@ -3,10 +3,33 @@ import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-// Type definitions for OMDB API response
+// Popular movie titles to add
+const ADDITIONAL_MOVIES = [
+  'Forrest Gump',
+  'The Matrix',
+  'Goodfellas',
+  'Avatar',
+  'Iron Man',
+  'Avengers: Endgame',
+  'Parasite',
+  'Joker',
+  'Spider-Man: No Way Home',
+  'Top Gun: Maverick',
+  'Dune',
+  'The Batman',
+  'Oppenheimer',
+  'Barbie',
+  'Everything Everywhere All at Once',
+  'John Wick',
+  'Blade Runner 2049',
+  'Interstellar',
+  'Mad Max: Fury Road',
+  'Guardians of the Galaxy',
+]
+
 interface OMDBMovieResponse {
   Title: string
   Year: string
@@ -18,96 +41,8 @@ interface OMDBMovieResponse {
   Runtime: string
   imdbID: string
   Response: string
+  Error?: string
 }
-
-// Type for our movie database record
-interface MovieRecord {
-  title: string
-  year: number | null
-  genre: string[]
-  director: string[]
-  plot: string | null
-  poster_url: string | null
-  rating: number
-  runtime: number
-  omdb_id: string
-  imdb_id: string
-}
-
-// Popular movie titles to seed from OMDB
-const POPULAR_MOVIES = [
-  // Classic Films
-  'The Shawshank Redemption',
-  'The Godfather',
-  'The Dark Knight',
-  'Pulp Fiction',
-  'Forrest Gump',
-  'Inception',
-  'The Matrix',
-  'Goodfellas',
-  'The Godfather Part II',
-  'The Lord of the Rings: The Return of the King',
-
-  // Modern Hits
-  'Parasite',
-  'Avengers: Endgame',
-  'Spider-Man: No Way Home',
-  'Top Gun: Maverick',
-  'Dune',
-  'The Batman',
-  'Everything Everywhere All at Once',
-  'Oppenheimer',
-  'Barbie',
-  'John Wick',
-
-  // Sci-Fi & Fantasy
-  'Star Wars',
-  'Blade Runner 2049',
-  'Interstellar',
-  'Mad Max: Fury Road',
-  'The Lord of the Rings: The Fellowship of the Ring',
-  "Harry Potter and the Philosopher's Stone",
-  'Guardians of the Galaxy',
-  'Avatar',
-  'Iron Man',
-  'Thor: Ragnarok',
-
-  // Drama & Thriller
-  'Joker',
-  'Once Upon a Time in Hollywood',
-  'The Departed',
-  'No Country for Old Men',
-  'There Will Be Blood',
-  'Whiplash',
-  'La La Land',
-  'The Social Network',
-  'Gone Girl',
-  'Zodiac',
-
-  // Comedy & Animation
-  'The Grand Budapest Hotel',
-  'Knives Out',
-  'Toy Story',
-  'Finding Nemo',
-  'The Incredibles',
-  'Spider-Man: Into the Spider-Verse',
-  'Soul',
-  'WALL-E',
-  'Up',
-  'Inside Out',
-
-  // Action & Adventure
-  'Casino Royale',
-  'Mission: Impossible - Fallout',
-  'The Bourne Identity',
-  'Heat',
-  'Terminator 2: Judgment Day',
-  'Aliens',
-  'Die Hard',
-  'Seven',
-  'Fight Club',
-  'The Prestige',
-]
 
 async function fetchMovieFromOMDB(title: string): Promise<OMDBMovieResponse | null> {
   const OMDB_API_KEY = process.env.OMDB_API_KEY
@@ -134,16 +69,12 @@ async function fetchMovieFromOMDB(title: string): Promise<OMDBMovieResponse | nu
   return data
 }
 
-function transformOMDBToMovie(omdbData: OMDBMovieResponse): MovieRecord {
-  // Clean up the genre array
+function transformOMDBToMovie(omdbData: OMDBMovieResponse) {
   const genres = omdbData.Genre ? omdbData.Genre.split(', ').map((g: string) => g.trim()) : []
-
-  // Clean up director array
   const directors = omdbData.Director
     ? omdbData.Director.split(', ').map((d: string) => d.trim())
     : []
 
-  // Convert runtime to minutes
   let runtime = 0
   if (omdbData.Runtime && omdbData.Runtime !== 'N/A') {
     const match = omdbData.Runtime.match(/(\d+)/)
@@ -152,7 +83,6 @@ function transformOMDBToMovie(omdbData: OMDBMovieResponse): MovieRecord {
     }
   }
 
-  // Convert rating to decimal
   let rating = 0
   if (omdbData.imdbRating && omdbData.imdbRating !== 'N/A') {
     rating = parseFloat(omdbData.imdbRating)
@@ -174,43 +104,32 @@ function transformOMDBToMovie(omdbData: OMDBMovieResponse): MovieRecord {
 
 export async function POST() {
   try {
-    // Check if movies already exist
-    const { data: existingMovies, error: checkError } = await supabase
-      .from('movies')
-      .select('id')
-      .limit(1)
-
-    if (checkError) {
-      console.error('Database check error:', checkError)
-      return NextResponse.json(
-        {
-          error: 'Failed to check existing movies',
-          details: checkError,
-        },
-        { status: 500 }
-      )
-    }
-
-    if (existingMovies && existingMovies.length > 0) {
-      return NextResponse.json({
-        success: true,
-        message: 'Movies already exist in database',
-        count: existingMovies.length,
-      })
-    }
-
-    console.log('Starting movie seeding from OMDB...')
+    console.log('Starting OMDB movie seeding...')
 
     const movies = []
     let successCount = 0
     let errorCount = 0
+    let skippedCount = 0
 
-    // Fetch movies from OMDB with delay to respect rate limits
-    for (let i = 0; i < POPULAR_MOVIES.length; i++) {
-      const title = POPULAR_MOVIES[i]
+    // Fetch movies from OMDB
+    for (let i = 0; i < ADDITIONAL_MOVIES.length; i++) {
+      const title = ADDITIONAL_MOVIES[i]
 
       try {
-        console.log(`Fetching: ${title} (${i + 1}/${POPULAR_MOVIES.length})`)
+        console.log(`Fetching: ${title} (${i + 1}/${ADDITIONAL_MOVIES.length})`)
+
+        // Check if movie already exists
+        const { data: existing } = await supabase
+          .from('movies')
+          .select('id')
+          .ilike('title', title)
+          .limit(1)
+
+        if (existing && existing.length > 0) {
+          console.log(`Skipping ${title} - already exists`)
+          skippedCount++
+          continue
+        }
 
         const omdbData = await fetchMovieFromOMDB(title)
 
@@ -222,9 +141,9 @@ export async function POST() {
           errorCount++
         }
 
-        // Add delay to respect OMDB rate limits (1000 requests per day)
-        if (i < POPULAR_MOVIES.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 100))
+        // Add delay to respect OMDB rate limits
+        if (i < ADDITIONAL_MOVIES.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 200))
         }
       } catch (error) {
         console.error(`Error fetching ${title}:`, error)
@@ -232,16 +151,18 @@ export async function POST() {
       }
     }
 
-    console.log(`Fetched ${movies.length} movies from OMDB`)
+    console.log(`Fetched ${movies.length} new movies from OMDB`)
 
     if (movies.length === 0) {
-      return NextResponse.json(
-        {
-          error: 'No movies could be fetched from OMDB',
-          details: 'Check OMDB API key and connection',
-        },
-        { status: 500 }
-      )
+      return NextResponse.json({
+        success: true,
+        message: 'No new movies to add',
+        inserted: 0,
+        successful_fetches: successCount,
+        failed_fetches: errorCount,
+        skipped: skippedCount,
+        total_attempted: ADDITIONAL_MOVIES.length,
+      })
     }
 
     // Insert movies into database
@@ -266,7 +187,8 @@ export async function POST() {
       inserted: data.length,
       successful_fetches: successCount,
       failed_fetches: errorCount,
-      total_attempted: POPULAR_MOVIES.length,
+      skipped: skippedCount,
+      total_attempted: ADDITIONAL_MOVIES.length,
     })
   } catch (error) {
     console.error('Seeding error:', error)

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React from 'react'
 import Image from 'next/image'
 import { Heart, Plus, Star, ThumbsUp, ThumbsDown } from 'lucide-react'
 import { MovieGridCardProps } from '@/types'
@@ -13,12 +13,8 @@ export const MovieGridCard: React.FC<MovieGridCardProps> = ({
   onRate,
   onAddToWatchlist,
   size = 'md',
-  showRating = true,
   className = '',
 }) => {
-  const [isRating, setIsRating] = useState(false)
-  const [selectedRating, setSelectedRating] = useState<number | null>(null)
-
   const sizeClasses = {
     sm: 'w-32',
     md: 'w-40',
@@ -28,64 +24,16 @@ export const MovieGridCard: React.FC<MovieGridCardProps> = ({
   const posterAspectRatio = 'aspect-[3/4]'
 
   const handleLike = () => {
-    if (selectedRating) {
-      onRate(movie.id, true, selectedRating)
-    } else {
-      onRate(movie.id, true)
-    }
-    setIsRating(false)
-    setSelectedRating(null)
+    onRate(movie.id, true)
   }
 
   const handleDislike = () => {
     onRate(movie.id, false)
-    setIsRating(false)
-    setSelectedRating(null)
   }
 
   const handleAddToWatchlist = () => {
     onAddToWatchlist(movie.id)
   }
-
-  const renderStarRating = () => (
-    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 p-2">
-      <div className="mb-2 text-center text-xs text-white">Rate this movie</div>
-      <div className="mb-3 flex gap-1">
-        {[1, 2, 3, 4, 5].map(star => (
-          <button
-            key={star}
-            onClick={() => setSelectedRating(star)}
-            className={cn(
-              'rounded p-1 transition-colors',
-              selectedRating && star <= selectedRating
-                ? 'text-yellow-400'
-                : 'text-gray-400 hover:text-yellow-300'
-            )}
-          >
-            <Star className="h-3 w-3 fill-current" />
-          </button>
-        ))}
-      </div>
-      <div className="flex gap-1">
-        <Button
-          size="sm"
-          onClick={handleLike}
-          disabled={!selectedRating}
-          className="h-auto bg-green-600 px-2 py-1 text-xs hover:bg-green-700"
-        >
-          Submit
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => setIsRating(false)}
-          className="h-auto px-2 py-1 text-xs"
-        >
-          Cancel
-        </Button>
-      </div>
-    </div>
-  )
 
   const renderQuickActions = () => (
     <div className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
@@ -104,7 +52,7 @@ export const MovieGridCard: React.FC<MovieGridCardProps> = ({
           onClick={handleDislike}
           variant="outline"
           className="border-red-300 bg-white/90 p-2 text-red-600 hover:bg-white"
-          title="Dislike"
+          title="Pass"
         >
           <ThumbsDown className="h-4 w-4" />
         </Button>
@@ -118,18 +66,6 @@ export const MovieGridCard: React.FC<MovieGridCardProps> = ({
         >
           <Plus className="h-4 w-4" />
         </Button>
-
-        {showRating && (
-          <Button
-            size="sm"
-            onClick={() => setIsRating(true)}
-            variant="outline"
-            className="border-yellow-300 bg-white/90 p-2 text-yellow-600 hover:bg-white"
-            title="Rate with Stars"
-          >
-            <Star className="h-4 w-4" />
-          </Button>
-        )}
       </div>
     </div>
   )
@@ -174,7 +110,7 @@ export const MovieGridCard: React.FC<MovieGridCardProps> = ({
           </div>
         )}
 
-        {/* Movie Rating */}
+        {/* Movie Rating (IMDb rating) */}
         {movie.rating && (
           <div className="absolute left-2 top-2 flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-xs text-white">
             <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
@@ -182,11 +118,8 @@ export const MovieGridCard: React.FC<MovieGridCardProps> = ({
           </div>
         )}
 
-        {/* Rating Overlay */}
-        {isRating && renderStarRating()}
-
         {/* Quick Actions Overlay */}
-        {!isRating && renderQuickActions()}
+        {renderQuickActions()}
       </div>
 
       {/* Movie Info */}

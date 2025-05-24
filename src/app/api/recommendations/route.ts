@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { createServerClient } from '@/lib/supabase/client'
 
 export async function GET(request: NextRequest) {
   try {
+    const supabase = await createServerClient()
     const { searchParams } = new URL(request.url)
     const limit = parseInt(searchParams.get('limit') || '10')
 
@@ -36,7 +32,10 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error('Database error:', error)
-      return NextResponse.json({ error: 'Failed to fetch recommendations' }, { status: 500 })
+      return NextResponse.json(
+        { success: false, error: 'Failed to fetch recommendations' },
+        { status: 500 }
+      )
     }
 
     // Transform to recommendation format
@@ -54,7 +53,7 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error('API error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
 }
 
