@@ -43,6 +43,7 @@ export const MovieGridCard: React.FC<MovieGridCardProps> = ({
           onClick={handleLike}
           className="bg-green-600 p-2 text-white hover:bg-green-700"
           title="Like"
+          aria-label={`Like ${movie.title}`}
         >
           <ThumbsUp className="h-4 w-4" />
         </Button>
@@ -53,6 +54,7 @@ export const MovieGridCard: React.FC<MovieGridCardProps> = ({
           variant="outline"
           className="border-red-300 bg-white/90 p-2 text-red-600 hover:bg-white"
           title="Pass"
+          aria-label={`Dislike ${movie.title}`}
         >
           <ThumbsDown className="h-4 w-4" />
         </Button>
@@ -63,6 +65,7 @@ export const MovieGridCard: React.FC<MovieGridCardProps> = ({
           variant="outline"
           className="border-blue-300 bg-white/90 p-2 text-blue-600 hover:bg-white"
           title="Add to Watchlist"
+          aria-label={`Add ${movie.title} to watchlist`}
         >
           <Plus className="h-4 w-4" />
         </Button>
@@ -85,7 +88,7 @@ export const MovieGridCard: React.FC<MovieGridCardProps> = ({
           <Image
             src={movie.poster_url}
             alt={movie.title}
-            fill
+            fill={true}
             className="object-cover"
             sizes={`(max-width: 768px) 50vw, ${size === 'sm' ? '16vw' : size === 'md' ? '20vw' : '24vw'}`}
           />
@@ -130,15 +133,19 @@ export const MovieGridCard: React.FC<MovieGridCardProps> = ({
 
         {/* Genres */}
         <div className="flex flex-wrap gap-1">
-          {movie.genre?.slice(0, 2).map(genre => (
-            <span key={genre} className="rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-800">
-              {genre}
-            </span>
-          ))}
+          {(() => {
+            if (!movie.genre) return null
+            const genres = Array.isArray(movie.genre) ? movie.genre : [movie.genre]
+            return genres.slice(0, 2).map(genre => (
+              <span key={genre} className="rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-800">
+                {genre}
+              </span>
+            ))
+          })()}
         </div>
 
         {/* Runtime */}
-        {movie.runtime && <div className="mt-1 text-xs text-gray-500">{movie.runtime}m</div>}
+        {movie.runtime && <div className="mt-1 text-xs text-gray-500">{movie.runtime} min</div>}
       </div>
     </div>
   )
