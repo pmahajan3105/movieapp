@@ -58,7 +58,10 @@ export async function GET(request: NextRequest) {
   }
 }
 
-function generateSimpleReason(movie: any, index: number): string {
+function generateSimpleReason(
+  movie: { genre?: string[]; rating?: number; year?: number; director?: string[] },
+  index: number
+): string {
   const reasons = [
     `Highly rated ${movie.genre?.[0]?.toLowerCase()} movie`,
     `Critics' choice with ${movie.rating}/10 rating`,

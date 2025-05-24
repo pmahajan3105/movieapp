@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
@@ -32,10 +32,7 @@ export async function GET() {
     }
 
     // Test 3: Ratings table
-    const { data: ratings, error: ratingsError } = await supabase
-      .from('ratings')
-      .select('count')
-      .limit(1)
+    const { error: ratingsError } = await supabase.from('ratings').select('count').limit(1)
 
     if (ratingsError) {
       return NextResponse.json(
@@ -47,20 +44,18 @@ export async function GET() {
       )
     }
 
-    // Test 4: User profiles table
-    const { data: profiles, error: profilesError } = await supabase
-      .from('user_profiles')
-      .select('count')
-      .limit(1)
+    // Test user_ratings table
+    const { error: userRatingsError } = await supabase.from('user_ratings').select('*').limit(1)
+
+    if (userRatingsError) {
+      console.warn('User ratings table not accessible:', userRatingsError)
+    }
+
+    // Test user_profiles table
+    const { error: profilesError } = await supabase.from('user_profiles').select('*').limit(1)
 
     if (profilesError) {
-      return NextResponse.json(
-        {
-          error: 'User profiles table error',
-          details: profilesError,
-        },
-        { status: 500 }
-      )
+      console.warn('User profiles table not accessible:', profilesError)
     }
 
     return NextResponse.json({

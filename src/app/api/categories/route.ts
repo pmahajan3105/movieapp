@@ -105,10 +105,12 @@ export async function POST(request: NextRequest) {
 
 async function generateBrowseCategories(user_id: string, date: string, limit: number) {
   try {
-    // Get user preferences
-    const { data: preferences } = await supabase.rpc('get_user_preferences_summary', {
-      p_user_id: user_id,
-    })
+    // TODO: In future, filter recommendations based on user preferences
+    // const { data: userProfile } = await supabase
+    //   .from('user_profiles')
+    //   .select('preferences')
+    //   .eq('id', user.id)
+    //   .single()
 
     // Define category templates
     const categoryTemplates = [
