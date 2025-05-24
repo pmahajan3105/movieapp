@@ -11,7 +11,10 @@ import { Label } from '@/components/ui/label'
 import { useAuth } from '@/contexts/AuthContext'
 
 const otpSchema = z.object({
-  otp: z.string().length(6, 'OTP must be exactly 6 digits').regex(/^\d+$/, 'OTP must contain only numbers'),
+  otp: z
+    .string()
+    .length(6, 'OTP must be exactly 6 digits')
+    .regex(/^\d+$/, 'OTP must contain only numbers'),
 })
 
 type OtpFormData = z.infer<typeof otpSchema>
@@ -78,9 +81,9 @@ export function OtpForm({ email, onBackToLogin }: OtpFormProps) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          email, 
-          token: data.otp 
+        body: JSON.stringify({
+          email,
+          token: data.otp,
         }),
       })
 
@@ -145,14 +148,10 @@ export function OtpForm({ email, onBackToLogin }: OtpFormProps) {
   }
 
   return (
-    <div className="w-full max-w-md mx-auto">
-      <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          Verify your email
-        </h1>
-        <p className="text-gray-600">
-          We sent a 6-digit code to
-        </p>
+    <div className="mx-auto w-full max-w-md">
+      <div className="mb-8 text-center">
+        <h1 className="mb-2 text-3xl font-bold text-gray-900">Verify your email</h1>
+        <p className="text-gray-600">We sent a 6-digit code to</p>
         <p className="font-medium text-gray-900">{email}</p>
       </div>
 
@@ -165,35 +164,29 @@ export function OtpForm({ email, onBackToLogin }: OtpFormProps) {
             inputMode="numeric"
             placeholder="000000"
             {...registerProps}
-            ref={(e) => {
+            ref={e => {
               registerRef(e)
               otpInputRef.current = e
             }}
             onChange={handleOtpChange}
             value={formatOtpDisplay(otpValue)}
             disabled={isLoading}
-            className={`text-center text-2xl tracking-[0.5em] font-mono ${errors.otp ? 'border-red-500' : ''}`}
+            className={`text-center font-mono text-2xl tracking-[0.5em] ${errors.otp ? 'border-red-500' : ''}`}
             maxLength={11} // 6 digits + 5 spaces
           />
-          {errors.otp && (
-            <p className="text-sm text-red-600">{errors.otp.message}</p>
-          )}
+          {errors.otp && <p className="text-sm text-red-600">{errors.otp.message}</p>}
         </div>
 
         {error && (
-          <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
+          <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-600">
             {error}
           </div>
         )}
 
-        <Button 
-          type="submit" 
-          className="w-full" 
-          disabled={isLoading || otpValue.length < 6}
-        >
+        <Button type="submit" className="w-full" disabled={isLoading || otpValue.length < 6}>
           {isLoading ? (
             <div className="flex items-center space-x-2">
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
               <span>Verifying...</span>
             </div>
           ) : (
@@ -201,11 +194,9 @@ export function OtpForm({ email, onBackToLogin }: OtpFormProps) {
           )}
         </Button>
 
-        <div className="text-center space-y-2">
-          <p className="text-sm text-gray-600">
-            Didn&apos;t receive the code?
-          </p>
-          
+        <div className="space-y-2 text-center">
+          <p className="text-sm text-gray-600">Didn&apos;t receive the code?</p>
+
           {canResend ? (
             <Button
               type="button"
@@ -216,7 +207,7 @@ export function OtpForm({ email, onBackToLogin }: OtpFormProps) {
             >
               {isResending ? (
                 <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                  <div className="h-3 w-3 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
                   <span>Sending...</span>
                 </div>
               ) : (
@@ -224,21 +215,14 @@ export function OtpForm({ email, onBackToLogin }: OtpFormProps) {
               )}
             </Button>
           ) : (
-            <p className="text-sm text-gray-500">
-              Resend available in {resendTimer}s
-            </p>
+            <p className="text-sm text-gray-500">Resend available in {resendTimer}s</p>
           )}
         </div>
 
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={onBackToLogin}
-          className="w-full"
-        >
+        <Button type="button" variant="ghost" onClick={onBackToLogin} className="w-full">
           Back to login
         </Button>
       </form>
     </div>
   )
-} 
+}

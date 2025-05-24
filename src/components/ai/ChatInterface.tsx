@@ -15,24 +15,51 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
   const [sessionId, setSessionId] = useState<string>()
   const [isComplete, setIsComplete] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(true)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
 
-  // Auto-scroll to bottom
+  // Smart auto-scroll that only scrolls when user is near bottom
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (shouldAutoScroll && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    }
   }
 
+  // Check if user is near bottom of chat
+  const handleScroll = () => {
+    if (messagesContainerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < 100
+      setShouldAutoScroll(isNearBottom)
+    }
+  }
+
+  // Only auto-scroll when we should
   useEffect(() => {
     scrollToBottom()
-  }, [messages])
+  }, [messages, shouldAutoScroll])
+
+  // Auto-scroll when new messages are added (but only if user is at bottom)
+  useEffect(() => {
+    if (messages.length > 0) {
+      const lastMessage = messages[messages.length - 1]
+      if (lastMessage.role === 'assistant') {
+        // Always scroll for AI responses
+        setShouldAutoScroll(true)
+        setTimeout(scrollToBottom, 100)
+      }
+    }
+  }, [messages.length])
 
   // Send initial welcome message
   useEffect(() => {
     const welcomeMessage: ChatMessageType = {
       id: 'welcome',
       role: 'assistant',
-      content: "Hi there! I'm CineAI, your personal movie assistant. I'd love to learn about your movie preferences so I can recommend films you'll absolutely love!\n\nTo get started, tell me about a movie you've watched recently that you really enjoyed, or maybe a genre you're always in the mood for?",
-      timestamp: new Date()
+      content:
+        "Hi there! I'm CineAI, your personal movie assistant. I'd love to learn about your movie preferences so I can recommend films you'll absolutely love!\n\nTo get started, tell me about a movie you've watched recently that you really enjoyed, or maybe a genre you're always in the mood for?",
+      timestamp: new Date(),
     }
     setMessages([welcomeMessage])
   }, [])
@@ -48,9 +75,9 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
       id: `user-${Date.now()}`,
       role: 'user',
       content: messageContent,
-      timestamp: new Date()
+      timestamp: new Date(),
     }
-    
+
     setMessages(prev => [...prev, userMessage])
 
     try {
@@ -61,7 +88,7 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
         },
         body: JSON.stringify({
           message: messageContent,
-          sessionId
+          sessionId,
         }),
       })
 
@@ -82,9 +109,9 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
           id: `ai-${Date.now()}`,
           role: 'assistant',
           content: data.message,
-          timestamp: new Date()
+          timestamp: new Date(),
         }
-        
+
         setMessages(prev => [...prev, aiMessage])
       }
 
@@ -93,18 +120,17 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
         setIsComplete(true)
         onPreferencesExtracted?.(data.preferences)
       }
-
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
-      
+
       // Add error message to chat
       const errorMessage: ChatMessageType = {
         id: `error-${Date.now()}`,
         role: 'assistant',
         content: "I'm sorry, I encountered an error. Please try sending your message again.",
-        timestamp: new Date()
+        timestamp: new Date(),
       }
-      
+
       setMessages(prev => [...prev, errorMessage])
     } finally {
       setIsLoading(false)
@@ -112,34 +138,39 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-gray-50">
+    <div className="flex h-full flex-col bg-gray-50" style={{ contain: 'layout style' }}>
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className="border-b border-gray-200 bg-white px-6 py-4 flex-shrink-0">
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
-            <span className="text-purple-600 text-lg">🎬</span>
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100">
+            <span className="text-lg text-purple-600">🎬</span>
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">
-              CineAI Assistant
-            </h2>
+            <h2 className="text-lg font-semibold text-gray-900">CineAI Assistant</h2>
             <p className="text-sm text-gray-500">
-              {isComplete 
-                ? "Preferences gathered! Ready for recommendations." 
-                : "Learning your movie preferences..."
-              }
+              {isComplete
+                ? 'Preferences gathered! Ready for recommendations.'
+                : 'Learning your movie preferences...'}
             </p>
           </div>
         </div>
       </div>
 
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto px-6 py-4">
+      <div 
+        className="flex-1 overflow-y-auto px-6 py-4" 
+        ref={messagesContainerRef} 
+        onScroll={handleScroll}
+        style={{ 
+          scrollBehavior: 'smooth',
+          overscrollBehavior: 'contain' 
+        }}
+      >
         <div className="space-y-4">
-          {messages.map((message) => (
+          {messages.map(message => (
             <ChatMessage key={message.id} message={message} />
           ))}
-          
+
           {/* Typing indicator */}
           {isLoading && (
             <ChatMessage
@@ -147,20 +178,24 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
                 id: 'typing',
                 role: 'assistant',
                 content: '',
-                timestamp: new Date()
+                timestamp: new Date(),
               }}
               isTyping={true}
             />
           )}
-          
+
           {/* Error message */}
           {error && (
             <div className="flex justify-center">
-              <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 max-w-md">
+              <div className="max-w-md rounded-lg border border-red-200 bg-red-50 px-4 py-3">
                 <div className="flex items-center space-x-2">
                   <div className="text-red-600">
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path
+                        fillRule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                        clipRule="evenodd"
+                      />
                     </svg>
                   </div>
                   <p className="text-sm text-red-800">{error}</p>
@@ -168,26 +203,31 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
               </div>
             </div>
           )}
-          
+
           {/* Completion message */}
           {isComplete && (
             <div className="flex justify-center">
-              <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 max-w-md">
+              <div className="max-w-md rounded-lg border border-green-200 bg-green-50 px-4 py-3">
                 <div className="flex items-center space-x-2">
                   <div className="text-green-600">
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path
+                        fillRule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                        clipRule="evenodd"
+                      />
                     </svg>
                   </div>
                   <p className="text-sm text-green-800">
-                    Perfect! I&apos;ve learned your preferences. You can now explore your personalized recommendations!
+                    Perfect! I&apos;ve learned your preferences. You can now explore your
+                    personalized recommendations!
                   </p>
                 </div>
               </div>
             </div>
           )}
         </div>
-        
+
         <div ref={messagesEndRef} />
       </div>
 
@@ -196,11 +236,11 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
         onSendMessage={handleSendMessage}
         disabled={isLoading || isComplete}
         placeholder={
-          isComplete 
-            ? "Conversation complete! Check out your recommendations." 
-            : "Tell me about your movie preferences..."
+          isComplete
+            ? 'Conversation complete! Check out your recommendations.'
+            : 'Tell me about your movie preferences...'
         }
       />
     </div>
   )
-} 
+}

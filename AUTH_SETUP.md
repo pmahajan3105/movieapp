@@ -35,12 +35,14 @@ npm run dev
 ## 📋 Features Implemented
 
 ### ✅ **Complete Authentication Flow**
+
 - **Email + OTP Login** - No passwords required
 - **Automatic user profile creation** on sign up
 - **Session management** with refresh tokens
 - **Auth state persistence** across page reloads
 
 ### ✅ **UI Components**
+
 - **LoginForm** - Email input with validation
 - **OtpForm** - 6-digit OTP verification with auto-submit
 - **Resend functionality** with 60-second cooldown
@@ -48,18 +50,21 @@ npm run dev
 - **Responsive design** for mobile and desktop
 
 ### ✅ **API Routes**
+
 - **`/api/auth/request-otp`** - Send OTP to email
 - **`/api/auth/verify-otp`** - Verify OTP and complete login
 - **Comprehensive error handling** with user-friendly messages
 - **Rate limiting protection**
 
 ### ✅ **Auth Context & Hooks**
+
 - **useAuth hook** for accessing user state
 - **Automatic session refresh**
 - **Onboarding status tracking**
 - **Sign out functionality**
 
 ### ✅ **Protected Routes**
+
 - **ProtectedRoute wrapper** for auth-required pages
 - **Onboarding flow management**
 - **Automatic redirects** based on auth state
@@ -68,16 +73,19 @@ npm run dev
 ## 🎯 How It Works
 
 ### **1. Login Flow**
+
 ```
 User enters email → OTP sent → User enters OTP → Profile created → Dashboard
 ```
 
 ### **2. Auth State Management**
+
 ```
 AuthProvider → useAuth hook → Components get user state
 ```
 
 ### **3. Route Protection**
+
 ```
 ProtectedRoute → Check auth → Redirect or render content
 ```
@@ -85,24 +93,28 @@ ProtectedRoute → Check auth → Redirect or render content
 ## 📱 Components Overview
 
 ### **LoginForm**
+
 - Email validation with Zod schema
 - React Hook Form for form management
 - Error handling and loading states
 - Calls `/api/auth/request-otp`
 
 ### **OtpForm**
+
 - 6-digit OTP input with auto-formatting
 - Auto-submit when 6 digits entered
 - Resend functionality with countdown
 - Calls `/api/auth/verify-otp`
 
 ### **AuthProvider**
+
 - Manages global auth state
 - Listens to Supabase auth events
 - Handles session refresh
 - Provides user data to components
 
 ### **ProtectedRoute**
+
 - Wraps protected pages
 - Checks authentication status
 - Handles onboarding flow
@@ -111,6 +123,7 @@ ProtectedRoute → Check auth → Redirect or render content
 ## 🔧 API Routes Details
 
 ### **POST /api/auth/request-otp**
+
 ```json
 // Request
 {
@@ -126,6 +139,7 @@ ProtectedRoute → Check auth → Redirect or render content
 ```
 
 ### **POST /api/auth/verify-otp**
+
 ```json
 // Request
 {
@@ -148,11 +162,13 @@ ProtectedRoute → Check auth → Redirect or render content
 ## 🎨 Styling & UI
 
 ### **Shadcn/ui Components Used**
+
 - `Button` - All interactive elements
 - `Input` - Form inputs
 - `Label` - Form labels
 
 ### **Tailwind Classes**
+
 - Responsive design (`sm:`, `md:`, `lg:`)
 - Loading spinners with animations
 - Error states with red colors
@@ -161,12 +177,14 @@ ProtectedRoute → Check auth → Redirect or render content
 ## 🔒 Security Features
 
 ### **Built-in Protection**
+
 - **Email validation** - Zod schema validation
 - **Rate limiting** - Supabase built-in protection
 - **Session management** - Automatic token refresh
 - **CSRF protection** - Supabase handles security
 
 ### **Row Level Security**
+
 - User data isolation in database
 - Automatic user profile creation
 - Secure API endpoints
@@ -174,20 +192,22 @@ ProtectedRoute → Check auth → Redirect or render content
 ## 🚦 Usage Examples
 
 ### **Basic Auth Check**
+
 ```tsx
 import { useAuth } from '@/contexts/AuthContext'
 
 function MyComponent() {
   const { user, loading } = useAuth()
-  
+
   if (loading) return <div>Loading...</div>
   if (!user) return <div>Please log in</div>
-  
+
   return <div>Welcome {user.email}!</div>
 }
 ```
 
 ### **Protected Page**
+
 ```tsx
 import { RequireAuth } from '@/components/auth/ProtectedRoute'
 
@@ -201,6 +221,7 @@ export default function DashboardPage() {
 ```
 
 ### **Onboarding Flow**
+
 ```tsx
 import { RequireOnboarding } from '@/components/auth/ProtectedRoute'
 
@@ -216,13 +237,15 @@ export default function MainDashboard() {
 ## 🔄 Authentication Flow States
 
 ### **State Transitions**
+
 1. **Unauthenticated** → Login page
-2. **Email sent** → OTP verification page  
+2. **Email sent** → OTP verification page
 3. **Authenticated + No onboarding** → Preferences page
 4. **Authenticated + Onboarded** → Dashboard
 5. **Session expired** → Back to login
 
 ### **Automatic Redirects**
+
 - `/auth/login` → `/dashboard` (if authenticated & onboarded)
 - `/dashboard/*` → `/auth/login` (if not authenticated)
 - `/dashboard/*` → `/dashboard/preferences` (if not onboarded)
@@ -240,4 +263,4 @@ Your authentication system is now complete and production-ready. Users can sign 
 
 ---
 
-**The authentication system is fully functional and ready for your movie recommendation app!** 🎬✨ 
+**The authentication system is fully functional and ready for your movie recommendation app!** 🎬✨

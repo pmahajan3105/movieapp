@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
-import { groq, groqConfig, PREFERENCE_SYSTEM_PROMPT, PREFERENCE_EXTRACTION_PROMPT } from '@/lib/groq/config'
+import {
+  groq,
+  groqConfig,
+  PREFERENCE_SYSTEM_PROMPT,
+  PREFERENCE_EXTRACTION_PROMPT,
+} from '@/lib/groq/config'
 import { v4 as uuidv4 } from 'uuid'
 import type { ChatMessage, PreferenceData } from '@/types/chat'
 
@@ -24,24 +29,24 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const cookieStore = cookies()
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
+    const supabase = createRouteHandlerClient({ cookies })
 
     // Get current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
     if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized', success: false },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Unauthorized', success: false }, { status: 401 })
     }
 
     // Get or create chat session
-    const currentSessionId = sessionId || uuidv4()
+    let currentSessionId: string
     let chatHistory: ChatMessage[] = []
 
     if (sessionId) {
       // Try to get existing session
+      currentSessionId = sessionId
       const { data: existingSession } = await supabase
         .from('chat_sessions')
         .select('messages, preferences_extracted')
@@ -51,35 +56,46 @@ export async function POST(request: NextRequest) {
 
       if (existingSession) {
         chatHistory = existingSession.messages || []
-        
+
         // If preferences already extracted, don't continue chat
         if (existingSession.preferences_extracted) {
           return NextResponse.json({
             success: true,
-            message: "I've already gathered your preferences! You can now explore your personalized movie recommendations.",
+            message:
+              "I've already gathered your preferences! You can now explore your personalized movie recommendations.",
             sessionId: currentSessionId,
-            preferencesExtracted: true
+            preferencesExtracted: true,
           })
         }
       }
     } else {
-      // Create new session
-      const { error: sessionError } = await supabase
+      // Create new session - let database auto-generate ID
+      const { data: newSession, error: sessionError } = await supabase
         .from('chat_sessions')
         .insert({
-          id: currentSessionId,
           user_id: user.id,
           messages: [],
-          preferences_extracted: false
+          preferences_extracted: false,
         })
+        .select('id')
+        .single()
 
       if (sessionError) {
-        console.error('Session creation error:', sessionError)
+        console.error('Session creation error details:', {
+          error: sessionError,
+          message: sessionError.message,
+          details: sessionError.details,
+          hint: sessionError.hint,
+          code: sessionError.code
+        })
         return NextResponse.json(
-          { error: 'Failed to create chat session', success: false },
+          { error: `Database error: ${sessionError.message || 'Unknown error'}`, success: false },
           { status: 500 }
         )
       }
+
+      // Use the auto-generated ID
+      currentSessionId = newSession.id
     }
 
     // Add user message to history
@@ -87,7 +103,7 @@ export async function POST(request: NextRequest) {
       id: uuidv4(),
       role: 'user',
       content: message,
-      timestamp: new Date()
+      timestamp: new Date(),
     }
     chatHistory.push(userMessage)
 
@@ -96,8 +112,8 @@ export async function POST(request: NextRequest) {
       { role: 'system', content: PREFERENCE_SYSTEM_PROMPT },
       ...chatHistory.map(msg => ({
         role: msg.role === 'assistant' ? 'assistant' : 'user',
-        content: msg.content
-      }))
+        content: msg.content,
+      })),
     ] as Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
 
     // Call Groq API
@@ -120,7 +136,7 @@ export async function POST(request: NextRequest) {
       id: uuidv4(),
       role: 'assistant',
       content: aiResponse,
-      timestamp: new Date()
+      timestamp: new Date(),
     }
     chatHistory.push(aiMessage)
 
@@ -129,16 +145,20 @@ export async function POST(request: NextRequest) {
     let preferencesExtracted = false
     let extractedPreferences: PreferenceData | undefined
 
-    if (userMessages >= 3 && aiResponse.toLowerCase().includes('organize') || 
-        aiResponse.toLowerCase().includes('learned') ||
-        userMessages >= 5) {
-      
+    if (
+      (userMessages >= 3 && aiResponse.toLowerCase().includes('organize')) ||
+      aiResponse.toLowerCase().includes('learned') ||
+      userMessages >= 5
+    ) {
       try {
         // Extract preferences using AI
         const extractionCompletion = await groq.chat.completions.create({
           messages: [
             { role: 'system', content: PREFERENCE_EXTRACTION_PROMPT },
-            { role: 'user', content: `Conversation history:\n${chatHistory.map(m => `${m.role}: ${m.content}`).join('\n')}` }
+            {
+              role: 'user',
+              content: `Conversation history:\n${chatHistory.map(m => `${m.role}: ${m.content}`).join('\n')}`,
+            },
           ] as Array<{ role: 'system' | 'user'; content: string }>,
           model: groqConfig.model,
           max_tokens: 500,
@@ -146,7 +166,7 @@ export async function POST(request: NextRequest) {
         })
 
         const extractionResult = extractionCompletion.choices[0]?.message?.content
-        
+
         if (extractionResult) {
           // Parse JSON from AI response
           const jsonMatch = extractionResult.match(/\{[\s\S]*\}/)
@@ -160,7 +180,7 @@ export async function POST(request: NextRequest) {
               .update({
                 preferences: extractedPreferences,
                 onboarding_completed: true,
-                updated_at: new Date().toISOString()
+                updated_at: new Date().toISOString(),
               })
               .eq('id', user.id)
           }
@@ -177,7 +197,7 @@ export async function POST(request: NextRequest) {
       .update({
         messages: chatHistory,
         preferences_extracted: preferencesExtracted,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       })
       .eq('id', currentSessionId)
 
@@ -186,17 +206,16 @@ export async function POST(request: NextRequest) {
       message: aiResponse,
       sessionId: currentSessionId,
       preferencesExtracted,
-      preferences: extractedPreferences
+      preferences: extractedPreferences,
     })
-
   } catch (error) {
     console.error('Chat API error:', error)
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { 
+        {
           error: error.errors[0].message,
-          success: false 
+          success: false,
         },
         { status: 400 }
       )
@@ -204,20 +223,20 @@ export async function POST(request: NextRequest) {
 
     if (error instanceof Error && error.message.includes('API key')) {
       return NextResponse.json(
-        { 
+        {
           error: 'AI service configuration error',
-          success: false 
+          success: false,
         },
         { status: 500 }
       )
     }
 
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to process chat message. Please try again.',
-        success: false 
+        success: false,
       },
       { status: 500 }
     )
   }
-} 
+}

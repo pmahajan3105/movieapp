@@ -30,11 +30,13 @@ describe('Utility Functions', () => {
     })
 
     it('handles objects with conditional classes', () => {
-      expect(cn({
-        'base-class': true,
-        'conditional-class': false,
-        'another-class': true
-      })).toBe('base-class another-class')
+      expect(
+        cn({
+          'base-class': true,
+          'conditional-class': false,
+          'another-class': true,
+        })
+      ).toBe('base-class another-class')
     })
 
     it('combines classes with spaces', () => {
@@ -47,7 +49,7 @@ describe('Utility Functions', () => {
         ['array-class1', 'array-class2'],
         {
           'conditional-true': true,
-          'conditional-false': false
+          'conditional-false': false,
         },
         undefined,
         'final-class'
@@ -55,4 +57,4 @@ describe('Utility Functions', () => {
       expect(result).toBe('base-class array-class1 array-class2 conditional-true final-class')
     })
   })
-}) 
+})

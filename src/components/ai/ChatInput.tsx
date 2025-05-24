@@ -10,10 +10,10 @@ interface ChatInputProps {
   placeholder?: string
 }
 
-export function ChatInput({ 
-  onSendMessage, 
+export function ChatInput({
+  onSendMessage,
   disabled = false,
-  placeholder = "Share your movie preferences..."
+  placeholder = 'Share your movie preferences...',
 }: ChatInputProps) {
   const [message, setMessage] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -34,39 +34,41 @@ export function ChatInput({
     }
   }
 
+  const handleFocus = () => {
+    // Prevent page scroll when input gains focus
+    if (inputRef.current) {
+      const scrollY = window.scrollY
+      setTimeout(() => {
+        window.scrollTo(0, scrollY)
+      }, 0)
+    }
+  }
+
   return (
-    <div className="flex items-center space-x-2 p-4 bg-white border-t border-gray-200">
+    <div className="flex items-center space-x-2 border-t border-gray-200 bg-white p-4 flex-shrink-0">
       <div className="flex-1">
         <Input
           ref={inputRef}
           type="text"
           value={message}
-          onChange={(e) => setMessage(e.target.value)}
+          onChange={e => setMessage(e.target.value)}
           onKeyPress={handleKeyPress}
           placeholder={placeholder}
           disabled={disabled}
           className="w-full"
           maxLength={1000}
+          onFocus={handleFocus}
         />
       </div>
-      
-      <Button
-        onClick={handleSend}
-        disabled={disabled || !message.trim()}
-        className="px-6"
-      >
+
+      <Button onClick={handleSend} disabled={disabled || !message.trim()} className="px-6">
         {disabled ? (
           <div className="flex items-center space-x-2">
-            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
             <span>Sending...</span>
           </div>
         ) : (
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
+          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -78,4 +80,4 @@ export function ChatInput({
       </Button>
     </div>
   )
-} 
+}

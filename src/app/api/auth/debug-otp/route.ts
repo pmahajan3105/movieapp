@@ -6,8 +6,8 @@ export async function POST(request: NextRequest) {
   try {
     const { email } = await request.json()
 
-    const supabase = createRouteHandlerClient({ 
-      cookies
+    const supabase = createRouteHandlerClient({
+      cookies,
     })
 
     // Send OTP to email
@@ -16,24 +16,25 @@ export async function POST(request: NextRequest) {
       options: {
         shouldCreateUser: true,
         emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/auth/callback`,
-      }
+      },
     })
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: !error,
-      error: error ? {
-        message: error.message,
-        status: error.status,
-        details: error
-      } : null
+      error: error
+        ? {
+            message: error.message,
+            status: error.status,
+            details: error,
+          }
+        : null,
     })
-
   } catch (error) {
     console.error('Debug OTP error:', error)
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : null
+      stack: error instanceof Error ? error.stack : null,
     })
   }
-} 
+}

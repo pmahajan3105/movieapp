@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 
 export async function POST() {
   try {
-
     // Migration SQL to copy to Supabase SQL Editor
     const migrationSQL = `
 -- Fix user profile creation trigger
@@ -56,7 +55,7 @@ WHERE p.id IS NULL
 ON CONFLICT (id) DO NOTHING;
     `
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
       message: 'Please copy the SQL below and run it in Supabase SQL Editor',
       migrationSQL,
@@ -65,15 +64,17 @@ ON CONFLICT (id) DO NOTHING;
         '2. Navigate to SQL Editor',
         '3. Copy and paste the migrationSQL above',
         '4. Click Run to execute the migration',
-        '5. Test new user registration after running the migration'
-      ]
+        '5. Test new user registration after running the migration',
+      ],
     })
-
   } catch (error) {
     console.error('Fix trigger error:', error)
-    return NextResponse.json({ 
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 })
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      },
+      { status: 500 }
+    )
   }
-} 
+}

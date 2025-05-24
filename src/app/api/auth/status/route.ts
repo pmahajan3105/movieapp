@@ -6,11 +6,11 @@ export async function GET() {
     // Use the service role for server-side auth checking
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-    
+
     if (!supabaseUrl || !supabaseServiceKey) {
-      return NextResponse.json({ 
-        connected: false, 
-        error: 'Missing Supabase configuration' 
+      return NextResponse.json({
+        connected: false,
+        error: 'Missing Supabase configuration',
       })
     }
 
@@ -21,23 +21,25 @@ export async function GET() {
 
     if (error) {
       console.error('Supabase connection error:', error)
-      return NextResponse.json({ 
-        connected: false, 
-        error: error.message 
+      return NextResponse.json({
+        connected: false,
+        error: error.message,
       })
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       connected: true,
       authenticated: false, // This endpoint just tests connection
-      message: 'Supabase connection successful'
+      message: 'Supabase connection successful',
     })
-
   } catch (error) {
     console.error('Auth status error:', error)
-    return NextResponse.json({ 
-      connected: false, 
-      error: 'Failed to connect to Supabase' 
-    }, { status: 500 })
+    return NextResponse.json(
+      {
+        connected: false,
+        error: 'Failed to connect to Supabase',
+      },
+      { status: 500 }
+    )
   }
-} 
+}

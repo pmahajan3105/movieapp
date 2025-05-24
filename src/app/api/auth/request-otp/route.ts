@@ -13,8 +13,8 @@ export async function POST(request: NextRequest) {
 
     // Create Supabase client with proper cookie handling
     const cookieStore = cookies()
-    const supabase = createRouteHandlerClient<Database>({ 
-      cookies: () => cookieStore 
+    const supabase = createRouteHandlerClient<Database>({
+      cookies: () => cookieStore,
     })
 
     // Send magic link to email
@@ -28,22 +28,27 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('Magic link request error:', error)
-      return NextResponse.json({ 
-        error: error.message,
-        details: error
-      }, { status: 400 })
+      return NextResponse.json(
+        {
+          error: error.message,
+          details: error,
+        },
+        { status: 400 }
+      )
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
       message: 'Magic link sent! Check your email and click the link to sign in.',
-      type: 'magic_link'
+      type: 'magic_link',
     })
-
   } catch (error) {
     console.error('Request magic link error:', error)
-    return NextResponse.json({ 
-      error: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 })
+    return NextResponse.json(
+      {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      },
+      { status: 500 }
+    )
   }
-} 
+}

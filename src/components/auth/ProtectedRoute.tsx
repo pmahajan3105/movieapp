@@ -10,10 +10,10 @@ interface ProtectedRouteProps {
   redirectTo?: string
 }
 
-export function ProtectedRoute({ 
-  children, 
+export function ProtectedRoute({
+  children,
   requireOnboarding = false,
-  redirectTo = '/auth/login'
+  redirectTo = '/auth/login',
 }: ProtectedRouteProps) {
   const { user, loading } = useAuth()
   const router = useRouter()
@@ -33,8 +33,11 @@ export function ProtectedRoute({
       }
 
       // User exists, onboarding complete, but accessing onboarding page
-      if (!requireOnboarding && user.onboarding_completed && 
-          window.location.pathname === '/dashboard/preferences') {
+      if (
+        !requireOnboarding &&
+        user.onboarding_completed &&
+        window.location.pathname === '/dashboard/preferences'
+      ) {
         router.push('/dashboard')
         return
       }
@@ -44,14 +47,12 @@ export function ProtectedRoute({
   // Show loading spinner while checking auth
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="flex min-h-screen flex-col justify-center bg-gray-50 py-12 sm:px-6 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <div className="flex justify-center">
-            <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
           </div>
-          <p className="mt-4 text-center text-sm text-gray-600">
-            Loading...
-          </p>
+          <p className="mt-4 text-center text-sm text-gray-600">Loading...</p>
         </div>
       </div>
     )
@@ -67,8 +68,12 @@ export function ProtectedRoute({
     return null
   }
 
-  if (!requireOnboarding && user.onboarding_completed && 
-      typeof window !== 'undefined' && window.location.pathname === '/dashboard/preferences') {
+  if (
+    !requireOnboarding &&
+    user.onboarding_completed &&
+    typeof window !== 'undefined' &&
+    window.location.pathname === '/dashboard/preferences'
+  ) {
     return null
   }
 
@@ -77,25 +82,13 @@ export function ProtectedRoute({
 
 // Helper components for specific protection levels
 export function RequireAuth({ children }: { children: React.ReactNode }) {
-  return (
-    <ProtectedRoute>
-      {children}
-    </ProtectedRoute>
-  )
+  return <ProtectedRoute>{children}</ProtectedRoute>
 }
 
 export function RequireOnboarding({ children }: { children: React.ReactNode }) {
-  return (
-    <ProtectedRoute requireOnboarding={true}>
-      {children}
-    </ProtectedRoute>
-  )
+  return <ProtectedRoute requireOnboarding={true}>{children}</ProtectedRoute>
 }
 
 export function OnboardingOnly({ children }: { children: React.ReactNode }) {
-  return (
-    <ProtectedRoute requireOnboarding={false}>
-      {children}
-    </ProtectedRoute>
-  )
-} 
+  return <ProtectedRoute requireOnboarding={false}>{children}</ProtectedRoute>
+}

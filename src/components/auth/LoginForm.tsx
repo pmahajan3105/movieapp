@@ -58,14 +58,10 @@ export function LoginForm({ onMagicLinkSent }: LoginFormProps) {
   }
 
   return (
-    <div className="w-full max-w-md mx-auto">
-      <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          Welcome to CineAI
-        </h1>
-        <p className="text-gray-600">
-          Your personal AI movie recommendation assistant
-        </p>
+    <div className="mx-auto w-full max-w-md">
+      <div className="mb-8 text-center">
+        <h1 className="mb-2 text-3xl font-bold text-gray-900">Welcome to CineAI</h1>
+        <p className="text-gray-600">Your personal AI movie recommendation assistant</p>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -79,25 +75,19 @@ export function LoginForm({ onMagicLinkSent }: LoginFormProps) {
             disabled={isLoading}
             className={errors.email ? 'border-red-500' : ''}
           />
-          {errors.email && (
-            <p className="text-sm text-red-600">{errors.email.message}</p>
-          )}
+          {errors.email && <p className="text-sm text-red-600">{errors.email.message}</p>}
         </div>
 
         {error && (
-          <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
+          <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-600">
             {error}
           </div>
         )}
 
-        <Button 
-          type="submit" 
-          className="w-full" 
-          disabled={isLoading}
-        >
+        <Button type="submit" className="w-full" disabled={isLoading}>
           {isLoading ? (
             <div className="flex items-center space-x-2">
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
               <span>Sending magic link...</span>
             </div>
           ) : (
@@ -115,4 +105,4 @@ export function LoginForm({ onMagicLinkSent }: LoginFormProps) {
       </div>
     </div>
   )
-} 
+}

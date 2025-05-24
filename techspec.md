@@ -4,25 +4,25 @@ Architecture: Serverless, API-First
 3.1 System Architecture
 High-Level Architecture
 ┌─────────────────────────────────────────────────────────────────┐
-│                          Client Layer                           │
+│ Client Layer │
 ├─────────────────────────────────────────────────────────────────┤
-│  Next.js App Router │ React 18 │ TanStack Query │ Tailwind CSS  │
+│ Next.js App Router │ React 18 │ TanStack Query │ Tailwind CSS │
 └────────────────────────────┬────────────────────────────────────┘
-                             │ HTTPS
+│ HTTPS
 ┌────────────────────────────┴────────────────────────────────────┐
-│                          API Layer                              │
+│ API Layer │
 ├─────────────────────────────────────────────────────────────────┤
-│              Next.js API Routes (Serverless Functions)          │
-│  • Authentication  │  • AI Chat  │  • Movies  │  • User Actions │
+│ Next.js API Routes (Serverless Functions) │
+│ • Authentication │ • AI Chat │ • Movies │ • User Actions │
 └────────────┬───────────────┬─────────────┬─────────────────────┘
-             │               │             │
+│ │ │
 ┌────────────┴───────┐ ┌─────┴─────┐ ┌────┴──────┐
-│   Supabase Cloud   │ │ Groq API  │ │ OMDb API  │
+│ Supabase Cloud │ │ Groq API │ │ OMDb API │
 ├────────────────────┤ ├───────────┤ ├───────────┤
-│ • PostgreSQL DB    │ │ • Gemma   │ │ • Movie   │
-│ • Authentication   │ │ • Mixtral │ │   Data    │
-│ • Row Level Sec.   │ │ • Llama3  │ │ • Posters │
-│ • Realtime Sub.    │ └───────────┘ └───────────┘
+│ • PostgreSQL DB │ │ • Gemma │ │ • Movie │
+│ • Authentication │ │ • Mixtral │ │ Data │
+│ • Row Level Sec. │ │ • Llama3 │ │ • Posters │
+│ • Realtime Sub. │ └───────────┘ └───────────┘
 └────────────────────┘
 Data Flow Patterns
 Authentication Flow
@@ -35,97 +35,97 @@ User Context → Build Prompt → Groq API → Parse Response
 Core Tables
 sql-- Users (handled by Supabase Auth)
 auth.users (
-  id: uuid PRIMARY KEY,
-  email: string,
-  created_at: timestamp
+id: uuid PRIMARY KEY,
+email: string,
+created_at: timestamp
 )
 
 -- User Profiles
 CREATE TABLE user_profiles (
-  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  email TEXT UNIQUE NOT NULL,
-  preferences JSONB DEFAULT '{}',
-  onboarding_completed BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+email TEXT UNIQUE NOT NULL,
+preferences JSONB DEFAULT '{}',
+onboarding_completed BOOLEAN DEFAULT FALSE,
+created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Movies
 CREATE TABLE movies (
-  id SERIAL PRIMARY KEY,
-  omdb_id TEXT UNIQUE NOT NULL,
-  title TEXT NOT NULL,
-  year INTEGER,
-  poster_url TEXT,
-  plot TEXT,
-  genre TEXT,
-  director TEXT,
-  actors TEXT,
-  runtime TEXT,
-  imdb_rating DECIMAL(3,1),
-  imdb_id TEXT,
-  metadata JSONB,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+id SERIAL PRIMARY KEY,
+omdb_id TEXT UNIQUE NOT NULL,
+title TEXT NOT NULL,
+year INTEGER,
+poster_url TEXT,
+plot TEXT,
+genre TEXT,
+director TEXT,
+actors TEXT,
+runtime TEXT,
+imdb_rating DECIMAL(3,1),
+imdb_id TEXT,
+metadata JSONB,
+created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Swipes
 CREATE TABLE swipes (
-  id SERIAL PRIMARY KEY,
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-  movie_id INTEGER REFERENCES movies(id),
-  action TEXT CHECK (action IN ('like', 'dislike', 'watchlist')),
-  swiped_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(user_id, movie_id)
+id SERIAL PRIMARY KEY,
+user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+movie_id INTEGER REFERENCES movies(id),
+action TEXT CHECK (action IN ('like', 'dislike', 'watchlist')),
+swiped_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+UNIQUE(user_id, movie_id)
 );
 
 -- Watchlist
 CREATE TABLE watchlist (
-  id SERIAL PRIMARY KEY,
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-  movie_id INTEGER REFERENCES movies(id),
-  watched BOOLEAN DEFAULT FALSE,
-  rating INTEGER CHECK (rating >= 1 AND rating <= 5),
-  notes TEXT,
-  added_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  watched_at TIMESTAMP WITH TIME ZONE,
-  UNIQUE(user_id, movie_id)
+id SERIAL PRIMARY KEY,
+user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+movie_id INTEGER REFERENCES movies(id),
+watched BOOLEAN DEFAULT FALSE,
+rating INTEGER CHECK (rating >= 1 AND rating <= 5),
+notes TEXT,
+added_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+watched_at TIMESTAMP WITH TIME ZONE,
+UNIQUE(user_id, movie_id)
 );
 
 -- Recommendation Queue
 CREATE TABLE recommendation_queue (
-  id SERIAL PRIMARY KEY,
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-  movie_id INTEGER REFERENCES movies(id),
-  reason TEXT,
-  confidence DECIMAL(3,2),
-  batch_id UUID,
-  position INTEGER,
-  shown BOOLEAN DEFAULT FALSE,
-  generated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+id SERIAL PRIMARY KEY,
+user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+movie_id INTEGER REFERENCES movies(id),
+reason TEXT,
+confidence DECIMAL(3,2),
+batch_id UUID,
+position INTEGER,
+shown BOOLEAN DEFAULT FALSE,
+generated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Chat Sessions
 CREATE TABLE chat_sessions (
-  id SERIAL PRIMARY KEY,
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-  messages JSONB[],
-  preferences_extracted JSONB,
-  completed BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+id SERIAL PRIMARY KEY,
+user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+messages JSONB[],
+preferences_extracted JSONB,
+completed BOOLEAN DEFAULT FALSE,
+created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- AI Generation Logs
 CREATE TABLE ai_generation_logs (
-  id SERIAL PRIMARY KEY,
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-  batch_id UUID,
-  prompt TEXT,
-  response JSONB,
-  model TEXT,
-  tokens_used INTEGER,
-  duration_ms INTEGER,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+id SERIAL PRIMARY KEY,
+user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+batch_id UUID,
+prompt TEXT,
+response JSONB,
+model TEXT,
+tokens_used INTEGER,
+duration_ms INTEGER,
+created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Indexes
@@ -147,41 +147,43 @@ ALTER TABLE ai_generation_logs ENABLE ROW LEVEL SECURITY;
 
 -- Policies
 CREATE POLICY "Users can view own profile" ON user_profiles
-  FOR SELECT USING (auth.uid() = id);
+FOR SELECT USING (auth.uid() = id);
 
 CREATE POLICY "Users can update own profile" ON user_profiles
-  FOR UPDATE USING (auth.uid() = id);
+FOR UPDATE USING (auth.uid() = id);
 
 CREATE POLICY "Movies are viewable by everyone" ON movies
-  FOR SELECT USING (true);
+FOR SELECT USING (true);
 
 CREATE POLICY "Users can view own swipes" ON swipes
-  FOR SELECT USING (auth.uid() = user_id);
+FOR SELECT USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can create own swipes" ON swipes
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
+FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 CREATE POLICY "Users can view own watchlist" ON watchlist
-  FOR SELECT USING (auth.uid() = user_id);
+FOR SELECT USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can manage own watchlist" ON watchlist
-  FOR ALL USING (auth.uid() = user_id);
+FOR ALL USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can view own recommendations" ON recommendation_queue
-  FOR SELECT USING (auth.uid() = user_id);
+FOR SELECT USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can view own chats" ON chat_sessions
-  FOR SELECT USING (auth.uid() = user_id);
+FOR SELECT USING (auth.uid() = user_id);
 
 -- Trigger for new user
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.user_profiles (id, email)
-  VALUES (new.id, new.email);
-  RETURN new;
+INSERT INTO public.user_profiles (id, email)
+VALUES (new.id, new.email);
+RETURN new;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+$$
+LANGUAGE plpgsql SECURITY DEFINER;
 
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
@@ -328,7 +330,7 @@ typescriptconst GROQ_CONFIG = {
 Prompt Templates
 Preference Extraction
 typescriptconst PREFERENCE_EXTRACTION_PROMPT = `
-You are CineAI, a movie preference expert. Based on the conversation below, 
+You are CineAI, a movie preference expert. Based on the conversation below,
 extract structured movie preferences.
 
 Conversation:
@@ -364,3 +366,65 @@ Generate exactly 20 movie recommendations. For each movie:
 }
 
 Focus on diverse, high-quality recommendations that match the user's taste.
+$$
+
+## 🔄 Implementation Reality (December 2024)
+
+### **Simplified Architecture Adopted**
+
+## 🎯 Core Features
+
+### **Authentication System**
+- Email + OTP verification
+- Session management with Supabase
+- Protected routes and automatic redirects
+
+### **AI Chat Interface**
+- Natural conversation with Groq AI
+- Preference extraction from chat
+- Real-time messaging with typing indicators
+
+### **Movie Recommendations**
+- AI-powered personalized suggestions
+- Quick rating system (like/dislike)
+- Movie details with ratings and descriptions
+
+### **Dashboard**
+- Clean, modern interface
+- Stats overview and quick actions
+- Integrated chat and recommendations
+
+## 🔧 Development
+
+### **Running Tests**
+```bash
+npm test              # Run all tests
+npm run test:watch    # Run tests in watch mode
+npm run test:coverage # Generate coverage report
+```
+
+### **Code Quality**
+```bash
+npm run lint          # Run ESLint
+npm run format        # Format code with Prettier
+```
+
+### **Pre-commit Hooks**
+Automatically runs linting and formatting before commits via Husky.
+
+## 📚 Documentation
+
+- [Authentication Setup](./AUTH_SETUP.md) - Complete auth system guide
+- [AI Chat Setup](./AI_CHAT_SETUP.md) - AI integration details
+- [Product Requirements](./prd.md) - Original product vision
+- [Technical Specification](./techspec.md) - Architecture details
+
+## 🚢 Deployment
+
+Deploy to Vercel with one click:
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/pmahajan3105/movieapp)
+
+## 📄 License
+
+This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.

@@ -16,19 +16,15 @@ const customJestConfig = {
     '!src/types/**/*',
     '!src/**/*.stories.{js,jsx,ts,tsx}',
   ],
-  moduleNameMapping: {
+  moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
   },
-  testMatch: [
-    '<rootDir>/**/*.test.{js,jsx,ts,tsx}',
-    '<rootDir>/**/__tests__/**/*.{js,jsx,ts,tsx}',
-  ],
-  transform: {
-    '^.+\\.(js|jsx|ts|tsx)$': ['babel-jest', { presets: ['next/babel'] }],
-  },
+  testMatch: ['<rootDir>/**/*.test.{js,jsx,ts,tsx}', '<rootDir>/**/__tests__/**/*.{js,jsx,ts,tsx}'],
   moduleDirectories: ['node_modules', '<rootDir>/'],
   testTimeout: 10000,
+  // Add environment variables for tests
+  setupFiles: ['<rootDir>/jest.env.js'],
 }
 
 // createJestConfig is exported this way to ensure that next/jest can load the Next.js config which is async
-module.exports = createJestConfig(customJestConfig) 
+module.exports = createJestConfig(customJestConfig)

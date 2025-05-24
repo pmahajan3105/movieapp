@@ -10,8 +10,8 @@ export const GROQ_CONFIG = {
   maxTokens: 1000,
   rateLimit: {
     requestsPerMinute: 30,
-    tokensPerMinute: 10000
-  }
+    tokensPerMinute: 10000,
+  },
 }
 
-export { groq } 
+export { groq }

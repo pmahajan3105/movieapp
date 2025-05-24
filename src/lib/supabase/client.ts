@@ -1,11 +1,14 @@
-import { createClientComponentClient, createServerComponentClient } from '@supabase/auth-helpers-nextjs'
+import {
+  createClientComponentClient,
+  createServerComponentClient,
+} from '@supabase/auth-helpers-nextjs'
 import { createServerActionClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { cache } from 'react'
 import { Database } from './types'
-import type { 
-  UserProfile, 
-  UserProfileInsert, 
+import type {
+  UserProfile,
+  UserProfileInsert,
   UserProfileUpdate,
   Movie,
   MovieInsert,
@@ -13,7 +16,7 @@ import type {
   SwipeInsert,
   WatchlistItem,
   RecommendationQueueItem,
-  RecommendationQueueInsert 
+  RecommendationQueueInsert,
 } from './types'
 
 // Singleton client for client components
@@ -44,9 +47,9 @@ export const auth = {
       email,
       options: {
         shouldCreateUser: true,
-      }
+      },
     })
-    
+
     if (error) throw error
     return data
   },
@@ -58,9 +61,9 @@ export const auth = {
     const { data, error } = await supabase.auth.verifyOtp({
       email,
       token,
-      type: 'email'
+      type: 'email',
     })
-    
+
     if (error) throw error
     return data
   },
@@ -77,7 +80,10 @@ export const auth = {
    * Get current user
    */
   async getUser() {
-    const { data: { user }, error } = await supabase.auth.getUser()
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser()
     if (error) throw error
     return user
   },
@@ -86,7 +92,10 @@ export const auth = {
    * Get current session
    */
   async getSession() {
-    const { data: { session }, error } = await supabase.auth.getSession()
+    const {
+      data: { session },
+      error,
+    } = await supabase.auth.getSession()
     if (error) throw error
     return session
   },
@@ -96,7 +105,7 @@ export const auth = {
    */
   onAuthStateChange(callback: (event: string, session: unknown) => void) {
     return supabase.auth.onAuthStateChange(callback)
-  }
+  },
 }
 
 // ============================================================================
@@ -104,18 +113,14 @@ export const auth = {
 // ============================================================================
 
 export const db = {
-  
   // USER PROFILES
   userProfiles: {
     /**
      * Get current user's profile
      */
     async getCurrent(): Promise<UserProfile | null> {
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .single()
-      
+      const { data, error } = await supabase.from('user_profiles').select('*').single()
+
       if (error && error.code !== 'PGRST116') throw error
       return data
     },
@@ -124,12 +129,8 @@ export const db = {
      * Create user profile (typically called after sign up)
      */
     async create(profile: UserProfileInsert): Promise<UserProfile> {
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .insert(profile)
-        .select()
-        .single()
-      
+      const { data, error } = await supabase.from('user_profiles').insert(profile).select().single()
+
       if (error) throw error
       return data
     },
@@ -143,7 +144,7 @@ export const db = {
         .update({ ...updates, updated_at: new Date().toISOString() })
         .select()
         .single()
-      
+
       if (error) throw error
       return data
     },
@@ -154,17 +155,17 @@ export const db = {
     async updatePreferences(preferences: Record<string, unknown>): Promise<UserProfile> {
       const { data, error } = await supabase
         .from('user_profiles')
-        .update({ 
+        .update({
           preferences,
           onboarding_completed: true,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .select()
         .single()
-      
+
       if (error) throw error
       return data
-    }
+    },
   },
 
   // MOVIES
@@ -173,12 +174,8 @@ export const db = {
      * Get movie by ID
      */
     async getById(id: string): Promise<Movie | null> {
-      const { data, error } = await supabase
-        .from('movies')
-        .select('*')
-        .eq('id', id)
-        .single()
-      
+      const { data, error } = await supabase.from('movies').select('*').eq('id', id).single()
+
       if (error && error.code !== 'PGRST116') throw error
       return data
     },
@@ -192,7 +189,7 @@ export const db = {
         .select('*')
         .eq('omdb_id', omdbId)
         .single()
-      
+
       if (error && error.code !== 'PGRST116') throw error
       return data
     },
@@ -206,7 +203,7 @@ export const db = {
         .upsert(movie, { onConflict: 'omdb_id' })
         .select()
         .single()
-      
+
       if (error) throw error
       return data
     },
@@ -220,10 +217,10 @@ export const db = {
         .select('*')
         .ilike('title', `%${title}%`)
         .limit(limit)
-      
+
       if (error) throw error
       return data || []
-    }
+    },
   },
 
   // SWIPES
@@ -232,12 +229,8 @@ export const db = {
      * Record a swipe action
      */
     async create(swipe: SwipeInsert): Promise<Swipe> {
-      const { data, error } = await supabase
-        .from('swipes')
-        .insert(swipe)
-        .select()
-        .single()
-      
+      const { data, error } = await supabase.from('swipes').insert(swipe).select().single()
+
       if (error) throw error
       return data
     },
@@ -251,7 +244,7 @@ export const db = {
         .select('*, movies(*)')
         .order('swiped_at', { ascending: false })
         .limit(limit)
-      
+
       if (error) throw error
       return data || []
     },
@@ -265,10 +258,10 @@ export const db = {
         .select('*')
         .eq('movie_id', movieId)
         .single()
-      
+
       if (error && error.code !== 'PGRST116') throw error
       return data
-    }
+    },
   },
 
   // WATCHLIST
@@ -281,7 +274,7 @@ export const db = {
         .from('watchlist')
         .select('*, movies(*)')
         .order('added_at', { ascending: false })
-      
+
       if (error) throw error
       return data || []
     },
@@ -295,7 +288,7 @@ export const db = {
         .insert({ movie_id: movieId })
         .select('*, movies(*)')
         .single()
-      
+
       if (error) throw error
       return data
     },
@@ -304,11 +297,8 @@ export const db = {
      * Remove movie from watchlist
      */
     async remove(movieId: string): Promise<void> {
-      const { error } = await supabase
-        .from('watchlist')
-        .delete()
-        .eq('movie_id', movieId)
-      
+      const { error } = await supabase.from('watchlist').delete().eq('movie_id', movieId)
+
       if (error) throw error
     },
 
@@ -318,16 +308,16 @@ export const db = {
     async markWatched(movieId: string, rating?: number, notes?: string): Promise<WatchlistItem> {
       const { data, error } = await supabase
         .from('watchlist')
-        .update({ 
-          watched: true, 
+        .update({
+          watched: true,
           rating,
           notes,
-          watched_at: new Date().toISOString()
+          watched_at: new Date().toISOString(),
         })
         .eq('movie_id', movieId)
         .select('*, movies(*)')
         .single()
-      
+
       if (error) throw error
       return data
     },
@@ -342,10 +332,10 @@ export const db = {
         .eq('movie_id', movieId)
         .select('*, movies(*)')
         .single()
-      
+
       if (error) throw error
       return data
-    }
+    },
   },
 
   // RECOMMENDATION QUEUE
@@ -360,7 +350,7 @@ export const db = {
         .is('consumed_at', null)
         .order('position', { ascending: true })
         .limit(limit)
-      
+
       if (error) throw error
       return data || []
     },
@@ -368,12 +358,14 @@ export const db = {
     /**
      * Add recommendations to queue
      */
-    async addBatch(recommendations: RecommendationQueueInsert[]): Promise<RecommendationQueueItem[]> {
+    async addBatch(
+      recommendations: RecommendationQueueInsert[]
+    ): Promise<RecommendationQueueItem[]> {
       const { data, error } = await supabase
         .from('recommendation_queue')
         .insert(recommendations)
         .select('*, movies(*)')
-      
+
       if (error) throw error
       return data || []
     },
@@ -386,7 +378,7 @@ export const db = {
         .from('recommendation_queue')
         .update({ consumed_at: new Date().toISOString() })
         .eq('id', id)
-      
+
       if (error) throw error
     },
 
@@ -398,10 +390,10 @@ export const db = {
         .from('recommendation_queue')
         .delete()
         .not('consumed_at', 'is', null)
-      
+
       if (error) throw error
-    }
-  }
+    },
+  },
 }
 
 // ============================================================================
@@ -414,7 +406,7 @@ export const rls = {
    */
   async enableAllTables() {
     const tables = ['user_profiles', 'swipes', 'watchlist', 'recommendation_queue']
-    
+
     for (const table of tables) {
       const { error } = await supabase.rpc('enable_rls', { table_name: table })
       if (error) console.error(`Failed to enable RLS on ${table}:`, error)
@@ -451,10 +443,10 @@ export const rls = {
       CREATE POLICY "Movies are viewable by authenticated users" ON movies
         FOR SELECT USING (auth.role() = 'authenticated');
     `
-    
+
     console.log('RLS Policies SQL:', policies)
     return policies
-  }
+  },
 }
 
 // ============================================================================
@@ -466,7 +458,9 @@ export const utils = {
    * Check if user is authenticated
    */
   async isAuthenticated(): Promise<boolean> {
-    const { data: { session } } = await supabase.auth.getSession()
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
     return !!session
   },
 
@@ -474,7 +468,9 @@ export const utils = {
    * Get current user ID
    */
   async getCurrentUserId(): Promise<string | null> {
-    const { data: { user } } = await supabase.auth.getUser()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
     return user?.id || null
   },
 
@@ -493,5 +489,5 @@ export const utils = {
       return 'Referenced record does not exist'
     }
     return err?.message || 'An unknown error occurred'
-  }
-} 
+  },
+}

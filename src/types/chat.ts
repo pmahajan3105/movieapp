@@ -48,4 +48,4 @@ export interface ChatApiResponse {
   preferencesExtracted?: boolean
   preferences?: PreferenceData
   error?: string
-} 
+}

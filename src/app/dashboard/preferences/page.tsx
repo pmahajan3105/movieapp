@@ -35,9 +35,9 @@ export default function PreferencesPage() {
   return (
     <OnboardingOnly>
       <div className="min-h-screen bg-gray-50">
-        <div className="max-w-4xl mx-auto px-4 py-8">
+        <div className="mx-auto max-w-4xl px-4 py-8">
           <div className="mb-8 text-center">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            <h1 className="mb-2 text-3xl font-bold text-gray-900">
               Tell CineAI About Your Movie Taste
             </h1>
             <p className="text-lg text-gray-600">
@@ -46,7 +46,7 @@ export default function PreferencesPage() {
           </div>
 
           {showSummary && extractedPreferences ? (
-            <div className="max-w-2xl mx-auto">
+            <div className="mx-auto max-w-2xl">
               <PreferenceSummary
                 preferences={extractedPreferences}
                 onContinue={handleContinue}
@@ -54,7 +54,7 @@ export default function PreferencesPage() {
               />
             </div>
           ) : (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-[600px]">
+            <div className="h-[600px] rounded-lg border border-gray-200 bg-white shadow-sm">
               <ChatInterface onPreferencesExtracted={handlePreferencesExtracted} />
             </div>
           )}
@@ -62,4 +62,4 @@ export default function PreferencesPage() {
       </div>
     </OnboardingOnly>
   )
-} 
+}

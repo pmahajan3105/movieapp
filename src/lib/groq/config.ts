@@ -1,13 +1,15 @@
 import Groq from 'groq-sdk'
 
 // Initialize Groq client conditionally
-export const groq = process.env.GROQ_API_KEY ? new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-}) : null
+export const groq = process.env.GROQ_API_KEY
+  ? new Groq({
+      apiKey: process.env.GROQ_API_KEY,
+    })
+  : null
 
 // Groq configuration
 export const groqConfig = {
-  model: 'gemma-7b-it', // Gemma model for consistency with your PRD
+  model: 'llama3-8b-8192', // Updated to supported Llama 3 model
   maxTokens: 1000,
   temperature: 0.7,
   topP: 1,
@@ -73,4 +75,4 @@ Return a JSON object with these fields (only include fields with actual informat
   "additional_notes": "Any other relevant preferences or context"
 }
 
-Only include preferences that were clearly expressed in the conversation. Don't invent or assume preferences.` 
+Only include preferences that were clearly expressed in the conversation. Don't invent or assume preferences.`

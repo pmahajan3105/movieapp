@@ -25,8 +25,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshUser = async () => {
     console.log('🔄 refreshUser called')
     try {
-      const { data: { user: authUser }, error } = await supabase.auth.getUser()
-      
+      const {
+        data: { user: authUser },
+        error,
+      } = await supabase.auth.getUser()
+
       if (error) {
         console.error('❌ Error getting user:', error)
         setUser(null)
@@ -64,20 +67,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     console.log('🚀 AuthContext useEffect triggered')
     let mounted = true
-    
+
     const initializeAuth = async () => {
       console.log('⏳ Starting auth initialization...')
-      
+
       try {
         // Simple session check
         console.log('📡 Getting session...')
-        const { data: { session }, error } = await supabase.auth.getSession()
-        
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession()
+
         if (!mounted) {
           console.log('🚫 Component unmounted, aborting')
           return
         }
-        
+
         if (error) {
           console.error('❌ Session error:', error)
           setUser(null)
@@ -106,21 +112,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Set up auth state listener
     console.log('👂 Setting up auth state listener...')
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('🔔 Auth state change:', event, session?.user?.email || 'no user')
-        
-        if (!mounted) return
-        
-        if (event === 'SIGNED_IN' && session?.user) {
-          console.log('✅ User signed in, updating state')
-          setUser(session.user as AuthUser)
-        } else if (event === 'SIGNED_OUT') {
-          console.log('👋 User signed out, clearing state')
-          setUser(null)
-        }
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('🔔 Auth state change:', event, session?.user?.email || 'no user')
+
+      if (!mounted) return
+
+      if (event === 'SIGNED_IN' && session?.user) {
+        console.log('✅ User signed in, updating state')
+        setUser(session.user as AuthUser)
+      } else if (event === 'SIGNED_OUT') {
+        console.log('👋 User signed out, clearing state')
+        setUser(null)
       }
-    )
+    })
 
     return () => {
       console.log('🧹 Cleaning up AuthContext')
@@ -136,17 +142,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refreshUser,
   }
 
-  console.log('🎯 AuthContext state:', { 
-    user: user?.email || 'null', 
+  console.log('🎯 AuthContext state:', {
+    user: user?.email || 'null',
     loading,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   })
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  )
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {
@@ -155,4 +157,4 @@ export function useAuth() {
     throw new Error('useAuth must be used within an AuthProvider')
   }
   return context
-} 
+}

@@ -7,19 +7,13 @@ export default function MoodPage() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">
-          Mood-Based Search
-        </h1>
-        <p className="text-gray-600">
-          Find movies that match your current mood
-        </p>
+        <h1 className="mb-2 text-2xl font-bold text-gray-900">Mood-Based Search</h1>
+        <p className="text-gray-600">Find movies that match your current mood</p>
       </div>
-      
-      <div className="bg-white rounded-lg shadow p-6">
-        <p className="text-gray-500 text-center">
-          Mood-based movie search will appear here
-        </p>
+
+      <div className="rounded-lg bg-white p-6 shadow">
+        <p className="text-center text-gray-500">Mood-based movie search will appear here</p>
       </div>
     </div>
   )
-} 
+}

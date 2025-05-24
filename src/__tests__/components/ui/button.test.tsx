@@ -14,7 +14,7 @@ describe('Button Component', () => {
     const user = userEvent.setup()
     const handleClick = jest.fn()
     render(<Button onClick={handleClick}>Click me</Button>)
-    
+
     await user.click(screen.getByText('Click me'))
     expect(handleClick).toHaveBeenCalledTimes(1)
   })
@@ -102,4 +102,4 @@ describe('Button Component', () => {
     expect(link).toBeInTheDocument()
     expect(link).toHaveAttribute('href', '/test')
   })
-}) 
+})

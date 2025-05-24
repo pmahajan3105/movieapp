@@ -224,7 +224,8 @@ export type MovieInsert = Database['public']['Tables']['movies']['Insert']
 export type ChatSessionInsert = Database['public']['Tables']['chat_sessions']['Insert']
 export type SwipeInsert = Database['public']['Tables']['swipes']['Insert']
 export type WatchlistInsert = Database['public']['Tables']['watchlist']['Insert']
-export type RecommendationQueueInsert = Database['public']['Tables']['recommendation_queue']['Insert']
+export type RecommendationQueueInsert =
+  Database['public']['Tables']['recommendation_queue']['Insert']
 
 // Update types
 export type UserProfileUpdate = Database['public']['Tables']['user_profiles']['Update']
@@ -232,4 +233,5 @@ export type MovieUpdate = Database['public']['Tables']['movies']['Update']
 export type ChatSessionUpdate = Database['public']['Tables']['chat_sessions']['Update']
 export type SwipeUpdate = Database['public']['Tables']['swipes']['Update']
 export type WatchlistUpdate = Database['public']['Tables']['watchlist']['Update']
-export type RecommendationQueueUpdate = Database['public']['Tables']['recommendation_queue']['Update'] 
+export type RecommendationQueueUpdate =
+  Database['public']['Tables']['recommendation_queue']['Update']

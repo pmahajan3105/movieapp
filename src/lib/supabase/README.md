@@ -16,17 +16,20 @@ Complete Supabase client configuration with authentication, database helpers, an
 ## ✨ Features
 
 ### ✅ **Complete Type Safety**
+
 - Full TypeScript support with generated database types
 - Strongly typed CRUD operations
 - Type-safe query builders
 
 ### ✅ **Authentication System**
+
 - Email + OTP authentication (no passwords)
 - Session management
 - Auth state listeners
 - User profile creation triggers
 
 ### ✅ **Database Helpers**
+
 - **User Profiles**: Preference management, onboarding tracking
 - **Movies**: OMDb integration, search, upserts
 - **Swipes**: Like/dislike/watchlist actions with history
@@ -34,11 +37,13 @@ Complete Supabase client configuration with authentication, database helpers, an
 - **Recommendations**: AI-generated recommendation queue management
 
 ### ✅ **Row Level Security**
+
 - User data isolation
 - Secure multi-user access
 - Policy helpers and setup functions
 
 ### ✅ **Performance Optimized**
+
 - Proper database indexing
 - Query optimization
 - Caching-friendly structure
@@ -68,6 +73,7 @@ NEXT_PUBLIC_SUPABASE_DEBUG=true
 ### 3. Database Setup
 
 Run the SQL schema from `config.ts` in your Supabase SQL editor to create:
+
 - Tables with proper relationships
 - Row Level Security policies
 - Indexes for performance
@@ -95,6 +101,7 @@ recommendation_queue (id, user_id, movie_id, batch_id, position, confidence_scor
 ```
 
 ### Key Features
+
 - **UUID primary keys** for security
 - **JSONB preferences** for flexible user data
 - **Array types** for genres and actors
@@ -174,8 +181,8 @@ const updated = await db.userProfiles.updatePreferences({
   preferred_eras: ['2000s', '2010s'],
   mood_preferences: {
     default: 'thought-provoking',
-    weekend: 'light-hearted'
-  }
+    weekend: 'light-hearted',
+  },
 })
 ```
 
@@ -195,7 +202,7 @@ const movie = await db.movies.upsert({
   director: 'Christopher Nolan',
   actors: ['Matthew McConaughey', 'Anne Hathaway'],
   language: 'English',
-  country: 'USA'
+  country: 'USA',
 })
 
 // Search movies
@@ -208,7 +215,7 @@ const results = await db.movies.searchByTitle('interstellar')
 // Record swipe action
 const swipe = await db.swipes.create({
   movie_id: 'movie-uuid',
-  action: 'like' // 'like' | 'dislike' | 'watchlist'
+  action: 'like', // 'like' | 'dislike' | 'watchlist'
 })
 
 // Check if already swiped
@@ -251,8 +258,8 @@ const recommendations = await db.recommendations.addBatch([
     batch_id: 'batch-uuid',
     position: 1,
     confidence_score: 0.95,
-    ai_reason: 'Based on your love for sci-fi and high ratings'
-  }
+    ai_reason: 'Based on your love for sci-fi and high ratings',
+  },
   // ... more recommendations
 ])
 
@@ -291,7 +298,7 @@ try {
 } catch (error) {
   const message = utils.handleError(error)
   console.error('Friendly error:', message)
-  
+
   // Specific error codes:
   // PGRST116: No data found
   // 23505: Duplicate record
@@ -329,4 +336,4 @@ src/lib/supabase/
 
 ---
 
-**Ready to build an amazing movie recommendation app!** 🎬✨ 
+**Ready to build an amazing movie recommendation app!** 🎬✨

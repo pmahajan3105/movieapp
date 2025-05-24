@@ -17,15 +17,13 @@ export function PreferenceSummary({ preferences, onContinue, onEdit }: Preferenc
 
   if (!hasPreferences) {
     return (
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
+      <div className="rounded-lg border border-gray-200 bg-white p-6">
         <div className="text-center">
-          <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-yellow-600 text-xl">⚠️</span>
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-yellow-100">
+            <span className="text-xl text-yellow-600">⚠️</span>
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">
-            No preferences detected
-          </h3>
-          <p className="text-gray-600 mb-4">
+          <h3 className="mb-2 text-lg font-medium text-gray-900">No preferences detected</h3>
+          <p className="mb-4 text-gray-600">
             Continue chatting to help me understand your movie taste better.
           </p>
           <Button onClick={onEdit} variant="outline">
@@ -37,15 +35,13 @@ export function PreferenceSummary({ preferences, onContinue, onEdit }: Preferenc
   }
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6">
-      <div className="flex items-center space-x-3 mb-6">
-        <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-          <span className="text-green-600 text-lg">✅</span>
+    <div className="rounded-lg border border-gray-200 bg-white p-6">
+      <div className="mb-6 flex items-center space-x-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100">
+          <span className="text-lg text-green-600">✅</span>
         </div>
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">
-            Your Movie Preferences
-          </h3>
+          <h3 className="text-lg font-semibold text-gray-900">Your Movie Preferences</h3>
           <p className="text-sm text-gray-600">
             Based on our conversation, here&apos;s what I learned about your taste
           </p>
@@ -56,12 +52,12 @@ export function PreferenceSummary({ preferences, onContinue, onEdit }: Preferenc
         {/* Favorite Movies */}
         {preferences.favorite_movies && preferences.favorite_movies.length > 0 && (
           <div>
-            <h4 className="text-sm font-medium text-gray-900 mb-2">Favorite Movies</h4>
+            <h4 className="mb-2 text-sm font-medium text-gray-900">Favorite Movies</h4>
             <div className="flex flex-wrap gap-2">
               {preferences.favorite_movies.map((movie, index) => (
                 <span
                   key={index}
-                  className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800"
+                  className="inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-sm text-blue-800"
                 >
                   {movie}
                 </span>
@@ -73,12 +69,12 @@ export function PreferenceSummary({ preferences, onContinue, onEdit }: Preferenc
         {/* Preferred Genres */}
         {preferences.preferred_genres && preferences.preferred_genres.length > 0 && (
           <div>
-            <h4 className="text-sm font-medium text-gray-900 mb-2">Preferred Genres</h4>
+            <h4 className="mb-2 text-sm font-medium text-gray-900">Preferred Genres</h4>
             <div className="flex flex-wrap gap-2">
               {preferences.preferred_genres.map((genre, index) => (
                 <span
                   key={index}
-                  className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-purple-100 text-purple-800"
+                  className="inline-flex items-center rounded-full bg-purple-100 px-3 py-1 text-sm text-purple-800"
                 >
                   {genre}
                 </span>
@@ -90,12 +86,12 @@ export function PreferenceSummary({ preferences, onContinue, onEdit }: Preferenc
         {/* Themes */}
         {preferences.themes && preferences.themes.length > 0 && (
           <div>
-            <h4 className="text-sm font-medium text-gray-900 mb-2">Themes You Enjoy</h4>
+            <h4 className="mb-2 text-sm font-medium text-gray-900">Themes You Enjoy</h4>
             <div className="flex flex-wrap gap-2">
               {preferences.themes.map((theme, index) => (
                 <span
                   key={index}
-                  className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-green-100 text-green-800"
+                  className="inline-flex items-center rounded-full bg-green-100 px-3 py-1 text-sm text-green-800"
                 >
                   {theme}
                 </span>
@@ -107,12 +103,12 @@ export function PreferenceSummary({ preferences, onContinue, onEdit }: Preferenc
         {/* Avoid Genres */}
         {preferences.avoid_genres && preferences.avoid_genres.length > 0 && (
           <div>
-            <h4 className="text-sm font-medium text-gray-900 mb-2">Genres to Avoid</h4>
+            <h4 className="mb-2 text-sm font-medium text-gray-900">Genres to Avoid</h4>
             <div className="flex flex-wrap gap-2">
               {preferences.avoid_genres.map((genre, index) => (
                 <span
                   key={index}
-                  className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-red-100 text-red-800"
+                  className="inline-flex items-center rounded-full bg-red-100 px-3 py-1 text-sm text-red-800"
                 >
                   {genre}
                 </span>
@@ -124,12 +120,12 @@ export function PreferenceSummary({ preferences, onContinue, onEdit }: Preferenc
         {/* Preferred Eras */}
         {preferences.preferred_eras && preferences.preferred_eras.length > 0 && (
           <div>
-            <h4 className="text-sm font-medium text-gray-900 mb-2">Preferred Time Periods</h4>
+            <h4 className="mb-2 text-sm font-medium text-gray-900">Preferred Time Periods</h4>
             <div className="flex flex-wrap gap-2">
               {preferences.preferred_eras.map((era, index) => (
                 <span
                   key={index}
-                  className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-indigo-100 text-indigo-800"
+                  className="inline-flex items-center rounded-full bg-indigo-100 px-3 py-1 text-sm text-indigo-800"
                 >
                   {era}
                 </span>
@@ -141,12 +137,12 @@ export function PreferenceSummary({ preferences, onContinue, onEdit }: Preferenc
         {/* Favorite Actors */}
         {preferences.favorite_actors && preferences.favorite_actors.length > 0 && (
           <div>
-            <h4 className="text-sm font-medium text-gray-900 mb-2">Favorite Actors</h4>
+            <h4 className="mb-2 text-sm font-medium text-gray-900">Favorite Actors</h4>
             <div className="flex flex-wrap gap-2">
               {preferences.favorite_actors.map((actor, index) => (
                 <span
                   key={index}
-                  className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-yellow-100 text-yellow-800"
+                  className="inline-flex items-center rounded-full bg-yellow-100 px-3 py-1 text-sm text-yellow-800"
                 >
                   {actor}
                 </span>
@@ -158,12 +154,12 @@ export function PreferenceSummary({ preferences, onContinue, onEdit }: Preferenc
         {/* Favorite Directors */}
         {preferences.favorite_directors && preferences.favorite_directors.length > 0 && (
           <div>
-            <h4 className="text-sm font-medium text-gray-900 mb-2">Favorite Directors</h4>
+            <h4 className="mb-2 text-sm font-medium text-gray-900">Favorite Directors</h4>
             <div className="flex flex-wrap gap-2">
               {preferences.favorite_directors.map((director, index) => (
                 <span
                   key={index}
-                  className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-pink-100 text-pink-800"
+                  className="inline-flex items-center rounded-full bg-pink-100 px-3 py-1 text-sm text-pink-800"
                 >
                   {director}
                 </span>
@@ -175,8 +171,8 @@ export function PreferenceSummary({ preferences, onContinue, onEdit }: Preferenc
         {/* Mood Preferences */}
         {preferences.mood_preferences && (
           <div>
-            <h4 className="text-sm font-medium text-gray-900 mb-3">Mood Preferences</h4>
-            <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+            <h4 className="mb-3 text-sm font-medium text-gray-900">Mood Preferences</h4>
+            <div className="space-y-2 rounded-lg bg-gray-50 p-4">
               {preferences.mood_preferences.default && (
                 <div className="flex justify-between">
                   <span className="text-sm text-gray-600">Default mood:</span>
@@ -208,8 +204,8 @@ export function PreferenceSummary({ preferences, onContinue, onEdit }: Preferenc
         {/* Viewing Context */}
         {preferences.viewing_context && (
           <div>
-            <h4 className="text-sm font-medium text-gray-900 mb-3">Viewing Preferences</h4>
-            <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+            <h4 className="mb-3 text-sm font-medium text-gray-900">Viewing Preferences</h4>
+            <div className="space-y-2 rounded-lg bg-gray-50 p-4">
               {typeof preferences.viewing_context.solo === 'boolean' && (
                 <div className="flex justify-between">
                   <span className="text-sm text-gray-600">Solo watching:</span>
@@ -249,8 +245,8 @@ export function PreferenceSummary({ preferences, onContinue, onEdit }: Preferenc
         {/* Additional Notes */}
         {preferences.additional_notes && (
           <div>
-            <h4 className="text-sm font-medium text-gray-900 mb-2">Additional Notes</h4>
-            <div className="bg-gray-50 rounded-lg p-4">
+            <h4 className="mb-2 text-sm font-medium text-gray-900">Additional Notes</h4>
+            <div className="rounded-lg bg-gray-50 p-4">
               <p className="text-sm text-gray-700">{preferences.additional_notes}</p>
             </div>
           </div>
@@ -258,7 +254,7 @@ export function PreferenceSummary({ preferences, onContinue, onEdit }: Preferenc
       </div>
 
       {/* Action buttons */}
-      <div className="flex flex-col sm:flex-row gap-3 mt-8">
+      <div className="mt-8 flex flex-col gap-3 sm:flex-row">
         <Button onClick={onContinue} className="flex-1">
           Start Discovering Movies
         </Button>
@@ -268,4 +264,4 @@ export function PreferenceSummary({ preferences, onContinue, onEdit }: Preferenc
       </div>
     </div>
   )
-} 
+}

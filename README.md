@@ -4,16 +4,18 @@ CineAI is an intelligent movie recommendation app that uses AI to learn your pre
 
 ## ✨ Features
 
-- **AI-Powered Recommendations**: Conversational AI learns your movie preferences
-- **Tinder-Style Swiping**: Swipe through movie recommendations
-- **Personal Watchlist**: Save and track movies you want to watch
-- **Mood-Based Discovery**: Find movies based on your current mood
-- **Smart Authentication**: Passwordless login with email OTP
+- **🤖 AI Chat Assistant**: Natural conversation to understand your movie taste
+- **🎬 Smart Recommendations**: Personalized movie suggestions based on your preferences  
+- **⚡ Quick Rating**: Simple like/dislike system to improve recommendations
+- **📋 Movie Discovery**: Browse curated collections and trending films
+- **🔐 Magic Link Auth**: Passwordless login with email OTP
+- **📱 Responsive Design**: Optimized for mobile and desktop
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Node.js 18+ 
+
+- Node.js 18+
 - npm/yarn/pnpm
 - Supabase account
 - Groq API key
@@ -32,7 +34,7 @@ npm install
 cp .env.example .env.local
 # Add your Supabase and Groq API keys
 
-# Run the development server
+# Run development server
 npm run dev
 ```
 
@@ -42,9 +44,12 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 - **Frontend**: Next.js 15, TypeScript, Tailwind CSS
 - **Backend**: Supabase (Auth + Database)
-- **AI**: Groq AI for recommendations
+- **AI**: Groq AI with Gemma model
 - **UI Components**: Shadcn/ui
-- **Authentication**: Supabase Auth with email OTP
+- **Testing**: Jest + React Testing Library
+- **Code Quality**: ESLint, Prettier, Husky
+
+## 📁 Project Structure
 
 ## 📖 Learn More
 
