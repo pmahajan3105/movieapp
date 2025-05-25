@@ -23,13 +23,13 @@ interface PaginationState {
 
 // Enhanced state interface with better pagination
 interface SimplifiedMoviesState {
-  movies: Movie[]              // Single array of all movies
-  selectedMovie: Movie | null  // Currently selected movie for modal
-  watchlistIds: Set<string>   // Movies in user's watchlist
-  error: string | null       // Single error state
+  movies: Movie[] // Single array of all movies
+  selectedMovie: Movie | null // Currently selected movie for modal
+  watchlistIds: Set<string> // Movies in user's watchlist
+  error: string | null // Single error state
   recommendationType: 'personalized' | 'popular' | 'mixed' | null
   userHasPreferences: boolean
-  realTimeMode: boolean      // Toggle for real-time movie fetching
+  realTimeMode: boolean // Toggle for real-time movie fetching
   pagination: PaginationState
   viewMode: 'loadMore' | 'infiniteScroll' | 'pageNumbers'
 }
@@ -38,7 +38,7 @@ export default function MoviesPage() {
   const { loading, user } = useAuth()
   const observerRef = useRef<IntersectionObserver | null>(null)
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
-  
+
   const [state, setState] = useState<SimplifiedMoviesState>({
     movies: [],
     selectedMovie: null,
@@ -91,14 +91,14 @@ export default function MoviesPage() {
   const loadMovies = useCallback(async (targetPage?: number, appendMode = false) => {
     setState(prev => {
       const page = targetPage || (appendMode ? prev.pagination.currentPage + 1 : 1)
-      
+
       if (process.env.NODE_ENV === 'development') {
         console.log('📱 Loading movies (Enhanced Pagination)', {
           page,
           currentMovieCount: prev.movies.length,
           realTimeMode: prev.realTimeMode,
           appendMode,
-          viewMode: prev.viewMode
+          viewMode: prev.viewMode,
         })
       }
 
@@ -110,7 +110,7 @@ export default function MoviesPage() {
             smart: 'true',
             limit: prev.pagination.moviesPerPage.toString(),
             page: page.toString(),
-            ...(prev.realTimeMode && { realtime: 'true', database: 'tmdb' })
+            ...(prev.realTimeMode && { realtime: 'true', database: 'tmdb' }),
           })
 
           if (process.env.NODE_ENV === 'development') {
@@ -132,18 +132,18 @@ export default function MoviesPage() {
               pagination: result.pagination,
               recommendationType: result.recommendationType,
               appendMode,
-              requestedPage: page
+              requestedPage: page,
             })
           }
 
           setState(prevState => {
             const existingMovieIds = new Set(prevState.movies.map(m => m.id))
             const newMoviesData = result.data || []
-            
-            const newMovies = appendMode 
+
+            const newMovies = appendMode
               ? [
-                  ...prevState.movies, 
-                  ...newMoviesData.filter((movie: Movie) => !existingMovieIds.has(movie.id))
+                  ...prevState.movies,
+                  ...newMoviesData.filter((movie: Movie) => !existingMovieIds.has(movie.id)),
                 ]
               : newMoviesData
 
@@ -153,17 +153,18 @@ export default function MoviesPage() {
               pagination: {
                 ...prevState.pagination,
                 currentPage: result.pagination?.currentPage || page,
-                totalPages: result.pagination?.totalPages || Math.ceil((result.total || 0) / prevState.pagination.moviesPerPage),
+                totalPages:
+                  result.pagination?.totalPages ||
+                  Math.ceil((result.total || 0) / prevState.pagination.moviesPerPage),
                 hasMore: result.pagination?.hasMore || false,
                 isLoading: false,
                 isLoadingMore: false,
               },
               recommendationType: result.recommendationType || null,
               userHasPreferences: result.userHasPreferences || false,
-              error: null
+              error: null,
             }
           })
-
         } catch (error) {
           console.error('❌ Error loading movies:', error)
           setState(prevState => ({
@@ -173,7 +174,7 @@ export default function MoviesPage() {
               isLoading: false,
               isLoadingMore: false,
             },
-            error: error instanceof Error ? error.message : 'Failed to load movies'
+            error: error instanceof Error ? error.message : 'Failed to load movies',
           }))
         }
       }
@@ -189,7 +190,7 @@ export default function MoviesPage() {
           isLoading: !appendMode,
           isLoadingMore: appendMode,
         },
-        error: null
+        error: null,
       }
     })
   }, [])
@@ -207,7 +208,7 @@ export default function MoviesPage() {
 
     observerRef.current = new IntersectionObserver(observerCallback, {
       threshold: 0.1,
-      rootMargin: '20px'
+      rootMargin: '20px',
     })
 
     if (loadMoreRef.current) {
@@ -295,7 +296,8 @@ export default function MoviesPage() {
         })
         toast.success('Removed from watchlist!')
       } else {
-        const errorMessage = data.error || `Failed to remove from watchlist (Status: ${response.status})`
+        const errorMessage =
+          data.error || `Failed to remove from watchlist (Status: ${response.status})`
         toast.error(errorMessage)
       }
     } catch (error) {
@@ -332,7 +334,7 @@ export default function MoviesPage() {
           return 'Live Trending Movies 🔥'
       }
     }
-    
+
     switch (state.recommendationType) {
       case 'personalized':
         return 'Your Personalized Recommendations 🎯'
@@ -354,7 +356,7 @@ export default function MoviesPage() {
           return 'Current trending and newly released movies from OMDB and web sources'
       }
     }
-    
+
     switch (state.recommendationType) {
       case 'personalized':
         return 'Movies tailored to your preferences from our AI chat'
@@ -368,23 +370,38 @@ export default function MoviesPage() {
   const toggleRealTimeMode = () => {
     setState(prev => {
       const newRealTimeMode = !prev.realTimeMode
-      // Refresh movies with new mode
+
+      // Show immediate loading state and clear movies when switching modes
+      const updatedState = {
+        ...prev,
+        realTimeMode: newRealTimeMode,
+        pagination: {
+          ...prev.pagination,
+          isLoading: true,
+          currentPage: 1,
+        },
+        movies: [], // Clear movies when switching modes for better UX
+        error: null,
+      }
+
+      // Refresh movies with new mode after state update
       setTimeout(() => {
         loadMovies(1, false)
-      }, 100)
-      return { ...prev, realTimeMode: newRealTimeMode }
+      }, 50) // Shorter timeout for better responsiveness
+
+      return updatedState
     })
   }
 
   const handleRefresh = () => {
-    setState(prev => ({ 
-      ...prev, 
+    setState(prev => ({
+      ...prev,
       pagination: {
         ...prev.pagination,
         currentPage: 1,
       },
       movies: [],
-      error: null
+      error: null,
     }))
     loadMovies(1, false)
   }
@@ -457,26 +474,20 @@ export default function MoviesPage() {
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h1 className="mb-2 text-3xl font-bold text-gray-900">
-              {getRecommendationTitle()}
-            </h1>
-            <p className="text-gray-600">
-              {getRecommendationDescription()}
-            </p>
+            <h1 className="mb-2 text-3xl font-bold text-gray-900">{getRecommendationTitle()}</h1>
+            <p className="text-gray-600">{getRecommendationDescription()}</p>
             {state.userHasPreferences && (
               <div className="mt-2 flex items-center gap-2">
                 <Zap className="h-4 w-4 text-purple-500" />
-                <span className="text-sm text-purple-600 font-medium">
+                <span className="text-sm font-medium text-purple-600">
                   AI-Enhanced Recommendations
                 </span>
               </div>
             )}
             {state.realTimeMode && (
               <div className="mt-2 flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-sm text-green-600 font-medium">
-                  Real-Time Movie Data
-                </span>
+                <div className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
+                <span className="text-sm font-medium text-green-600">Real-Time Movie Data</span>
               </div>
             )}
           </div>
@@ -485,19 +496,19 @@ export default function MoviesPage() {
             <div className="flex rounded-lg border p-1">
               <button
                 onClick={() => changeViewMode('loadMore')}
-                className={`px-3 py-1 text-xs rounded ${state.viewMode === 'loadMore' ? 'bg-blue-100 text-blue-700' : 'text-gray-600'}`}
+                className={`rounded px-3 py-1 text-xs ${state.viewMode === 'loadMore' ? 'bg-blue-100 text-blue-700' : 'text-gray-600'}`}
               >
                 Load More
               </button>
               <button
                 onClick={() => changeViewMode('infiniteScroll')}
-                className={`px-3 py-1 text-xs rounded ${state.viewMode === 'infiniteScroll' ? 'bg-blue-100 text-blue-700' : 'text-gray-600'}`}
+                className={`rounded px-3 py-1 text-xs ${state.viewMode === 'infiniteScroll' ? 'bg-blue-100 text-blue-700' : 'text-gray-600'}`}
               >
                 Auto Load
               </button>
               <button
                 onClick={() => changeViewMode('pageNumbers')}
-                className={`px-3 py-1 text-xs rounded ${state.viewMode === 'pageNumbers' ? 'bg-blue-100 text-blue-700' : 'text-gray-600'}`}
+                className={`rounded px-3 py-1 text-xs ${state.viewMode === 'pageNumbers' ? 'bg-blue-100 text-blue-700' : 'text-gray-600'}`}
               >
                 Pages
               </button>
@@ -505,9 +516,7 @@ export default function MoviesPage() {
 
             {/* Real-time mode toggle */}
             <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-gray-700">
-                Real-time
-              </label>
+              <label className="text-sm font-medium text-gray-700">Real-time</label>
               <button
                 onClick={toggleRealTimeMode}
                 className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
@@ -536,11 +545,14 @@ export default function MoviesPage() {
 
         {/* Pagination Info */}
         {state.movies.length > 0 && (
-          <div className="mb-6 flex justify-between items-center text-sm text-gray-600">
+          <div className="mb-6 flex items-center justify-between text-sm text-gray-600">
             <span>
               Showing {state.movies.length} movies
               {state.pagination.totalPages > 1 && (
-                <> (Page {state.pagination.currentPage} of {state.pagination.totalPages})</>
+                <>
+                  {' '}
+                  (Page {state.pagination.currentPage} of {state.pagination.totalPages})
+                </>
               )}
             </span>
             {state.viewMode === 'pageNumbers' && state.pagination.totalPages > 1 && (
@@ -563,7 +575,7 @@ export default function MoviesPage() {
                 />
               ))}
             </div>
-            
+
             {/* Enhanced Pagination Controls */}
             {state.viewMode === 'loadMore' && state.pagination.hasMore && (
               <div className="mt-12 flex justify-center">
@@ -607,14 +619,14 @@ export default function MoviesPage() {
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  
+
                   {generatePageNumbers().map((pageNum, index) => (
                     <React.Fragment key={index}>
                       {pageNum === '...' ? (
                         <span className="px-2 text-gray-500">...</span>
                       ) : (
                         <Button
-                          variant={pageNum === state.pagination.currentPage ? "default" : "outline"}
+                          variant={pageNum === state.pagination.currentPage ? 'default' : 'outline'}
                           size="sm"
                           onClick={() => goToPage(pageNum as number)}
                           disabled={state.pagination.isLoading}
@@ -625,12 +637,15 @@ export default function MoviesPage() {
                       )}
                     </React.Fragment>
                   ))}
-                  
+
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => goToPage(state.pagination.currentPage + 1)}
-                    disabled={state.pagination.currentPage === state.pagination.totalPages || state.pagination.isLoading}
+                    disabled={
+                      state.pagination.currentPage === state.pagination.totalPages ||
+                      state.pagination.isLoading
+                    }
                   >
                     <ChevronRight className="h-4 w-4" />
                   </Button>
@@ -640,10 +655,11 @@ export default function MoviesPage() {
 
             {/* Debug Info (only in development) */}
             {process.env.NODE_ENV === 'development' && (
-              <div className="mt-8 p-4 bg-gray-100 rounded text-sm text-gray-600">
-                <strong>Debug Info:</strong> Page {state.pagination.currentPage}/{state.pagination.totalPages}, 
-                Movies: {state.movies.length}, Type: {state.recommendationType}, 
-                Has More: {state.pagination.hasMore ? 'Yes' : 'No'}, View: {state.viewMode}
+              <div className="mt-8 rounded bg-gray-100 p-4 text-sm text-gray-600">
+                <strong>Debug Info:</strong> Page {state.pagination.currentPage}/
+                {state.pagination.totalPages}, Movies: {state.movies.length}, Type:{' '}
+                {state.recommendationType}, Has More: {state.pagination.hasMore ? 'Yes' : 'No'},
+                View: {state.viewMode}
               </div>
             )}
           </>
@@ -653,15 +669,14 @@ export default function MoviesPage() {
               <Zap className="mx-auto mb-4 h-12 w-12 text-gray-400" />
               <h3 className="mb-2 text-lg font-medium text-gray-900">No movies found</h3>
               <p className="mb-4 text-gray-600">
-                {state.userHasPreferences 
-                  ? "No movies match your preferences. Try chatting with CineAI to discover new preferences!"
-                  : "Check back later for more movie recommendations!"
-                }
+                {state.userHasPreferences
+                  ? 'No movies match your preferences. Try chatting with CineAI to discover new preferences!'
+                  : 'Check back later for more movie recommendations!'}
               </p>
-              <div className="flex gap-2 justify-center">
+              <div className="flex justify-center gap-2">
                 <Button onClick={handleRefresh}>Refresh</Button>
                 {!state.userHasPreferences && (
-                  <Button variant="outline" onClick={() => window.location.href = '/dashboard'}>
+                  <Button variant="outline" onClick={() => (window.location.href = '/dashboard')}>
                     Chat with CineAI
                   </Button>
                 )}
@@ -701,7 +716,7 @@ const MovieCard = memo(function MovieCard({
   isInWatchlist,
 }: MovieCardProps) {
   return (
-    <Card className="overflow-hidden transition-all hover:shadow-lg hover:scale-[1.02] group">
+    <Card className="group overflow-hidden transition-all hover:scale-[1.02] hover:shadow-lg">
       <div className="relative">
         <div className="aspect-[2/3] w-full overflow-hidden">
           {movie.poster_url ? (
@@ -716,7 +731,7 @@ const MovieCard = memo(function MovieCard({
             />
           ) : (
             <div
-              className="flex h-full w-full cursor-pointer items-center justify-center bg-gray-200 group-hover:bg-gray-300 transition-colors"
+              className="flex h-full w-full cursor-pointer items-center justify-center bg-gray-200 transition-colors group-hover:bg-gray-300"
               onClick={() => onMovieClick(movie)}
             >
               <Film className="h-12 w-12 text-gray-400" />
@@ -730,14 +745,14 @@ const MovieCard = memo(function MovieCard({
             ⭐ {movie.rating}
           </div>
         )}
-        
+
         {/* Hover overlay for better UX */}
-        <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+        <div className="pointer-events-none absolute inset-0 bg-black/10 opacity-0 transition-opacity group-hover:opacity-100" />
       </div>
 
       <CardContent className="p-4">
         <h3
-          className="mb-2 line-clamp-2 cursor-pointer text-lg font-semibold hover:text-blue-600 transition-colors"
+          className="mb-2 line-clamp-2 cursor-pointer text-lg font-semibold transition-colors hover:text-blue-600"
           onClick={() => onMovieClick(movie)}
         >
           {movie.title}
@@ -763,7 +778,7 @@ const MovieCard = memo(function MovieCard({
           className="w-full transition-all duration-200"
           onClick={() => onAddToWatchlist(movie.id)}
           disabled={isInWatchlist}
-          variant={isInWatchlist ? "secondary" : "default"}
+          variant={isInWatchlist ? 'secondary' : 'default'}
         >
           <Plus className="mr-1 h-4 w-4" />
           {isInWatchlist ? 'In Watchlist' : 'Add to Watchlist'}
@@ -771,4 +786,4 @@ const MovieCard = memo(function MovieCard({
       </CardContent>
     </Card>
   )
-}) 
+})

@@ -5,16 +5,13 @@ import { getAuthenticatedUserId } from '@/lib/auth-server'
 // DELETE - Clear all preferences in a specific category
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { category: string } }
+  { params }: { params: Promise<{ category: string }> }
 ) {
   try {
-    const category = params.category
+    const { category } = await params
 
     if (!category) {
-      return NextResponse.json(
-        { error: 'Category is required', success: false },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Category is required', success: false }, { status: 400 })
     }
 
     // Get authenticated user
@@ -69,15 +66,14 @@ export async function DELETE(
       message: `All preferences in category "${category}" have been cleared`,
       preferences: data.preferences,
     })
-
   } catch (error) {
     console.error('❌ Error clearing category preferences:', error)
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to clear category preferences',
-        success: false 
+        success: false,
       },
       { status: 500 }
     )
   }
-} 
+}

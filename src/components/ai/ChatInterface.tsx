@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { ChatMessage } from './ChatMessage'
 import { ChatInput } from './ChatInput'
-import { PreferenceSummary } from './PreferenceSummary'
+import { PreferenceConfirmation } from '@/components/chat/PreferenceConfirmation'
 import type { ChatMessage as ChatMessageType, PreferenceData } from '@/types/chat'
 import { AlertCircle, CheckCircle, Sparkles, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -127,7 +127,7 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             const eventData = line.slice(6).trim()
-            
+
             if (eventData === '[DONE]') {
               setIsStreaming(false)
               return
@@ -166,12 +166,13 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
                     setIsComplete(true)
                     setExtractedPreferences(event.preferences)
                     onPreferencesExtracted?.(event.preferences)
-                    
+
                     // Add completion message
                     const completionMessage: ChatMessageType = {
                       id: `completion-${Date.now()}`,
                       role: 'assistant',
-                      content: "Perfect! I've learned about your movie preferences. Take a look at the summary below, and then you can explore your personalized recommendations!",
+                      content:
+                        "Perfect! I've learned about your movie preferences. Take a look at the summary below, and then you can explore your personalized recommendations!",
                       timestamp: new Date(),
                     }
                     setMessages(prev => [...prev, completionMessage])
@@ -200,15 +201,18 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
 
       setIsStreaming(false)
       setStreamingMessage('')
-      
+
       const errorMessage = err instanceof Error ? err.message : 'Something went wrong'
-      
+
       // If this is a streaming capability error, don't show error UI - let fallback handle it
-      if (errorMessage.includes('does not support streaming') || errorMessage.includes('streaming')) {
+      if (
+        errorMessage.includes('does not support streaming') ||
+        errorMessage.includes('streaming')
+      ) {
         console.log('🔄 Streaming not supported, triggering fallback:', errorMessage)
         throw err // Re-throw to trigger fallback
       }
-      
+
       setError(errorMessage)
 
       // Add error message to chat
@@ -227,8 +231,6 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
     }
   }
 
-
-
   const handleSendMessage = async (messageContent: string) => {
     if (isComplete || isLoading || isStreaming) return
 
@@ -245,8 +247,89 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
 
     setMessages(prev => [...prev, userMessage])
 
-    // Use streaming for better UX
-    await handleStreamingResponse(messageContent)
+    try {
+      // Try streaming first, fallback to non-streaming if it fails
+      await handleStreamingResponse(messageContent)
+    } catch (streamingError) {
+      console.log('🔄 Streaming failed, falling back to non-streaming:', streamingError)
+
+      try {
+        // Fallback to non-streaming API call
+        const response = await fetch('/api/ai/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message: messageContent,
+            sessionId,
+            stream: false, // Force non-streaming
+          }),
+        })
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          throw new Error(`HTTP ${response.status}: ${errorText}`)
+        }
+
+        const data = await response.json()
+
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to get response')
+        }
+
+        // Update session ID if provided
+        if (data.sessionId && !sessionId) {
+          setSessionId(data.sessionId)
+        }
+
+        // Add AI response to chat
+        const aiMessage: ChatMessageType = {
+          id: `ai-${Date.now()}`,
+          role: 'assistant',
+          content: data.message,
+          timestamp: new Date(),
+        }
+        setMessages(prev => [...prev, aiMessage])
+
+        // Handle preferences if extracted
+        if (data.preferencesExtracted && data.preferences) {
+          setIsComplete(true)
+          setExtractedPreferences(data.preferences)
+          onPreferencesExtracted?.(data.preferences)
+
+          // Add completion message
+          const completionMessage: ChatMessageType = {
+            id: `completion-${Date.now()}`,
+            role: 'assistant',
+            content:
+              "Perfect! I've learned about your movie preferences. Take a look at the summary below, and then you can explore your personalized recommendations!",
+            timestamp: new Date(),
+          }
+          setMessages(prev => [...prev, completionMessage])
+        }
+
+        setRetryCount(0) // Reset retry count on success
+      } catch (fallbackError) {
+        console.error('❌ Both streaming and non-streaming failed:', fallbackError)
+
+        const errorMessage =
+          fallbackError instanceof Error ? fallbackError.message : 'Something went wrong'
+        setError(errorMessage)
+
+        // Add error message to chat
+        const errorChatMessage: ChatMessageType = {
+          id: `error-${Date.now()}`,
+          role: 'assistant',
+          content: "I'm sorry, I encountered an error. Please try sending your message again.",
+          timestamp: new Date(),
+        }
+        setMessages(prev => [...prev, errorChatMessage])
+      }
+    } finally {
+      setIsLoading(false)
+      setIsStreaming(false)
+    }
   }
 
   const resetConversation = () => {
@@ -263,12 +346,13 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
     setRetryCount(0)
     setStreamingMessage('')
     setIsStreaming(false)
-    
+
     // Re-add welcome message
     const welcomeMessage: ChatMessageType = {
       id: 'welcome-reset',
       role: 'assistant',
-      content: "Let's start fresh! Tell me about your movie preferences and I'll help you discover your next favorite film! 🎬",
+      content:
+        "Let's start fresh! Tell me about your movie preferences and I'll help you discover your next favorite film! 🎬",
       timestamp: new Date(),
     }
     setMessages([welcomeMessage])
@@ -299,7 +383,7 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
             </div>
             <div>
               <h2 className="text-lg font-semibold text-gray-900">CineAI Assistant</h2>
-              <p className="text-sm text-gray-500 flex items-center gap-1">
+              <p className="flex items-center gap-1 text-sm text-gray-500">
                 {isComplete ? (
                   <>
                     <CheckCircle className="h-3 w-3 text-green-500" />
@@ -307,7 +391,7 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
                   </>
                 ) : isLoading || isStreaming ? (
                   <>
-                    <div className="h-3 w-3 animate-pulse rounded-full bg-blue-500" />
+                    <span className="inline-block h-3 w-3 animate-pulse rounded-full bg-blue-500" />
                     {isStreaming ? 'Streaming response...' : 'Thinking...'}
                   </>
                 ) : (
@@ -319,12 +403,12 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
               </p>
             </div>
           </div>
-          
+
           {/* Reset button */}
           {(messages.length > 1 || isComplete) && (
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               onClick={resetConversation}
               className="flex items-center gap-2"
               disabled={isLoading || isStreaming}
@@ -383,10 +467,10 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
             <div className="flex justify-center">
               <div className="max-w-md rounded-lg border border-red-200 bg-red-50 px-4 py-3">
                 <div className="flex items-start space-x-3">
-                  <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+                  <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600" />
                   <div className="flex-1">
-                    <p className="text-sm text-red-800 font-medium">Something went wrong</p>
-                    <p className="text-xs text-red-700 mt-1">{error}</p>
+                    <p className="text-sm font-medium text-red-800">Something went wrong</p>
+                    <p className="mt-1 text-xs text-red-700">{error}</p>
                     {retryCount < 3 && messages.length > 0 && (
                       <Button
                         variant="outline"
@@ -411,15 +495,21 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
             </div>
           )}
 
-          {/* Preferences Summary */}
+          {/* Preference Confirmation */}
           {isComplete && extractedPreferences && (
             <div className="mt-6">
-              <PreferenceSummary 
+              <PreferenceConfirmation
                 preferences={extractedPreferences}
+                onConfirm={confirmedPreferences => {
+                  // Save confirmed preferences and redirect to recommendations
+                  onPreferencesExtracted?.(confirmedPreferences)
+                  console.log('Preferences confirmed:', confirmedPreferences)
+                }}
                 onEdit={() => {
                   setIsComplete(false)
                   setExtractedPreferences(null)
                 }}
+                isLoading={isLoading}
               />
             </div>
           )}
@@ -436,8 +526,8 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
           isComplete
             ? 'Preferences gathered! Check out your recommendations above.'
             : isLoading || isStreaming
-            ? 'AI is responding...'
-            : 'Tell me about your movie preferences...'
+              ? 'AI is responding...'
+              : 'Tell me about your movie preferences...'
         }
       />
     </div>

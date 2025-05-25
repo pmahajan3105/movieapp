@@ -2,8 +2,7 @@
 
 import React, { useState, useCallback, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { SearchInterface } from '@/components/search/SearchInterface'
+import { useSearchParams } from 'next/navigation'
 import { FilterPanel } from '@/components/search/FilterPanel'
 import { FilterChips } from '@/components/search/FilterChips'
 import { SearchResults } from '@/components/search/SearchResults'
@@ -14,7 +13,6 @@ import { toast } from 'react-hot-toast'
 
 export default function SearchPage() {
   const { user } = useAuth()
-  const router = useRouter()
   const searchParams = useSearchParams()
 
   const [filters, setFilters] = useState<SearchFilters>({
@@ -67,23 +65,6 @@ export default function SearchPage() {
       setLoading(false)
     }
   }, [])
-
-  // Handle search submission
-  const handleSearch = useCallback(
-    (query: string) => {
-      const newFilters = { ...filters, query, offset: 0 }
-      setFilters(newFilters)
-      setCurrentPage(1)
-
-      // Update URL
-      const params = new URLSearchParams()
-      if (query) params.set('q', query)
-      router.push(`/search?${params}`)
-
-      performSearch(newFilters)
-    },
-    [filters, router, performSearch]
-  )
 
   // Handle filter changes
   const handleFiltersChange = useCallback(
@@ -160,22 +141,49 @@ export default function SearchPage() {
     if (filters.query) {
       performSearch(filters)
     }
-  }, [filters, performSearch]) // Added missing dependencies
+  }, [filters, performSearch])
+
+  // Update filters when URL search params change
+  useEffect(() => {
+    const queryFromUrl = searchParams.get('q') || ''
+    if (queryFromUrl !== filters.query) {
+      const newFilters = { ...filters, query: queryFromUrl, offset: 0 }
+      setFilters(newFilters)
+      setCurrentPage(1)
+      if (queryFromUrl) {
+        performSearch(newFilters)
+      }
+    }
+  }, [searchParams, filters, performSearch])
+
+  const currentQuery = filters.query || searchParams.get('q') || ''
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="mb-4 text-3xl font-bold text-gray-900">Search Movies 🔍</h1>
-
-          {/* Search Interface */}
-          <SearchInterface
-            onSearch={handleSearch}
-            initialQuery={filters.query}
-            showAutocomplete={true}
-            className="max-w-2xl"
-          />
+          <h1 className="mb-2 text-3xl font-bold text-gray-900">
+            {currentQuery ? (
+              <>
+                Search Results for{' '}
+                <span className="text-purple-600">&ldquo;{currentQuery}&rdquo;</span>
+              </>
+            ) : (
+              'Search Movies 🔍'
+            )}
+          </h1>
+          {currentQuery && searchResults && (
+            <p className="text-gray-600">
+              Found {searchResults.totalCount} movies matching your search
+            </p>
+          )}
+          {!currentQuery && (
+            <p className="text-gray-600">
+              Use the search bar above to find movies, or apply filters below to browse our
+              collection
+            </p>
+          )}
         </div>
 
         <div className="flex gap-8">

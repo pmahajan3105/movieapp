@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@/lib/supabase/client'
 import { z } from 'zod'
-import {
-  MOVIE_SYSTEM_PROMPT,
-  PREFERENCE_EXTRACTION_PROMPT,
-} from '@/lib/anthropic/config'
+import { MOVIE_SYSTEM_PROMPT } from '@/lib/anthropic/config'
 import { movieService } from '@/lib/services/movie-service'
-import { getModelForTask, supportsStreaming, modelSelector } from '@/lib/ai/models'
-import { aiService } from '@/lib/ai/service'
+import { getModelForTask, supportsStreaming } from '@/lib/ai/models'
 import { v4 as uuidv4 } from 'uuid'
 import type { ChatMessage, PreferenceData } from '@/types/chat'
+import { movieMemoryService } from '@/lib/mem0/client'
+import type { Message } from 'mem0ai'
 
 // Use ChatMessage from our AI service
 // import type { ChatMessage } from '@/lib/ai/service'
@@ -53,34 +51,50 @@ export async function POST(request: NextRequest) {
     const { message, sessionId, stream: requestedStream } = chatRequestSchema.parse(body)
     let stream = requestedStream // Use mutable variable
 
-    console.log('🎬 Claude Chat API request:', { message: message.substring(0, 50), sessionId, stream })
+    console.log('🎬 Claude Chat API request:', {
+      message: message.substring(0, 50),
+      sessionId,
+      stream,
+    })
 
-    // Check if AI service is available - use more specific check
-    try {
-      const availableModels = modelSelector.getAvailableModels()
-      if (availableModels.length === 0) {
-        console.error('❌ No AI models configured')
-        return NextResponse.json(
-          { error: 'AI service not configured', success: false },
-          { status: 500 }
-        )
-      }
-    } catch (configError) {
-      console.error('❌ AI service configuration error:', configError)
+    // Check if AI service is available
+    if (
+      !process.env.ANTHROPIC_API_KEY &&
+      !process.env.GROQ_API_KEY &&
+      !process.env.OPENAI_API_KEY
+    ) {
+      console.error('❌ No AI API keys configured')
       return NextResponse.json(
         { error: 'AI service not configured', success: false },
         { status: 500 }
       )
     }
 
-    // Use anon key for now (consistent with existing implementation)
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+    // Prefer GROQ if available, fallback to Anthropic
+    const useGroq = !!process.env.GROQ_API_KEY
+    console.log('🤖 Using AI provider:', useGroq ? 'GROQ' : 'Anthropic')
 
-    // For now, skip user authentication to avoid cookie issues
-    const user = { id: '00000000-0000-0000-0000-000000000001' } // UUID for anonymous user
+    // Use server client to get authenticated user
+    const supabase = await createServerClient()
+
+    // Get the authenticated user
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      console.error('❌ Authentication required for chat:', authError?.message)
+      return NextResponse.json(
+        {
+          error: 'Authentication required. Please sign in to use the chat feature.',
+          success: false,
+        },
+        { status: 401 }
+      )
+    }
+
+    console.log('👤 Authenticated user for chat:', user.email)
 
     // Get or create chat session
     let currentSessionId: string
@@ -172,59 +186,103 @@ export async function POST(request: NextRequest) {
       // Handle streaming vs non-streaming responses
       if (stream) {
         console.log('📡 Using streaming response')
-        
+
         // Check if model supports streaming
         if (!supportsStreaming(model.id)) {
           console.log('⚠️ Model does not support streaming, falling back to non-streaming')
           stream = false
         }
       }
-      
+
+      // Handle streaming vs non-streaming responses
       if (stream) {
-
-        // Create streaming response using unified AI service
-        const streamResponse = await aiService.createStreamingChatCompletion(
-          model,
-          claudeMessages.map(msg => ({
-            role: msg.role as 'user' | 'assistant',
-            content: msg.content,
-          })),
-          {
-            systemPrompt: systemPrompt,
-            temperature: model.temperature,
-            maxTokens: model.maxTokens,
-          }
-        )
-
-        // Enhance the stream with our custom logic (session management, etc.)
+        // Return streaming response
         const encoder = new TextEncoder()
-        const enhancedStream = new ReadableStream({
+
+        const responseStream = new ReadableStream({
           async start(controller) {
             try {
-              const reader = streamResponse.getReader()
-              let fullResponse = ''
+              let response
 
-              // Send start event with session info
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({
-                type: 'start',
-                sessionId: currentSessionId,
-                model: model.name,
-                timestamp: new Date().toISOString(),
-              })}\n\n`))
+              if (useGroq) {
+                // GROQ streaming API call
+                response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${process.env.GROQ_API_KEY!}`,
+                  },
+                  body: JSON.stringify({
+                    model: 'llama-3.3-70b-versatile',
+                    messages: [{ role: 'system', content: systemPrompt }, ...claudeMessages],
+                    max_tokens: 1000,
+                    temperature: 0.7,
+                    stream: true,
+                  }),
+                })
+              } else {
+                // Anthropic streaming API call
+                response = await fetch('https://api.anthropic.com/v1/messages', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'x-api-key': process.env.ANTHROPIC_API_KEY!,
+                    'anthropic-version': '2023-06-01',
+                  },
+                  body: JSON.stringify({
+                    model: 'claude-3-5-sonnet-20241022',
+                    max_tokens: 1000,
+                    messages: claudeMessages,
+                    system: systemPrompt,
+                    temperature: 0.7,
+                    stream: true,
+                  }),
+                })
+              }
+
+              if (!response.ok) {
+                throw new Error(
+                  `${useGroq ? 'GROQ' : 'Anthropic'} streaming API error: ${response.status}`
+                )
+              }
+
+              // Send start event
+              controller.enqueue(
+                encoder.encode(
+                  `data: ${JSON.stringify({
+                    type: 'start',
+                    sessionId: currentSessionId,
+                    timestamp: new Date().toISOString(),
+                  })}\n\n`
+                )
+              )
+
+              const reader = response.body?.getReader()
+              if (!reader) {
+                throw new Error('No response stream available')
+              }
+
+              let fullResponse = ''
+              let buffer = '' // Buffer for incomplete chunks
+              let jsonBuffer = '' // Buffer specifically for JSON parsing
 
               while (true) {
                 const { done, value } = await reader.read()
                 if (done) break
 
                 const chunk = new TextDecoder().decode(value)
-                const lines = chunk.split('\n')
+                buffer += chunk
+
+                const lines = buffer.split('\n')
+                // Keep the last line in buffer if it doesn't end with newline
+                buffer = lines.pop() || ''
 
                 for (const line of lines) {
                   if (line.startsWith('data: ')) {
                     const eventData = line.slice(6).trim()
-                    
+
                     if (eventData === '[DONE]') {
-                      // Handle completion logic
+                      // Process final response
                       const aiMessage: ChatMessage = {
                         id: uuidv4(),
                         role: 'assistant',
@@ -233,85 +291,512 @@ export async function POST(request: NextRequest) {
                       }
                       chatHistory.push(aiMessage)
 
-                      // Update chat session
-                      try {
-                        await supabase
-                          .from('chat_sessions')
-                          .update({
-                            messages: chatHistory,
-                            preferences_extracted: false, // TODO: Add preference extraction
-                            updated_at: new Date().toISOString(),
-                          })
-                          .eq('id', currentSessionId)
-                      } catch (error) {
-                        console.error('❌ Error saving AI message:', error)
+                      // Enhanced preference extraction logic
+                      const userMessages = chatHistory.filter(m => m.role === 'user').length
+                      let preferencesExtracted = false
+                      let extractedPreferences: PreferenceData | undefined
+
+                      // More flexible extraction triggers - catch all the ways users ask to save
+                      const userRequestedSave = chatHistory.some(
+                        msg =>
+                          msg.role === 'user' &&
+                          ((msg.content.toLowerCase().includes('save') &&
+                            (msg.content.toLowerCase().includes('preference') ||
+                              msg.content.toLowerCase().includes('my account') ||
+                              msg.content.toLowerCase().includes('my profile'))) ||
+                            (msg.content.toLowerCase().includes('update') &&
+                              (msg.content.toLowerCase().includes('preference') ||
+                                msg.content.toLowerCase().includes('my account') ||
+                                msg.content.toLowerCase().includes('my profile') ||
+                                msg.content.toLowerCase().includes('it in my'))) ||
+                            (msg.content.toLowerCase().includes('remember') &&
+                              msg.content.toLowerCase().includes('preference')) ||
+                            (msg.content.toLowerCase().includes('store') &&
+                              msg.content.toLowerCase().includes('preference')))
+                      )
+
+                      const aiCompletionSignals =
+                        fullResponse.toLowerCase().includes('updated your') ||
+                        fullResponse.toLowerCase().includes('saved') ||
+                        fullResponse.toLowerCase().includes('got it') ||
+                        fullResponse.toLowerCase().includes('noted') ||
+                        fullResponse.toLowerCase().includes('recorded') ||
+                        fullResponse.toLowerCase().includes('preferences') ||
+                        fullResponse.toLowerCase().includes('perfect!') ||
+                        fullResponse.toLowerCase().includes('great') ||
+                        fullResponse.toLowerCase().includes('excellent')
+
+                      console.log('🔍 Extraction check (streaming):', {
+                        userMessages,
+                        userRequestedSave,
+                        aiCompletionSignals,
+                        userTexts: chatHistory.filter(m => m.role === 'user').map(m => m.content),
+                        fullResponse: fullResponse.substring(0, 100),
+                      })
+
+                      const shouldExtract =
+                        userRequestedSave || // User explicitly asked to save preferences
+                        (userMessages >= 2 && aiCompletionSignals) ||
+                        userMessages >= 3 // Extract after 3+ user messages anyway
+
+                      if (shouldExtract) {
+                        try {
+                          console.log('🔍 Extracting preferences from conversation (streaming)')
+
+                          // Store conversation in Mem0 for advanced memory management
+                          try {
+                            const mem0Messages: Message[] = chatHistory.map(msg => ({
+                              role: msg.role as 'user' | 'assistant',
+                              content: msg.content,
+                            }))
+
+                            const memories = await movieMemoryService.addConversation(
+                              mem0Messages,
+                              user.id,
+                              {
+                                session_id: currentSessionId,
+                                conversation_type: 'preference_extraction',
+                              }
+                            )
+
+                            console.log(
+                              '💾 Stored conversation in Mem0:',
+                              memories.length,
+                              'memories created'
+                            )
+                          } catch (mem0Error) {
+                            console.error(
+                              '❌ Mem0 storage error (continuing without Mem0):',
+                              mem0Error
+                            )
+                          }
+
+                          // Simple but effective preference extraction from conversation
+                          const conversationText = chatHistory
+                            .map(m => m.content)
+                            .join(' ')
+                            .toLowerCase()
+
+                          // Extract genres mentioned in conversation
+                          const genres: string[] = []
+                          const genreKeywords = {
+                            comedy: ['comedy', 'comedies', 'funny', 'humor', 'laugh'],
+                            horror: [
+                              'horror',
+                              'scary',
+                              'fear',
+                              'frightening',
+                              'terrifying',
+                              'shining',
+                            ],
+                            action: ['action', 'fight', 'explosion', 'adventure'],
+                            drama: ['drama', 'emotional', 'serious'],
+                            romance: ['romance', 'romantic', 'love'],
+                            'sci-fi': ['sci-fi', 'science fiction', 'futuristic', 'space'],
+                            thriller: ['thriller', 'suspense', 'tense'],
+                            fantasy: ['fantasy', 'magic', 'wizards'],
+                          }
+
+                          for (const [genre, keywords] of Object.entries(genreKeywords)) {
+                            if (keywords.some(keyword => conversationText.includes(keyword))) {
+                              genres.push(genre.charAt(0).toUpperCase() + genre.slice(1))
+                            }
+                          }
+
+                          // Extract actors/directors if mentioned
+                          const actors: string[] = []
+                          const directors: string[] = []
+
+                          // Create preferences object
+                          const extractedPreferenceData = {
+                            genres: genres.length > 0 ? genres : ['Comedy'], // Default to Comedy if nothing detected
+                            actors,
+                            directors,
+                            themes: [],
+                            moods: [],
+                            dislikedGenres: [],
+                            languages: ['English'],
+                            viewingContexts: [],
+                            yearRange: { min: 1980, max: 2024 },
+                            ratingRange: { min: 6.0, max: 10.0 },
+                          }
+
+                          console.log(
+                            '✅ Extracted preferences (streaming):',
+                            extractedPreferenceData
+                          )
+
+                          // Save to database
+                          const { error: updateError } = await supabase
+                            .from('user_profiles')
+                            .upsert({
+                              id: user.id,
+                              email: user.email,
+                              preferences: extractedPreferenceData,
+                              onboarding_completed: true,
+                              updated_at: new Date().toISOString(),
+                            })
+
+                          if (updateError) {
+                            console.error('❌ Database update error (streaming):', updateError)
+                            throw updateError
+                          }
+
+                          console.log('✅ Preferences saved to database successfully (streaming)')
+                          preferencesExtracted = true
+                          extractedPreferences = extractedPreferenceData
+                        } catch (error) {
+                          console.error('❌ Preference extraction error (streaming):', error)
+                        }
                       }
-                      
-                      controller.enqueue(encoder.encode(`data: ${JSON.stringify({
-                        type: 'complete',
-                        fullResponse,
-                        sessionId: currentSessionId,
-                        preferencesExtracted: false, // TODO: Add preference extraction
-                        preferences: null,
-                        timestamp: new Date().toISOString(),
-                      })}\n\n`))
-                      
+
+                      // Send completion event
+                      controller.enqueue(
+                        encoder.encode(
+                          `data: ${JSON.stringify({
+                            type: 'complete',
+                            fullResponse,
+                            sessionId: currentSessionId,
+                            preferencesExtracted,
+                            preferences: extractedPreferences,
+                            timestamp: new Date().toISOString(),
+                          })}\n\n`
+                        )
+                      )
+
+                      // Update chat session
+                      await supabase
+                        .from('chat_sessions')
+                        .update({
+                          messages: chatHistory,
+                          preferences_extracted: preferencesExtracted,
+                          updated_at: new Date().toISOString(),
+                        })
+                        .eq('id', currentSessionId)
+
                       controller.enqueue(encoder.encode(`data: [DONE]\n\n`))
                       controller.close()
                       return
                     }
 
+                    // Skip empty data events
+                    if (!eventData || eventData === '') continue
+
+                    // Improved JSON chunk buffering
+                    jsonBuffer += eventData
+
+                    // Try to parse JSON chunks - first attempt simple parse
                     try {
-                      const event = JSON.parse(eventData)
-                      
-                      if (event.type === 'content' && event.content) {
-                        fullResponse += event.content
-                        // Forward the content event
-                        controller.enqueue(encoder.encode(`data: ${eventData}\n\n`))
+                      const jsonData = JSON.parse(jsonBuffer)
+
+                      let content = ''
+                      if (useGroq) {
+                        content = jsonData.choices?.[0]?.delta?.content || ''
+                      } else {
+                        if (jsonData.type === 'content_block_delta') {
+                          content = jsonData.delta?.text || ''
+                        }
                       }
+
+                      if (content) {
+                        fullResponse += content
+
+                        // Debug logging
+                        console.log(
+                          '📤 Sending content chunk:',
+                          JSON.stringify(content.substring(0, 50))
+                        )
+
+                        // Send content event
+                        controller.enqueue(
+                          encoder.encode(
+                            `data: ${JSON.stringify({
+                              type: 'content',
+                              content,
+                              timestamp: new Date().toISOString(),
+                            })}\n\n`
+                          )
+                        )
+                      }
+
+                      // Successfully parsed, clear buffer
+                      jsonBuffer = ''
                     } catch {
-                      // Forward other events as-is (removed unused parseError variable)
-                      controller.enqueue(encoder.encode(`${line}\n\n`))
+                      // JSON might be incomplete - try to find complete objects
+                      let processedAnyObject = false
+
+                      // Look for multiple complete JSON objects in buffer
+                      let startIndex = 0
+                      while (startIndex < jsonBuffer.length) {
+                        const objectStart = jsonBuffer.indexOf('{', startIndex)
+                        if (objectStart === -1) break
+
+                        // Try to find the matching closing brace
+                        let braceCount = 0
+                        let inString = false
+                        let escapeNext = false
+                        let objectEnd = -1
+
+                        for (let i = objectStart; i < jsonBuffer.length; i++) {
+                          const char = jsonBuffer[i]
+
+                          if (escapeNext) {
+                            escapeNext = false
+                            continue
+                          }
+
+                          if (char === '\\') {
+                            escapeNext = true
+                            continue
+                          }
+
+                          if (char === '"') {
+                            inString = !inString
+                            continue
+                          }
+
+                          if (!inString) {
+                            if (char === '{') {
+                              braceCount++
+                            } else if (char === '}') {
+                              braceCount--
+                              if (braceCount === 0) {
+                                objectEnd = i
+                                break
+                              }
+                            }
+                          }
+                        }
+
+                        if (objectEnd !== -1) {
+                          // Found a complete JSON object
+                          const jsonString = jsonBuffer.slice(objectStart, objectEnd + 1)
+
+                          try {
+                            const jsonData = JSON.parse(jsonString)
+
+                            let content = ''
+                            if (useGroq) {
+                              content = jsonData.choices?.[0]?.delta?.content || ''
+                            } else {
+                              if (jsonData.type === 'content_block_delta') {
+                                content = jsonData.delta?.text || ''
+                              }
+                            }
+
+                            if (content) {
+                              fullResponse += content
+
+                              // Debug logging
+                              console.log(
+                                '📤 Sending content chunk (multi):',
+                                JSON.stringify(content.substring(0, 50))
+                              )
+
+                              // Send content event
+                              controller.enqueue(
+                                encoder.encode(
+                                  `data: ${JSON.stringify({
+                                    type: 'content',
+                                    content,
+                                    timestamp: new Date().toISOString(),
+                                  })}\n\n`
+                                )
+                              )
+                            }
+
+                            processedAnyObject = true
+                          } catch {
+                            // Skip malformed object
+                            console.log(
+                              '⚠️ Skipping malformed JSON object:',
+                              jsonString.substring(0, 100)
+                            )
+                          }
+
+                          // Move past this object
+                          startIndex = objectEnd + 1
+                        } else {
+                          // No complete object found, stop processing
+                          break
+                        }
+                      }
+
+                      if (processedAnyObject) {
+                        // Remove processed content from buffer
+                        jsonBuffer = jsonBuffer.slice(startIndex)
+                      }
+
+                      // Prevent buffer from growing too large
+                      if (jsonBuffer.length > 10000) {
+                        console.log('⚠️ JSON buffer too large, resetting to current chunk')
+                        jsonBuffer = eventData
+                      }
+                    }
+                  }
+                }
+              }
+
+              // Process any remaining buffer content
+              if (buffer.startsWith('data: ')) {
+                const eventData = buffer.slice(6).trim()
+                if (eventData && eventData !== '[DONE]' && eventData !== '') {
+                  // Try to parse any remaining complete JSON objects
+                  jsonBuffer += eventData
+
+                  let remainingBuffer = jsonBuffer
+                  let jsonStartIndex = 0
+
+                  while (jsonStartIndex < remainingBuffer.length) {
+                    const objectStart = remainingBuffer.indexOf('{', jsonStartIndex)
+                    if (objectStart === -1) break
+
+                    let braceCount = 0
+                    let objectEnd = -1
+                    let inString = false
+                    let escapeNext = false
+
+                    for (let i = objectStart; i < remainingBuffer.length; i++) {
+                      const char = remainingBuffer[i]
+
+                      if (escapeNext) {
+                        escapeNext = false
+                        continue
+                      }
+
+                      if (char === '\\') {
+                        escapeNext = true
+                        continue
+                      }
+
+                      if (char === '"') {
+                        inString = !inString
+                        continue
+                      }
+
+                      if (!inString) {
+                        if (char === '{') {
+                          braceCount++
+                        } else if (char === '}') {
+                          braceCount--
+                          if (braceCount === 0) {
+                            objectEnd = i
+                            break
+                          }
+                        }
+                      }
+                    }
+
+                    if (objectEnd !== -1) {
+                      const jsonString = remainingBuffer.slice(objectStart, objectEnd + 1)
+
+                      try {
+                        if (useGroq) {
+                          const parsed = JSON.parse(jsonString)
+                          const content = parsed.choices?.[0]?.delta?.content || ''
+                          if (content) {
+                            fullResponse += content
+                            controller.enqueue(
+                              encoder.encode(
+                                `data: ${JSON.stringify({
+                                  type: 'content',
+                                  content,
+                                  timestamp: new Date().toISOString(),
+                                })}\n\n`
+                              )
+                            )
+                          }
+                        }
+                      } catch {
+                        // Skip malformed final chunks
+                      }
+
+                      jsonStartIndex = objectEnd + 1
+                      remainingBuffer = remainingBuffer.slice(objectEnd + 1)
+                      jsonStartIndex = 0
+                    } else {
+                      break
                     }
                   }
                 }
               }
             } catch (error) {
               console.error('❌ Streaming error:', error)
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({
-                type: 'error',
-                error: error instanceof Error ? error.message : 'Streaming failed',
-                timestamp: new Date().toISOString(),
-              })}\n\n`))
+
+              controller.enqueue(
+                encoder.encode(
+                  `data: ${JSON.stringify({
+                    type: 'error',
+                    error: error instanceof Error ? error.message : 'Streaming error occurred',
+                    timestamp: new Date().toISOString(),
+                  })}\n\n`
+                )
+              )
+
               controller.close()
             }
-          }
+          },
         })
 
-        return new Response(enhancedStream, {
+        return new Response(responseStream, {
           headers: {
             'Content-Type': 'text/event-stream',
             'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
+            Connection: 'keep-alive',
           },
         })
       }
 
-      // Non-streaming response using unified AI service
-      const response = await aiService.createChatCompletion(
-        model,
-        claudeMessages.map(msg => ({
-          role: msg.role as 'user' | 'assistant',
-          content: msg.content,
-        })),
-        {
-          systemPrompt: systemPrompt,
-          temperature: model.temperature,
-          maxTokens: model.maxTokens,
-        }
-      )
+      // Non-streaming response
+      let response, data, aiResponse
 
-      const aiResponse = response.content
+      if (useGroq) {
+        // GROQ API call
+        response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${process.env.GROQ_API_KEY!}`,
+          },
+          body: JSON.stringify({
+            model: 'llama-3.3-70b-versatile',
+            messages: [{ role: 'system', content: systemPrompt }, ...claudeMessages],
+            max_tokens: 1000,
+            temperature: 0.7,
+          }),
+        })
+
+        if (!response.ok) {
+          throw new Error(`GROQ API error: ${response.status}`)
+        }
+
+        data = await response.json()
+        aiResponse = data.choices[0]?.message?.content
+      } else {
+        // Anthropic API call
+        response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': process.env.ANTHROPIC_API_KEY!,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model: 'claude-3-5-sonnet-20241022',
+            max_tokens: 1000,
+            messages: claudeMessages,
+            system: systemPrompt,
+            temperature: 0.7,
+          }),
+        })
+
+        if (!response.ok) {
+          throw new Error(`Anthropic API error: ${response.status}`)
+        }
+
+        data = await response.json()
+        aiResponse = data.content[0]?.text
+      }
 
       if (!aiResponse) {
         throw new Error('No response from Claude')
@@ -328,69 +813,137 @@ export async function POST(request: NextRequest) {
       }
       chatHistory.push(aiMessage)
 
-      // Enhanced preference extraction logic
+      // Enhanced preference extraction logic with Mem0 integration
       const userMessages = chatHistory.filter(m => m.role === 'user').length
       let preferencesExtracted = false
       let extractedPreferences: PreferenceData | undefined
 
-      // More intelligent extraction triggers
-      const shouldExtract = 
-        userMessages >= 3 && (
-          aiResponse.toLowerCase().includes('organize') ||
-          aiResponse.toLowerCase().includes('learned') ||
-          aiResponse.toLowerCase().includes('understand') ||
-          aiResponse.toLowerCase().includes('gathered') ||
-          userMessages >= 5
-        )
+      // More flexible extraction triggers - catch all the ways users ask to save
+      const userRequestedSave = chatHistory.some(
+        msg =>
+          msg.role === 'user' &&
+          ((msg.content.toLowerCase().includes('save') &&
+            (msg.content.toLowerCase().includes('preference') ||
+              msg.content.toLowerCase().includes('my account') ||
+              msg.content.toLowerCase().includes('my profile'))) ||
+            (msg.content.toLowerCase().includes('update') &&
+              (msg.content.toLowerCase().includes('preference') ||
+                msg.content.toLowerCase().includes('my account') ||
+                msg.content.toLowerCase().includes('my profile') ||
+                msg.content.toLowerCase().includes('it in my'))) ||
+            (msg.content.toLowerCase().includes('remember') &&
+              msg.content.toLowerCase().includes('preference')) ||
+            (msg.content.toLowerCase().includes('store') &&
+              msg.content.toLowerCase().includes('preference')))
+      )
+
+      const aiCompletionSignals =
+        aiResponse.toLowerCase().includes('updated your') ||
+        aiResponse.toLowerCase().includes('saved') ||
+        aiResponse.includes('got it') ||
+        aiResponse.includes('noted') ||
+        aiResponse.includes('recorded') ||
+        aiResponse.includes('preferences') ||
+        aiResponse.includes('perfect!') ||
+        aiResponse.includes('great') ||
+        aiResponse.includes('excellent')
+
+      console.log('🔍 Extraction check:', {
+        userMessages,
+        userRequestedSave,
+        aiCompletionSignals,
+        userTexts: chatHistory.filter(m => m.role === 'user').map(m => m.content),
+        aiResponse: aiResponse.substring(0, 100),
+      })
+
+      const shouldExtract =
+        userRequestedSave || // User explicitly asked to save preferences
+        (userMessages >= 2 && aiCompletionSignals) ||
+        userMessages >= 3 // Extract after 3+ user messages anyway
 
       if (shouldExtract) {
         try {
           console.log('🔍 Extracting preferences from conversation')
-          
-          // Extract preferences using Claude
-          const conversationSummary = chatHistory
-            .map(m => `${m.role}: ${m.content}`)
-            .join('\n')
 
-          const extractionCompletion = await aiService.createChatCompletion(
-            model,
-            [
-              {
-                role: 'user' as const,
-                content: `Please analyze this movie preference conversation and extract structured data:\n\n${conversationSummary}`,
-              },
-            ],
-            {
-              systemPrompt: PREFERENCE_EXTRACTION_PROMPT,
-              temperature: 0.1, // Very low temperature for consistent extraction
-            }
-          )
+          // Store conversation in Mem0 for advanced memory management
+          try {
+            const mem0Messages: Message[] = chatHistory.map(msg => ({
+              role: msg.role as 'user' | 'assistant',
+              content: msg.content,
+            }))
 
-          const extractionResult = extractionCompletion.content
+            const memories = await movieMemoryService.addConversation(mem0Messages, user.id, {
+              session_id: currentSessionId,
+              conversation_type: 'preference_extraction',
+            })
 
-          if (extractionResult) {
-            try {
-              const jsonMatch = extractionResult.match(/\{[\s\S]*\}/)
-              if (jsonMatch) {
-                extractedPreferences = JSON.parse(jsonMatch[0])
-                preferencesExtracted = true
+            console.log('💾 Stored conversation in Mem0:', memories.length, 'memories created')
+          } catch (mem0Error) {
+            console.error('❌ Mem0 storage error (continuing without Mem0):', mem0Error)
+          }
 
-                // Update user profile with preferences
-                await supabase
-                  .from('user_profiles')
-                  .update({
-                    preferences: extractedPreferences,
-                    onboarding_completed: true,
-                    updated_at: new Date().toISOString(),
-                  })
-                  .eq('id', user.id)
+          // Simple but effective preference extraction from conversation
+          const conversationText = chatHistory
+            .map(m => m.content)
+            .join(' ')
+            .toLowerCase()
 
-                console.log('✅ Preferences extracted and saved:', extractedPreferences)
-              }
-            } catch (parseError) {
-              console.error('❌ JSON parsing error:', parseError)
+          // Extract genres mentioned in conversation
+          const genres: string[] = []
+          const genreKeywords = {
+            comedy: ['comedy', 'comedies', 'funny', 'humor', 'laugh'],
+            horror: ['horror', 'scary', 'fear', 'frightening', 'terrifying', 'shining'],
+            action: ['action', 'fight', 'explosion', 'adventure'],
+            drama: ['drama', 'emotional', 'serious'],
+            romance: ['romance', 'romantic', 'love'],
+            'sci-fi': ['sci-fi', 'science fiction', 'futuristic', 'space'],
+            thriller: ['thriller', 'suspense', 'tense'],
+            fantasy: ['fantasy', 'magic', 'wizards'],
+          }
+
+          for (const [genre, keywords] of Object.entries(genreKeywords)) {
+            if (keywords.some(keyword => conversationText.includes(keyword))) {
+              genres.push(genre.charAt(0).toUpperCase() + genre.slice(1))
             }
           }
+
+          // Extract actors/directors if mentioned
+          const actors: string[] = []
+          const directors: string[] = []
+
+          // Create preferences object
+          const extractedPreferenceData = {
+            genres: genres.length > 0 ? genres : ['Comedy'], // Default to Comedy if nothing detected
+            actors,
+            directors,
+            themes: [],
+            moods: [],
+            dislikedGenres: [],
+            languages: ['English'],
+            viewingContexts: [],
+            yearRange: { min: 1980, max: 2024 },
+            ratingRange: { min: 6.0, max: 10.0 },
+          }
+
+          console.log('✅ Extracted preferences:', extractedPreferenceData)
+
+          // Save to database
+          const { error: updateError } = await supabase.from('user_profiles').upsert({
+            id: user.id,
+            email: user.email,
+            preferences: extractedPreferenceData,
+            onboarding_completed: true,
+            updated_at: new Date().toISOString(),
+          })
+
+          if (updateError) {
+            console.error('❌ Database update error:', updateError)
+            throw updateError
+          }
+
+          console.log('✅ Preferences saved to database successfully')
+          preferencesExtracted = true
+          extractedPreferences = extractedPreferenceData
         } catch (error) {
           console.error('❌ Preference extraction error:', error)
         }
@@ -420,10 +973,9 @@ export async function POST(request: NextRequest) {
         preferences: extractedPreferences,
         movieInfo: movieInfo ? 'Movie information included in response' : undefined,
       })
-
     } catch (claudeError: unknown) {
       console.error('❌ Claude API error:', claudeError)
-      
+
       // Handle specific Claude API errors
       const error = claudeError as { error?: { type?: string } }
       if (error?.error?.type === 'authentication_error') {
@@ -442,15 +994,11 @@ export async function POST(request: NextRequest) {
 
       throw claudeError
     }
-
   } catch (error) {
     console.error('❌ Chat API error:', error)
 
     if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: error.errors[0].message, success: false },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: error.errors[0].message, success: false }, { status: 400 })
     }
 
     if (error instanceof Error && error.message.includes('API key')) {

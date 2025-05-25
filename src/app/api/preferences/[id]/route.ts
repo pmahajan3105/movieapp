@@ -5,10 +5,10 @@ import { getAuthenticatedUserId } from '@/lib/auth-server'
 // DELETE - Delete a specific preference by ID
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const preferenceId = params.id
+    const { id: preferenceId } = await params
 
     if (!preferenceId) {
       return NextResponse.json(
@@ -46,20 +46,19 @@ export async function DELETE(
     // In a real implementation, preferences would be stored with individual IDs
     // TODO: Implement proper preference storage with individual IDs
     console.log('Current preferences:', currentProfile?.preferences)
-    
+
     return NextResponse.json({
       success: true,
       message: `Preference ${preferenceId} deleted successfully`,
     })
-
   } catch (error) {
     console.error('❌ Error deleting preference:', error)
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to delete preference',
-        success: false 
+        success: false,
       },
       { status: 500 }
     )
   }
-} 
+}

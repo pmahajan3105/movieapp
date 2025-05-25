@@ -98,7 +98,7 @@ interface ConversationData {
   user_id?: string
   preferences_extracted?: boolean
   updated_at?: string
-  // Add other fields as needed
+  messages?: Array<{ role: string; content: string }>
 }
 
 export async function POST(request: NextRequest) {
@@ -154,13 +154,15 @@ export async function POST(request: NextRequest) {
       // Get viewing history (watchlist, ratings, etc.)
       const { data: watchlistItems } = await supabase
         .from('watchlist_items')
-        .select(`
+        .select(
+          `
           movies (
             id, title, year, genre, rating, description, poster_url
           ),
           status,
           rating
-        `)
+        `
+        )
         .eq('user_id', effectiveUserId)
         .eq('status', 'watched')
         .order('created_at', { ascending: false })
@@ -169,7 +171,8 @@ export async function POST(request: NextRequest) {
       if (watchlistItems) {
         viewingHistory = watchlistItems
           .map(item => item.movies)
-          .filter(movie => movie !== null) as Movie[]
+          .filter(movie => movie !== null)
+          .flat() as Movie[]
       }
 
       // Get popular movies as fallback context
@@ -182,7 +185,6 @@ export async function POST(request: NextRequest) {
 
         viewingHistory = popularMovies || []
       }
-
     } catch (error) {
       console.log('Using fallback preferences for user:', error)
       // Enhanced fallback preferences
@@ -211,9 +213,7 @@ export async function POST(request: NextRequest) {
       max_tokens: 1000, // Increased for enhanced recommendations
       temperature: 0.7, // Balanced for creativity and relevance
       system: ENHANCED_RECOMMENDATION_PROMPT,
-      messages: [
-        { role: 'user', content: enhancedUserContext },
-      ],
+      messages: [{ role: 'user', content: enhancedUserContext }],
     })
 
     const recommendations = completion.content.find(block => block.type === 'text')?.text
@@ -257,7 +257,10 @@ export async function POST(request: NextRequest) {
           }
 
           // Try TMDB as fallback
-          const tmdbResults = await movieService.searchMovies(rec.title, { year: rec.year, limit: 1 })
+          const tmdbResults = await movieService.searchMovies(rec.title, {
+            year: rec.year,
+            limit: 1,
+          })
           if (tmdbResults.movies.length > 0) {
             return {
               movie: tmdbResults.movies[0],
@@ -265,7 +268,7 @@ export async function POST(request: NextRequest) {
               confidence: rec.confidence || 0.7,
               mood_match: rec.mood_match || '',
               similarity_score: rec.similarity_score || 0.6,
-              source: 'tmdb'
+              source: 'tmdb',
             }
           }
 
@@ -299,13 +302,12 @@ export async function POST(request: NextRequest) {
       totalGenerated: parsedRecommendations.length,
       validCount: validRecommendations.length,
     })
-
   } catch (error) {
     console.error('❌ AI Recommendation error:', error)
-    
+
     // Fallback to database recommendations
     try {
-      const fallbackMovies = await getFallbackMoviesFromDatabase(count || 15)
+      const fallbackMovies = await getFallbackMoviesFromDatabase(15)
       return NextResponse.json({
         success: true,
         recommendations: fallbackMovies,
@@ -337,12 +339,20 @@ function buildEnhancedUserContext(
   // User preferences section
   sections.push(`USER PREFERENCES:`)
   sections.push(`- Favorite Movies: ${preferences.favorite_movies?.join(', ') || 'Not specified'}`)
-  sections.push(`- Preferred Genres: ${preferences.preferred_genres?.join(', ') || 'Action, Drama, Sci-Fi'}`)
-  sections.push(`- Avoided Genres: ${(preferences.avoid_genres || preferences.disliked_genres || []).join(', ') || 'None specified'}`)
-  sections.push(`- Favorite Themes: ${preferences.themes?.join(', ') || 'Character development, engaging plots'}`)
+  sections.push(
+    `- Preferred Genres: ${preferences.preferred_genres?.join(', ') || 'Action, Drama, Sci-Fi'}`
+  )
+  sections.push(
+    `- Avoided Genres: ${(preferences.avoid_genres || preferences.disliked_genres || []).join(', ') || 'None specified'}`
+  )
+  sections.push(
+    `- Favorite Themes: ${preferences.themes?.join(', ') || 'Character development, engaging plots'}`
+  )
   sections.push(`- Preferred Eras: ${preferences.preferred_eras?.join(', ') || 'Any era'}`)
   sections.push(`- Favorite Actors: ${preferences.favorite_actors?.join(', ') || 'Not specified'}`)
-  sections.push(`- Favorite Directors: ${preferences.favorite_directors?.join(', ') || 'Not specified'}`)
+  sections.push(
+    `- Favorite Directors: ${preferences.favorite_directors?.join(', ') || 'Not specified'}`
+  )
 
   // Enhanced preferences
   if (preferences.moods?.length) {
@@ -358,27 +368,33 @@ function buildEnhancedUserContext(
     sections.push(`- Year Range: ${preferences.yearRange.min} - ${preferences.yearRange.max}`)
   }
   if (preferences.ratingRange) {
-    sections.push(`- Rating Range: ${preferences.ratingRange.min}/10 - ${preferences.ratingRange.max}/10`)
+    sections.push(
+      `- Rating Range: ${preferences.ratingRange.min}/10 - ${preferences.ratingRange.max}/10`
+    )
   }
 
   // Viewing history
   if (viewingHistory.length > 0) {
     sections.push(`\nVIEWING HISTORY:`)
     viewingHistory.slice(0, 10).forEach(movie => {
-      sections.push(`- ${movie.title} (${movie.year}) - ${movie.genre?.join(', ')} - ${movie.rating}/10`)
+      sections.push(
+        `- ${movie.title} (${movie.year}) - ${movie.genre?.join(', ')} - ${movie.rating}/10`
+      )
     })
   }
 
   // Conversation context
   if (conversationData?.messages) {
     sections.push(`\nCONVERSATION INSIGHTS:`)
-    sections.push(`- Conversation completed: ${conversationData.preferences_extracted ? 'Yes' : 'No'}`)
+    sections.push(
+      `- Conversation completed: ${conversationData.preferences_extracted ? 'Yes' : 'No'}`
+    )
     sections.push(`- Total messages: ${conversationData.messages.length}`)
     // Extract key themes from conversation
     const userMessages = conversationData.messages
-      .filter((msg: any) => msg.role === 'user')
+      .filter((msg: { role: string; content: string }) => msg.role === 'user')
       .slice(-3) // Last 3 user messages
-      .map((msg: any) => msg.content)
+      .map((msg: { role: string; content: string }) => msg.content)
       .join(' ')
     if (userMessages) {
       sections.push(`- Recent preferences mentioned: "${userMessages.substring(0, 200)}..."`)
@@ -393,14 +409,19 @@ function buildEnhancedUserContext(
     sections.push(`\nCURRENT CONTEXT: ${context}`)
   }
 
-  sections.push(`\nBased on this comprehensive profile, recommend ${15} movies that perfectly align with their preferences. Focus on quality films they likely haven't seen, with detailed reasoning for each recommendation.`)
+  sections.push(
+    `\nBased on this comprehensive profile, recommend ${15} movies that perfectly align with their preferences. Focus on quality films they likely haven't seen, with detailed reasoning for each recommendation.`
+  )
 
   return sections.join('\n')
 }
 
 // ... existing code ...
 
-async function getFallbackRecommendations(count: number, preferences: EnhancedPreferences): Promise<EnhancedRecommendationItem[]> {
+async function getFallbackRecommendations(
+  count: number,
+  preferences: EnhancedPreferences
+): Promise<EnhancedRecommendationItem[]> {
   // Enhanced fallback using user preferences
   const preferredGenres = preferences.preferred_genres || ['action', 'drama']
   const recommendations: EnhancedRecommendationItem[] = []
@@ -415,7 +436,7 @@ async function getFallbackRecommendations(count: number, preferences: EnhancedPr
       .limit(Math.ceil(count / preferredGenres.length))
 
     if (genreMovies) {
-      genreMovies.forEach((movie, index) => {
+      genreMovies.forEach(movie => {
         recommendations.push({
           title: movie.title,
           year: movie.year,

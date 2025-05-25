@@ -56,19 +56,27 @@ export function PreferenceEditor({ initialPreferences, onSave, onCancel }: Prefe
     const itemToAdd = value || newItems[field].trim()
     if (!itemToAdd) return
 
-    setPreferences(prev => ({
-      ...prev,
-      [field]: [...(prev[field] || []), itemToAdd],
-    }))
+    setPreferences(prev => {
+      const currentValue = prev[field]
+      const currentArray = Array.isArray(currentValue) ? currentValue : []
+      return {
+        ...prev,
+        [field]: [...currentArray, itemToAdd],
+      }
+    })
 
     setNewItems(prev => ({ ...prev, [field]: '' }))
   }
 
   const removeItem = (field: keyof typeof newItems, item: string) => {
-    setPreferences(prev => ({
-      ...prev,
-      [field]: (prev[field] || []).filter((i: string) => i !== item),
-    }))
+    setPreferences(prev => {
+      const currentValue = prev[field]
+      const currentArray = Array.isArray(currentValue) ? currentValue : []
+      return {
+        ...prev,
+        [field]: currentArray.filter((i: string) => i !== item),
+      }
+    })
   }
 
   const updateRange = (field: 'yearRange' | 'ratingRange', values: number[]) => {
@@ -132,18 +140,45 @@ export function PreferenceEditor({ initialPreferences, onSave, onCancel }: Prefe
   }
 
   const commonGenres = [
-    'Action', 'Comedy', 'Drama', 'Horror', 'Romance', 'Sci-Fi', 'Fantasy',
-    'Thriller', 'Mystery', 'Animation', 'Documentary', 'Crime', 'Adventure'
+    'Action',
+    'Comedy',
+    'Drama',
+    'Horror',
+    'Romance',
+    'Sci-Fi',
+    'Fantasy',
+    'Thriller',
+    'Mystery',
+    'Animation',
+    'Documentary',
+    'Crime',
+    'Adventure',
   ]
 
   const commonMoods = [
-    'Feel-good', 'Thought-provoking', 'Exciting', 'Relaxing', 'Intense',
-    'Emotional', 'Inspiring', 'Dark', 'Light-hearted', 'Suspenseful'
+    'Feel-good',
+    'Thought-provoking',
+    'Exciting',
+    'Relaxing',
+    'Intense',
+    'Emotional',
+    'Inspiring',
+    'Dark',
+    'Light-hearted',
+    'Suspenseful',
   ]
 
   const commonContexts = [
-    'Date night', 'Solo viewing', 'Family time', 'With friends', 'Background watching',
-    'Focused viewing', 'Weekend binge', 'Quick watch', 'Late night', 'Rainy day'
+    'Date night',
+    'Solo viewing',
+    'Family time',
+    'With friends',
+    'Background watching',
+    'Focused viewing',
+    'Weekend binge',
+    'Quick watch',
+    'Late night',
+    'Rainy day',
   ]
 
   const renderArrayField = (
@@ -154,14 +189,12 @@ export function PreferenceEditor({ initialPreferences, onSave, onCancel }: Prefe
     <Card>
       <CardHeader>
         <CardTitle className="text-sm">{label}</CardTitle>
-        <CardDescription>
-          Add your preferences for {label.toLowerCase()}
-        </CardDescription>
+        <CardDescription>Add your preferences for {label.toLowerCase()}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {/* Current items */}
         <div className="flex flex-wrap gap-2">
-          {(preferences[field] as string[] || []).map((item, index) => (
+          {((preferences[field] as string[]) || []).map((item, index) => (
             <Badge key={index} variant="secondary" className="text-xs">
               {item}
               <Button
@@ -181,15 +214,11 @@ export function PreferenceEditor({ initialPreferences, onSave, onCancel }: Prefe
           <Input
             placeholder={`Add ${label.toLowerCase()}...`}
             value={newItems[field]}
-            onChange={(e) => setNewItems(prev => ({ ...prev, [field]: e.target.value }))}
-            onKeyPress={(e) => e.key === 'Enter' && addItem(field)}
+            onChange={e => setNewItems(prev => ({ ...prev, [field]: e.target.value }))}
+            onKeyPress={e => e.key === 'Enter' && addItem(field)}
             className="text-xs"
           />
-          <Button
-            size="sm"
-            onClick={() => addItem(field)}
-            disabled={!newItems[field].trim()}
-          >
+          <Button size="sm" onClick={() => addItem(field)} disabled={!newItems[field].trim()}>
             <Plus className="h-3 w-3" />
           </Button>
         </div>
@@ -200,9 +229,11 @@ export function PreferenceEditor({ initialPreferences, onSave, onCancel }: Prefe
             <Label className="text-xs text-muted-foreground">Quick add:</Label>
             <div className="flex flex-wrap gap-1">
               {suggestions
-                .filter(suggestion => !(preferences[field] as string[] || []).includes(suggestion))
+                .filter(
+                  suggestion => !((preferences[field] as string[]) || []).includes(suggestion)
+                )
                 .slice(0, 8)
-                .map((suggestion) => (
+                .map(suggestion => (
                   <Button
                     key={suggestion}
                     variant="outline"
@@ -221,8 +252,8 @@ export function PreferenceEditor({ initialPreferences, onSave, onCancel }: Prefe
   )
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="mx-auto max-w-4xl p-6">
+      <div className="mb-6 flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">Movie Preferences</h2>
           <p className="text-muted-foreground">
@@ -233,7 +264,7 @@ export function PreferenceEditor({ initialPreferences, onSave, onCancel }: Prefe
         <div className="flex gap-2">
           {hasChanges && (
             <Badge variant="outline" className="text-orange-600">
-              <Edit3 className="h-3 w-3 mr-1" />
+              <Edit3 className="mr-1 h-3 w-3" />
               Unsaved changes
             </Badge>
           )}
@@ -288,13 +319,13 @@ export function PreferenceEditor({ initialPreferences, onSave, onCancel }: Prefe
               <CardContent>
                 <Slider
                   value={[preferences.yearRange?.min || 1980, preferences.yearRange?.max || 2024]}
-                  onValueChange={(values) => updateRange('yearRange', values)}
+                  onValueChange={values => updateRange('yearRange', values)}
                   min={1960}
                   max={2024}
                   step={1}
                   className="w-full"
                 />
-                <div className="flex justify-between text-xs text-muted-foreground mt-2">
+                <div className="mt-2 flex justify-between text-xs text-muted-foreground">
                   <span>1960</span>
                   <span>2024</span>
                 </div>
@@ -305,19 +336,23 @@ export function PreferenceEditor({ initialPreferences, onSave, onCancel }: Prefe
               <CardHeader>
                 <CardTitle className="text-sm">Rating Range</CardTitle>
                 <CardDescription>
-                  Movies rated {preferences.ratingRange?.min}/10 to {preferences.ratingRange?.max}/10
+                  Movies rated {preferences.ratingRange?.min}/10 to {preferences.ratingRange?.max}
+                  /10
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <Slider
-                  value={[preferences.ratingRange?.min || 6.0, preferences.ratingRange?.max || 10.0]}
-                  onValueChange={(values) => updateRange('ratingRange', values)}
+                  value={[
+                    preferences.ratingRange?.min || 6.0,
+                    preferences.ratingRange?.max || 10.0,
+                  ]}
+                  onValueChange={values => updateRange('ratingRange', values)}
                   min={1.0}
                   max={10.0}
                   step={0.1}
                   className="w-full"
                 />
-                <div className="flex justify-between text-xs text-muted-foreground mt-2">
+                <div className="mt-2 flex justify-between text-xs text-muted-foreground">
                   <span>1.0</span>
                   <span>10.0</span>
                 </div>
@@ -334,7 +369,7 @@ export function PreferenceEditor({ initialPreferences, onSave, onCancel }: Prefe
         <TabsContent value="advanced" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-sm">
                 <Trash2 className="h-4 w-4" />
                 Reset Preferences
               </CardTitle>
@@ -343,12 +378,8 @@ export function PreferenceEditor({ initialPreferences, onSave, onCancel }: Prefe
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button
-                variant="destructive"
-                onClick={handleReset}
-                className="min-w-[120px]"
-              >
-                <RotateCcw className="h-3 w-3 mr-2" />
+              <Button variant="destructive" onClick={handleReset} className="min-w-[120px]">
+                <RotateCcw className="mr-2 h-3 w-3" />
                 Reset All
               </Button>
             </CardContent>
@@ -357,9 +388,7 @@ export function PreferenceEditor({ initialPreferences, onSave, onCancel }: Prefe
           <Card>
             <CardHeader>
               <CardTitle className="text-sm">Preference Summary</CardTitle>
-              <CardDescription>
-                Overview of your current preferences
-              </CardDescription>
+              <CardDescription>Overview of your current preferences</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
               <div className="grid grid-cols-2 gap-4">
@@ -388,4 +417,4 @@ export function PreferenceEditor({ initialPreferences, onSave, onCancel }: Prefe
       </Tabs>
     </div>
   )
-} 
+}
