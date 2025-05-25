@@ -18,7 +18,8 @@ export function useMovies(): UseMoviesReturn {
 
   const fetchMovies = useCallback(async () => {
     try {
-      const response = await fetch('/api/movies?limit=20')
+      // Use the new smart endpoint for unified movie recommendations
+      const response = await fetch('/api/movies?smart=true&limit=20')
       const result = await response.json()
 
       if (result.success) {
@@ -34,7 +35,8 @@ export function useMovies(): UseMoviesReturn {
 
   const fetchRecommendations = useCallback(async () => {
     try {
-      const response = await fetch('/api/recommendations?limit=10')
+      // Use AI-powered recommendations endpoint
+      const response = await fetch('/api/ai/recommendations?limit=10')
       const result = await response.json()
 
       if (result.success) {

@@ -12,11 +12,15 @@ export async function GET(request: NextRequest) {
     } = await supabase.auth.getUser()
 
     if (authError || !user) {
-      console.log('❌ Watchlist GET: Authentication failed', { authError: authError?.message })
+      if (process.env.NODE_ENV === 'development') {
+        console.log('❌ Watchlist GET: Authentication failed', { authError: authError?.message })
+      }
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    console.log('✅ Watchlist GET: User authenticated', { userId: user.id, email: user.email })
+    if (process.env.NODE_ENV === 'development') {
+      console.log('✅ Watchlist GET: User authenticated', { userId: user.id, email: user.email })
+    }
 
     const { searchParams } = new URL(request.url)
     const watched = searchParams.get('watched')
@@ -72,10 +76,12 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    console.log('✅ Watchlist GET successful', { 
-      userId: user.id, 
-      itemCount: data?.length || 0 
-    })
+    if (process.env.NODE_ENV === 'development') {
+      console.log('✅ Watchlist GET successful', { 
+        userId: user.id, 
+        itemCount: data?.length || 0 
+      })
+    }
 
     return NextResponse.json({
       success: true,
@@ -103,23 +109,31 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser()
 
     if (authError || !user) {
-      console.log('❌ Watchlist POST: Authentication failed', { authError: authError?.message })
+      if (process.env.NODE_ENV === 'development') {
+        console.log('❌ Watchlist POST: Authentication failed', { authError: authError?.message })
+      }
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    console.log('✅ Watchlist POST: User authenticated', { userId: user.id, email: user.email })
+    if (process.env.NODE_ENV === 'development') {
+      console.log('✅ Watchlist POST: User authenticated', { userId: user.id, email: user.email })
+    }
 
     const body = await request.json()
     const { movie_id, notes } = body
 
-    console.log('📝 Watchlist POST: Request data', { 
-      movie_id, 
-      notes, 
-      userId: user.id 
-    })
+    if (process.env.NODE_ENV === 'development') {
+      console.log('📝 Watchlist POST: Request data', { 
+        movie_id, 
+        notes, 
+        userId: user.id 
+      })
+    }
 
     if (!movie_id) {
-      console.log('❌ Watchlist POST: Missing movie_id')
+      if (process.env.NODE_ENV === 'development') {
+        console.log('❌ Watchlist POST: Missing movie_id')
+      }
       return NextResponse.json({ success: false, error: 'Movie ID is required' }, { status: 400 })
     }
 
@@ -131,17 +145,21 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (movieError || !movieExists) {
-      console.log('❌ Watchlist POST: Movie not found', { 
-        movie_id, 
-        movieError: movieError?.message 
-      })
+      if (process.env.NODE_ENV === 'development') {
+        console.log('❌ Watchlist POST: Movie not found', { 
+          movie_id, 
+          movieError: movieError?.message 
+        })
+      }
       return NextResponse.json(
         { success: false, error: 'Movie not found' }, 
         { status: 404 }
       )
     }
 
-    console.log('✅ Movie exists', { movieId: movie_id, title: movieExists.title })
+    if (process.env.NODE_ENV === 'development') {
+      console.log('✅ Movie exists', { movieId: movie_id, title: movieExists.title })
+    }
 
     // Check if movie already in watchlist
     const { data: existing, error: existingError } = await supabase
@@ -165,18 +183,22 @@ export async function POST(request: NextRequest) {
     }
 
     if (existing) {
-      console.log('⚠️ Movie already in watchlist', { 
-        userId: user.id, 
-        movieId: movie_id,
-        existingId: existing.id
-      })
+      if (process.env.NODE_ENV === 'development') {
+        console.log('⚠️ Movie already in watchlist', { 
+          userId: user.id, 
+          movieId: movie_id,
+          existingId: existing.id
+        })
+      }
       return NextResponse.json(
         { success: false, error: 'Movie already in watchlist' },
         { status: 409 }
       )
     }
 
-    console.log('➕ Adding movie to watchlist...')
+    if (process.env.NODE_ENV === 'development') {
+      console.log('➕ Adding movie to watchlist...')
+    }
 
     // Add to watchlist
     const { data, error } = await supabase
@@ -223,11 +245,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log('✅ Successfully added to watchlist', { 
-      userId: user.id, 
-      movieId: movie_id,
-      watchlistId: data?.id
-    })
+    if (process.env.NODE_ENV === 'development') {
+      console.log('✅ Successfully added to watchlist', { 
+        userId: user.id, 
+        movieId: movie_id,
+        watchlistId: data?.id
+      })
+    }
 
     return NextResponse.json({ success: true, data })
   } catch (error) {
@@ -315,23 +339,31 @@ export async function DELETE(request: NextRequest) {
     } = await supabase.auth.getUser()
 
     if (authError || !user) {
-      console.log('❌ Watchlist DELETE: Authentication failed', { authError: authError?.message })
+      if (process.env.NODE_ENV === 'development') {
+        console.log('❌ Watchlist DELETE: Authentication failed', { authError: authError?.message })
+      }
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    console.log('✅ Watchlist DELETE: User authenticated', { userId: user.id, email: user.email })
+    if (process.env.NODE_ENV === 'development') {
+      console.log('✅ Watchlist DELETE: User authenticated', { userId: user.id, email: user.email })
+    }
 
     const { searchParams } = new URL(request.url)
     const movieId = searchParams.get('movie_id')
 
-    console.log('📝 Watchlist DELETE: Request data', { 
-      movieId, 
-      userId: user.id,
-      searchParams: Object.fromEntries(searchParams)
-    })
+    if (process.env.NODE_ENV === 'development') {
+      console.log('📝 Watchlist DELETE: Request data', { 
+        movieId, 
+        userId: user.id,
+        searchParams: Object.fromEntries(searchParams)
+      })
+    }
 
     if (!movieId) {
-      console.log('❌ Watchlist DELETE: Missing movie_id')
+      if (process.env.NODE_ENV === 'development') {
+        console.log('❌ Watchlist DELETE: Missing movie_id')
+      }
       return NextResponse.json({ success: false, error: 'Movie ID is required' }, { status: 400 })
     }
 
@@ -367,11 +399,13 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    console.log('🗑️ Removing movie from watchlist...', { 
-      watchlistId: existing.id,
-      movieId,
-      userId: user.id
-    })
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🗑️ Removing movie from watchlist...', { 
+        watchlistId: existing.id,
+        movieId,
+        userId: user.id
+      })
+    }
 
     const { error } = await supabase
       .from('watchlist')
@@ -394,11 +428,13 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    console.log('✅ Successfully removed from watchlist', { 
-      userId: user.id, 
-      movieId,
-      watchlistId: existing.id
-    })
+    if (process.env.NODE_ENV === 'development') {
+      console.log('✅ Successfully removed from watchlist', { 
+        userId: user.id, 
+        movieId,
+        watchlistId: existing.id
+      })
+    }
 
     return NextResponse.json({ success: true, message: 'Removed from watchlist' })
   } catch (error) {

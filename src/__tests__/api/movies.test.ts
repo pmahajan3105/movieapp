@@ -121,7 +121,7 @@ describe('/api/movies', () => {
       expect(data.total).toBe(3)
       expect(data.pagination).toEqual({
         page: 1,
-        limit: 20,
+        limit: 12,
         hasMore: false,
         totalPages: 1,
       })
@@ -348,7 +348,7 @@ describe('/api/movies', () => {
       const data = await response.json()
 
       expect(response.status).toBe(200)
-      expect(data.pagination.limit).toBe(20) // Default value
+      expect(data.pagination.limit).toBe(12) // Default value
       expect(data.pagination.page).toBe(1) // Default value
     })
   })

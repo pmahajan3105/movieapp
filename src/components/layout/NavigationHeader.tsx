@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
-import { Film, List, Home, LogOut, User, Sparkles, Menu, X, Search } from 'lucide-react'
+import { Film, Home, LogOut, Sparkles, Menu, X, Search } from 'lucide-react'
 import { SearchInterface } from '@/components/search/SearchInterface'
 import { useState } from 'react'
 
@@ -44,19 +44,13 @@ export function NavigationHeader() {
       name: 'Dashboard',
       href: '/dashboard',
       icon: Home,
-      current: pathname === '/dashboard',
+      current: pathname === '/dashboard' || pathname.startsWith('/dashboard'),
     },
     {
       name: 'Search',
       href: '/search',
       icon: Search,
       current: pathname === '/search',
-    },
-    {
-      name: 'My Watchlist',
-      href: '/watchlist',
-      icon: List,
-      current: pathname === '/watchlist',
     },
   ]
 
@@ -109,10 +103,6 @@ export function NavigationHeader() {
 
             {/* User Menu */}
             <div className="hidden items-center space-x-4 md:flex">
-              <div className="flex items-center space-x-2 text-sm text-gray-600">
-                <User className="h-4 w-4" />
-                <span className="max-w-32 truncate">{user.email}</span>
-              </div>
               <Button variant="outline" size="sm" onClick={handleSignOut}>
                 <LogOut className="mr-2 h-4 w-4" />
                 Sign Out
@@ -170,15 +160,7 @@ export function NavigationHeader() {
                 })}
               </div>
               <div className="border-t border-gray-200 pb-3 pt-4">
-                <div className="flex items-center space-x-3 px-4">
-                  <div className="flex-shrink-0">
-                    <User className="h-8 w-8 text-gray-400" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-base font-medium text-gray-800">{user.email}</div>
-                  </div>
-                </div>
-                <div className="mt-3 px-4">
+                <div className="px-4">
                   <Button variant="outline" size="sm" onClick={handleSignOut} className="w-full">
                     <LogOut className="mr-2 h-4 w-4" />
                     Sign Out

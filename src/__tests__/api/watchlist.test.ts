@@ -139,8 +139,16 @@ describe('/api/watchlist', () => {
         added_at: '2024-01-01T00:00:00Z',
       }
 
-      // Mock existing check returns null (not found)
-      mockSupabase.single.mockResolvedValueOnce({ data: null, error: null })
+      // Mock movie existence check returns movie data (movie exists)
+      mockSupabase.single.mockResolvedValueOnce({ 
+        data: { id: 'movie-1', title: 'Test Movie' }, 
+        error: null 
+      })
+      // Mock existing watchlist check returns null (not in watchlist)
+      mockSupabase.single.mockResolvedValueOnce({ 
+        data: null, 
+        error: { code: 'PGRST116' } 
+      })
       // Mock insert returns new item
       mockSupabase.single.mockResolvedValueOnce({ data: newWatchlistItem, error: null })
 
@@ -163,8 +171,13 @@ describe('/api/watchlist', () => {
     })
 
     it('returns 409 if movie already in watchlist', async () => {
-      // Mock existing check returns existing item
-      mockSupabase.single.mockResolvedValue({ data: { id: 'existing' }, error: null })
+      // Mock movie existence check returns movie data (movie exists)
+      mockSupabase.single.mockResolvedValueOnce({ 
+        data: { id: 'movie-1', title: 'Test Movie' }, 
+        error: null 
+      })
+      // Mock existing watchlist check returns existing item
+      mockSupabase.single.mockResolvedValueOnce({ data: { id: 'existing' }, error: null })
 
       const request = {
         json: jest.fn().mockResolvedValue({ movie_id: 'movie-1' }),

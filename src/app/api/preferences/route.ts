@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { getAuthenticatedUserId } from '@/lib/auth-server'
 import { z } from 'zod'
 
 const preferenceSchema = z.object({
@@ -26,13 +27,19 @@ type PreferenceUpdate = z.infer<typeof preferenceSchema>
 // GET - Retrieve user preferences
 export async function GET() {
   try {
+    // Get authenticated user
+    const userId = await getAuthenticatedUserId()
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Authentication required', success: false },
+        { status: 401 }
+      )
+    }
+
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     )
-
-    // TODO: Replace with actual user authentication
-    const userId = '00000000-0000-0000-0000-000000000001' // UUID for anonymous user
 
     const { data: userProfile, error } = await supabase
       .from('user_profiles')
@@ -66,6 +73,15 @@ export async function GET() {
 // PUT - Update user preferences
 export async function PUT(request: NextRequest) {
   try {
+    // Get authenticated user
+    const userId = await getAuthenticatedUserId()
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Authentication required', success: false },
+        { status: 401 }
+      )
+    }
+
     const body = await request.json()
     const preferences = preferenceSchema.parse(body)
 
@@ -73,9 +89,6 @@ export async function PUT(request: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     )
-
-    // TODO: Replace with actual user authentication
-    const userId = '00000000-0000-0000-0000-000000000001' // UUID for anonymous user
 
     // Upsert user preferences
     const { data, error } = await supabase
@@ -126,6 +139,15 @@ export async function PUT(request: NextRequest) {
 // PATCH - Partially update preferences
 export async function PATCH(request: NextRequest) {
   try {
+    // Get authenticated user
+    const userId = await getAuthenticatedUserId()
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Authentication required', success: false },
+        { status: 401 }
+      )
+    }
+
     const body = await request.json()
     const { field, value, operation = 'set' } = body
 
@@ -140,9 +162,6 @@ export async function PATCH(request: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     )
-
-    // TODO: Replace with actual user authentication
-    const userId = '00000000-0000-0000-0000-000000000001' // UUID for anonymous user
 
     // Get current preferences
     const { data: currentProfile, error: fetchError } = await supabase
@@ -235,13 +254,19 @@ export async function PATCH(request: NextRequest) {
 // DELETE - Reset preferences
 export async function DELETE() {
   try {
+    // Get authenticated user
+    const userId = await getAuthenticatedUserId()
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Authentication required', success: false },
+        { status: 401 }
+      )
+    }
+
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     )
-
-    // TODO: Replace with actual user authentication
-    const userId = '00000000-0000-0000-0000-000000000001' // UUID for anonymous user
 
     const { error } = await supabase
       .from('user_profiles')

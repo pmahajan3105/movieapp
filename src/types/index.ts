@@ -8,12 +8,15 @@ export interface Movie {
   actors?: string[]
   plot?: string
   poster_url?: string
+  backdrop_url?: string
   rating?: number
   runtime?: number
   omdb_id?: string
   imdb_id?: string
   tmdb_id?: number
-  created_at: string
+  popularity?: number
+  source?: string
+  created_at?: string
   updated_at?: string
 }
 

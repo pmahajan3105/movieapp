@@ -88,7 +88,7 @@ export const MovieGridCard: React.FC<MovieGridCardProps> = ({
           <Image
             src={movie.poster_url}
             alt={movie.title}
-            fill={true}
+            fill
             className="object-cover"
             sizes={`(max-width: 768px) 50vw, ${size === 'sm' ? '16vw' : size === 'md' ? '20vw' : '24vw'}`}
           />

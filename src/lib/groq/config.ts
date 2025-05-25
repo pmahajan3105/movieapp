@@ -5,9 +5,9 @@ export const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 })
 
-// Groq configuration - Using current model since llama-3.1-70b-versatile is deprecated
+// Groq configuration - Updated to current production model
 export const groqConfig = {
-  model: 'llama-3.3-70b-versatile', // Updated to current model - llama-3.1-70b-versatile is deprecated
+  model: 'llama-3.3-70b-versatile', // Updated from deprecated llama-3.1-70b-versatile
   maxTokens: 500, // Optimized for conversational responses
   temperature: 0.7,
   topP: 1,

@@ -5,15 +5,17 @@ import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { Home, Film, List, User } from 'lucide-react'
 
 const navigation = [
-  { name: 'Dashboard', href: '/dashboard' },
-  { name: 'Movies', href: '/dashboard/movies' },
-  { name: 'Watchlist', href: '/watchlist' },
+  { name: 'Dashboard', href: '/dashboard', icon: Home },
+  { name: 'Movies', href: '/dashboard/movies', icon: Film },
+  { name: 'Watchlist', href: '/dashboard/watchlist', icon: List },
+  { name: 'Account', href: '/dashboard/account', icon: User },
 ]
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { user, signOut } = useAuth()
+  const { signOut } = useAuth()
   const pathname = usePathname()
 
   return (
@@ -28,25 +30,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
                 {/* Navigation links */}
                 <div className="hidden space-x-4 md:flex">
-                  {navigation.map(item => (
-                    <Link
-                      key={item.name}
-                      href={item.href}
-                      className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                        pathname === item.href
-                          ? 'bg-blue-100 text-blue-700'
-                          : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-                      }`}
-                    >
-                      {item.name}
-                    </Link>
-                  ))}
+                  {navigation.map(item => {
+                    const Icon = item.icon
+                    return (
+                      <Link
+                        key={item.name}
+                        href={item.href}
+                        className={`inline-flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                          pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
+                            ? 'bg-purple-100 text-purple-700'
+                            : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+                        }`}
+                      >
+                        <Icon className="mr-2 h-4 w-4" />
+                        {item.name}
+                      </Link>
+                    )
+                  })}
                 </div>
               </div>
 
               {/* User menu */}
               <div className="flex items-center space-x-4">
-                <span className="text-sm text-gray-700">{user?.email}</span>
                 <Button
                   variant="ghost"
                   onClick={signOut}
@@ -61,19 +66,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {/* Mobile navigation */}
           <div className="md:hidden">
             <div className="space-y-1 px-2 pb-3 pt-2 sm:px-3">
-              {navigation.map(item => (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className={`block rounded-md px-3 py-2 text-base font-medium transition-colors ${
-                    pathname === item.href
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-                  }`}
-                >
-                  {item.name}
-                </Link>
-              ))}
+              {navigation.map(item => {
+                const Icon = item.icon
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    className={`flex items-center rounded-md px-3 py-2 text-base font-medium transition-colors ${
+                      pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
+                        ? 'bg-purple-100 text-purple-700'
+                        : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+                    }`}
+                  >
+                    <Icon className="mr-3 h-4 w-4" />
+                    {item.name}
+                  </Link>
+                )
+              })}
             </div>
           </div>
         </nav>

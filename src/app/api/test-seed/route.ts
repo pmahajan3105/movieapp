@@ -1,86 +1,93 @@
-import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { NextResponse } from 'next/server'
 
 export async function GET() {
   try {
-    // Test environment variables
+    // Check environment variables
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    const omdbKey = process.env.OMDB_API_KEY
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    const tmdbKey = process.env.TMDB_API_KEY
+    const anthropicKey = process.env.ANTHROPIC_API_KEY
 
-    console.log('Environment check:')
+    console.log('🔍 Environment Check:')
     console.log('- Supabase URL:', supabaseUrl ? 'Set' : 'Missing')
-    console.log(
-      '- Service Role Key:',
-      serviceRoleKey ? 'Set (length: ' + serviceRoleKey.length + ')' : 'Missing'
-    )
-    console.log('- OMDB Key:', omdbKey ? 'Set' : 'Missing')
+    console.log('- Supabase Key:', supabaseKey ? 'Set' : 'Missing')
+    console.log('- TMDB Key:', tmdbKey ? 'Set' : 'Missing')
+    console.log('- Anthropic Key:', anthropicKey ? 'Set' : 'Missing')
 
-    if (!supabaseUrl || !serviceRoleKey) {
-      return NextResponse.json({
-        success: false,
-        error: 'Missing environment variables',
-        details: {
-          supabaseUrl: !!supabaseUrl,
-          serviceRoleKey: !!serviceRoleKey,
-          omdbKey: !!omdbKey,
+    const environmentStatus = {
+      supabaseUrl: !!supabaseUrl,
+      supabaseKey: !!supabaseKey,
+      tmdbKey: !!tmdbKey,
+      anthropicKey: !!anthropicKey,
+    }
+
+    if (!supabaseUrl || !supabaseKey) {
+      return NextResponse.json(
+        { 
+          error: 'Missing Supabase configuration', 
+          environment: environmentStatus 
         },
-      })
+        { status: 500 }
+      )
     }
 
-    // Test Supabase connection with service role
-    const supabase = createClient(supabaseUrl, serviceRoleKey)
+    // Test Supabase connection
+    const supabase = createClient(supabaseUrl, supabaseKey)
+    
+    try {
+      const { data: movies, error: moviesError } = await supabase
+        .from('movies')
+        .select('*')
+        .limit(5)
 
-    const { data, error } = await supabase
-      .from('movies')
-      .select('count(*)', { count: 'exact' })
-      .limit(1)
+      console.log('📺 Sample movies from database:', movies?.length || 0)
 
-    if (error) {
-      console.error('Supabase error:', error)
-      return NextResponse.json({
-        success: false,
-        error: 'Supabase connection failed',
-        details: error,
-      })
+      if (moviesError) {
+        console.error('❌ Supabase movies error:', moviesError)
+      }
+    } catch (dbError) {
+      console.error('❌ Database connection error:', dbError)
     }
 
-    // Test OMDB API
-    let omdbTest = null
-    if (omdbKey) {
+    // Test TMDB API
+    let tmdbTest = null
+    if (tmdbKey) {
       try {
-        const omdbResponse = await fetch(`http://www.omdbapi.com/?t=Inception&apikey=${omdbKey}`)
-        const omdbData = await omdbResponse.json()
-        omdbTest = {
-          success: omdbData.Response === 'True',
-          response: omdbData.Response === 'True' ? 'Working' : omdbData.Error || 'Failed',
+        const tmdbResponse = await fetch(`https://api.themoviedb.org/3/configuration?api_key=${tmdbKey}`)
+        const tmdbData = await tmdbResponse.json()
+        tmdbTest = {
+          status: tmdbResponse.ok ? 'success' : 'error',
+          message: tmdbResponse.ok ? 'TMDB API accessible' : tmdbData.status_message || 'Unknown error'
         }
-      } catch (omdbError) {
-        omdbTest = {
-          success: false,
-          response: `Network error: ${omdbError instanceof Error ? omdbError.message : 'Unknown error'}`,
+        console.log('🎬 TMDB API test:', tmdbTest.status)
+      } catch (error) {
+        console.error('❌ TMDB API error:', error)
+        tmdbTest = {
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Unknown error'
         }
+      }
+    } else {
+      tmdbTest = {
+        status: 'missing',
+        message: 'TMDB API key not configured'
       }
     }
 
     return NextResponse.json({
-      success: true,
-      message: 'All tests completed',
-      results: {
-        supabase: {
-          connected: true,
-          movieCount: Array.isArray(data) ? data.length : 0,
-        },
-        omdb: omdbTest,
-      },
+      message: 'Test completed successfully',
+      environment: environmentStatus,
+      tmdb: tmdbTest,
+      timestamp: new Date().toISOString()
     })
+
   } catch (error) {
-    console.error('Test error:', error)
+    console.error('❌ Test seed error:', error)
     return NextResponse.json(
-      {
-        success: false,
-        error: 'Test failed',
-        details: error instanceof Error ? error.message : 'Unknown error',
+      { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString()
       },
       { status: 500 }
     )

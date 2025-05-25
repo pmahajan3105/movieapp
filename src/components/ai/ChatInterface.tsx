@@ -52,10 +52,10 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
     }
   }, [])
 
-  // Auto-scroll management for streaming
+  // Auto-scroll management
   useEffect(() => {
     scrollToBottom()
-  }, [messages, streamingMessage, scrollToBottom])
+  }, [messages, scrollToBottom])
 
   // Enhanced welcome message
   useEffect(() => {
@@ -63,7 +63,7 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
       id: 'welcome',
       role: 'assistant',
       content:
-        "Hi there! I'm CineAI, your personal movie assistant powered by Groq for lightning-fast responses! 🎬\n\nI'd love to learn about your movie preferences so I can recommend films you'll absolutely love. This will only take a few minutes!\n\nTo get started, tell me about a movie you've watched recently that you really enjoyed, or maybe a genre you're always in the mood for?",
+        "Hi there! I'm CineAI, your personal movie assistant powered by Claude! 🎬\n\nI'd love to learn about your movie preferences so I can recommend films you'll absolutely love. This will only take a few minutes!\n\nTo get started, tell me about a movie you've watched recently that you really enjoyed, or maybe a genre you're always in the mood for?",
       timestamp: new Date(),
     }
     setMessages([welcomeMessage])
@@ -104,7 +104,9 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
       })
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: Failed to send message`)
+        const errorText = await response.text()
+        console.error('🚨 Streaming API error:', response.status, errorText)
+        throw new Error(`HTTP ${response.status}: ${errorText}`)
       }
 
       const reader = response.body?.getReader()
@@ -200,6 +202,13 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
       setStreamingMessage('')
       
       const errorMessage = err instanceof Error ? err.message : 'Something went wrong'
+      
+      // If this is a streaming capability error, don't show error UI - let fallback handle it
+      if (errorMessage.includes('does not support streaming') || errorMessage.includes('streaming')) {
+        console.log('🔄 Streaming not supported, triggering fallback:', errorMessage)
+        throw err // Re-throw to trigger fallback
+      }
+      
       setError(errorMessage)
 
       // Add error message to chat
@@ -217,6 +226,8 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
       abortControllerRef.current = null
     }
   }
+
+
 
   const handleSendMessage = async (messageContent: string) => {
     if (isComplete || isLoading || isStreaming) return
@@ -263,6 +274,11 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
     setMessages([welcomeMessage])
   }
 
+  // Auto-scroll management for streaming
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages, streamingMessage, scrollToBottom])
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -289,10 +305,10 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
                     <CheckCircle className="h-3 w-3 text-green-500" />
                     Preferences gathered! Ready for recommendations.
                   </>
-                ) : isStreaming ? (
+                ) : isLoading || isStreaming ? (
                   <>
                     <div className="h-3 w-3 animate-pulse rounded-full bg-blue-500" />
-                    Streaming response...
+                    {isStreaming ? 'Streaming response...' : 'Thinking...'}
                   </>
                 ) : (
                   <>
@@ -331,9 +347,10 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
         }}
       >
         <div className="space-y-4">
-          {messages.map(message => (
-            <ChatMessage key={message.id} message={message} />
-          ))}
+          {messages.map(message => {
+            console.log('🔄 Rendering message:', message)
+            return <ChatMessage key={message.id} message={message} />
+          })}
 
           {/* Streaming message display */}
           {isStreaming && streamingMessage && (
@@ -348,7 +365,7 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
             />
           )}
 
-          {/* Typing indicator for initial loading */}
+          {/* Typing indicator for loading */}
           {isLoading && !isStreaming && (
             <ChatMessage
               message={{

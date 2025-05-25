@@ -51,7 +51,7 @@ export interface PreferenceData {
     max: number
   }
   
-  [key: string]: any
+  [key: string]: unknown
 }
 
 export interface ChatApiRequest {
@@ -85,6 +85,6 @@ export interface ConversationAnalytics {
   id: string
   session_id: string
   event_type: string
-  metadata: Record<string, any>
+  metadata: Record<string, unknown>
   timestamp: string
 }

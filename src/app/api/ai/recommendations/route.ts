@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { groq, groqConfig } from '@/lib/groq/config'
+import { anthropic, claudeConfig } from '@/lib/anthropic/config'
 import type { Movie } from '@/types'
+import { movieService } from '@/lib/services/movie-service'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -94,6 +95,14 @@ interface RecommendationRequest {
   context?: string
 }
 
+interface ConversationData {
+  id?: string
+  user_id?: string
+  preferences_extracted?: boolean
+  updated_at?: string
+  // Add other fields as needed
+}
+
 export async function POST(request: NextRequest) {
   try {
     const {
@@ -117,7 +126,7 @@ export async function POST(request: NextRequest) {
 
     // Get comprehensive user preferences from multiple sources
     let userPreferences: EnhancedPreferences = {}
-    let conversationData: any = null
+    let conversationData: ConversationData | null = null
     let viewingHistory: Movie[] = []
 
     try {
@@ -198,38 +207,36 @@ export async function POST(request: NextRequest) {
       context
     )
 
-    // Call Groq API with enhanced prompt
-    const completion = await groq.chat.completions.create({
-      messages: [
-        { role: 'system', content: ENHANCED_RECOMMENDATION_PROMPT },
-        { role: 'user', content: enhancedUserContext },
-      ],
-      model: groqConfig.model,
+    // Call Claude API with enhanced prompt
+    const completion = await anthropic.messages.create({
+      model: claudeConfig.model,
       max_tokens: 1000, // Increased for enhanced recommendations
       temperature: 0.7, // Balanced for creativity and relevance
-      top_p: 0.9,
+      system: ENHANCED_RECOMMENDATION_PROMPT,
+      messages: [
+        { role: 'user', content: enhancedUserContext },
+      ],
     })
 
-    const aiResponse = completion.choices[0]?.message?.content
+    const recommendations = completion.content.find(block => block.type === 'text')?.text
 
-    if (!aiResponse) {
+    if (!recommendations) {
       throw new Error('No response from AI')
     }
 
     // Parse and validate AI response
-    let recommendations: EnhancedRecommendationItem[] = []
+    let parsedRecommendations: EnhancedRecommendationItem[] = []
     try {
-      const parsed: EnhancedRecommendationResponse = JSON.parse(aiResponse)
-      recommendations = parsed.recommendations || []
+      parsedRecommendations = JSON.parse(recommendations)
     } catch (parseError) {
       console.error('Failed to parse AI response:', parseError)
       // Fallback to database-based recommendations
-      recommendations = await getFallbackRecommendations(count, userPreferences)
+      parsedRecommendations = await getFallbackRecommendations(count, userPreferences)
     }
 
     // Enrich recommendations with real movie data and enhanced metadata
     const enrichedRecommendations = await Promise.all(
-      recommendations.slice(0, count).map(async (rec, index) => {
+      parsedRecommendations.slice(0, count).map(async (rec, index) => {
         try {
           // Search for movie in database with fuzzy matching
           const { data: existingMovie } = await supabase
@@ -251,17 +258,16 @@ export async function POST(request: NextRequest) {
             }
           }
 
-          // Try OMDB as fallback
-          const omdbMovie = await fetchMovieFromOMDB(rec.title, rec.year)
-          if (omdbMovie) {
+          // Try TMDB as fallback
+          const tmdbResults = await movieService.searchMovies(rec.title, { year: rec.year, limit: 1 })
+          if (tmdbResults.movies.length > 0) {
             return {
-              movie: omdbMovie,
+              movie: tmdbResults.movies[0],
               reason: rec.reason || 'AI recommended based on your preferences',
               confidence: rec.confidence || 0.7,
-              position: index + 1,
-              genre_match: rec.genre_match || [],
               mood_match: rec.mood_match || '',
               similarity_score: rec.similarity_score || 0.6,
+              source: 'tmdb'
             }
           }
 
@@ -292,7 +298,7 @@ export async function POST(request: NextRequest) {
       recommendations: validRecommendations,
       source: 'ai_enhanced',
       userPreferences,
-      totalGenerated: recommendations.length,
+      totalGenerated: parsedRecommendations.length,
       validCount: validRecommendations.length,
     })
 
@@ -324,7 +330,7 @@ export async function POST(request: NextRequest) {
 function buildEnhancedUserContext(
   preferences: EnhancedPreferences,
   viewingHistory: Movie[],
-  conversationData: any,
+  conversationData: ConversationData | null,
   mood?: string,
   context?: string
 ): string {
@@ -443,39 +449,4 @@ async function getFallbackMoviesFromDatabase(count: number) {
     mood_match: 'popular',
     similarity_score: 0.5,
   }))
-}
-
-async function fetchMovieFromOMDB(title: string, year?: number) {
-  try {
-    const apiKey = process.env.OMDB_API_KEY
-    if (!apiKey) return null
-
-    let url = `http://www.omdbapi.com/?apikey=${apiKey}&t=${encodeURIComponent(title)}&type=movie&plot=short`
-    if (year) {
-      url += `&y=${year}`
-    }
-
-    const response = await fetch(url)
-    const data = await response.json()
-
-    if (data.Response === 'True') {
-      return {
-        id: data.imdbID,
-        title: data.Title,
-        year: parseInt(data.Year) || null,
-        genre: data.Genre ? data.Genre.split(', ') : [],
-        director: data.Director ? data.Director.split(', ') : [],
-        plot: data.Plot !== 'N/A' ? data.Plot : '',
-        poster_url: data.Poster !== 'N/A' ? data.Poster : null,
-        rating: parseFloat(data.imdbRating) || null,
-        runtime: data.Runtime ? parseInt(data.Runtime.replace(' min', '')) : null,
-        imdb_id: data.imdbID,
-      }
-    }
-
-    return null
-  } catch (error) {
-    console.error('OMDB fetch error:', error)
-    return null
-  }
 }

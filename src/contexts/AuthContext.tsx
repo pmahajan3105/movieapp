@@ -27,7 +27,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   )
 
   const refreshUser = async () => {
-    console.log('🔄 refreshUser called')
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔄 refreshUser called')
+    }
     try {
       const {
         data: { user: authUser },
@@ -41,10 +43,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (authUser) {
-        console.log('✅ Auth user found:', authUser.email)
+        if (process.env.NODE_ENV === 'development') {
+          console.log('✅ Auth user found:', authUser.email)
+        }
         setUser(authUser as AuthUser)
       } else {
-        console.log('📭 No auth user found')
+        if (process.env.NODE_ENV === 'development') {
+          console.log('📭 No auth user found')
+        }
         setUser(null)
       }
     } catch (error) {
@@ -69,22 +75,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    console.log('🚀 AuthContext useEffect triggered')
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🚀 AuthContext useEffect triggered')
+    }
     let mounted = true
 
     const initializeAuth = async () => {
-      console.log('⏳ Starting auth initialization...')
+      if (process.env.NODE_ENV === 'development') {
+        console.log('⏳ Starting auth initialization...')
+      }
 
       try {
         // Simple session check
-        console.log('📡 Getting session...')
+        if (process.env.NODE_ENV === 'development') {
+          console.log('📡 Getting session...')
+        }
         const {
           data: { session },
           error,
         } = await supabase.auth.getSession()
 
         if (!mounted) {
-          console.log('🚫 Component unmounted, aborting')
+          if (process.env.NODE_ENV === 'development') {
+            console.log('🚫 Component unmounted, aborting')
+          }
           return
         }
 
@@ -92,10 +106,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.error('❌ Session error:', error)
           setUser(null)
         } else if (session?.user) {
-          console.log('✅ Session found for:', session.user.email)
+          if (process.env.NODE_ENV === 'development') {
+            console.log('✅ Session found for:', session.user.email)
+          }
           setUser(session.user as AuthUser)
         } else {
-          console.log('📭 No session found')
+          if (process.env.NODE_ENV === 'development') {
+            console.log('📭 No session found')
+          }
           setUser(null)
         }
       } catch (error) {
@@ -105,7 +123,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } finally {
         if (mounted) {
-          console.log('✅ Auth initialization complete, setting loading to false')
+          if (process.env.NODE_ENV === 'development') {
+            console.log('✅ Auth initialization complete, setting loading to false')
+          }
           setLoading(false)
         }
       }
@@ -115,25 +135,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     initializeAuth()
 
     // Set up auth state listener
-    console.log('👂 Setting up auth state listener...')
+    if (process.env.NODE_ENV === 'development') {
+      console.log('👂 Setting up auth state listener...')
+    }
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('🔔 Auth state change:', event, session?.user?.email || 'no user')
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔔 Auth state change:', event, session?.user?.email || 'no user')
+      }
 
       if (!mounted) return
 
       if (event === 'SIGNED_IN' && session?.user) {
-        console.log('✅ User signed in, updating state')
+        if (process.env.NODE_ENV === 'development') {
+          console.log('✅ User signed in, updating state')
+        }
         setUser(session.user as AuthUser)
       } else if (event === 'SIGNED_OUT') {
-        console.log('👋 User signed out, clearing state')
+        if (process.env.NODE_ENV === 'development') {
+          console.log('👋 User signed out, clearing state')
+        }
         setUser(null)
       }
     })
 
     return () => {
-      console.log('🧹 Cleaning up AuthContext')
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🧹 Cleaning up AuthContext')
+      }
       mounted = false
       subscription.unsubscribe()
     }
@@ -146,11 +176,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refreshUser,
   }
 
-  console.log('🎯 AuthContext state:', {
-    user: user?.email || 'null',
-    loading,
-    timestamp: new Date().toISOString(),
-  })
+  // Only log in development to reduce test noise
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🎯 AuthContext state:', {
+      user: user?.email || 'null',
+      loading,
+      timestamp: new Date().toISOString(),
+    })
+  }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

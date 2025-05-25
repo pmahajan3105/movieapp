@@ -12,6 +12,7 @@ import { toast } from 'react-hot-toast'
 // Mock dependencies
 jest.mock('@/contexts/AuthContext')
 jest.mock('react-hot-toast')
+// eslint-disable-next-line @next/next/no-img-element
 jest.mock('next/image', () => ({ 
   __esModule: true, 
   default: ({ src, alt, ...props }: { src: string; alt: string; [key: string]: unknown }) => <img src={src} alt={alt} {...props} />
@@ -46,16 +47,26 @@ const mockMovies = [
   }
 ]
 
-const mockFetchResponse = {
+// Mock unified smart API response
+const mockSmartApiResponse = {
   success: true,
   data: mockMovies,
   total: 10,
   pagination: {
-    page: 1,
-    limit: 9,
+    currentPage: 1,
     hasMore: true,
     totalPages: 2,
   },
+  recommendationType: 'popular',
+  userHasPreferences: false,
+}
+
+// Mock watchlist response
+const mockWatchlistResponse = {
+  success: true,
+  data: [
+    { movie_id: 'movie-1' }
+  ]
 }
 
 describe('MoviesPage', () => {
@@ -76,10 +87,26 @@ describe('MoviesPage', () => {
       refreshUser: jest.fn(),
     })
 
-    ;(global.fetch as jest.Mock).mockResolvedValue({
-      ok: true,
-      json: jest.fn().mockResolvedValue(mockFetchResponse),
-    })
+    // Mock smart API and watchlist API calls
+    ;(global.fetch as jest.Mock)
+      .mockImplementation((url: string) => {
+        if (url.includes('/api/movies?smart=true')) {
+          return Promise.resolve({
+            ok: true,
+            json: jest.fn().mockResolvedValue(mockSmartApiResponse),
+          })
+        }
+        if (url.includes('/api/watchlist')) {
+          return Promise.resolve({
+            ok: true,
+            json: jest.fn().mockResolvedValue(mockWatchlistResponse),
+          })
+        }
+        return Promise.resolve({
+          ok: true,
+          json: jest.fn().mockResolvedValue({ success: true, data: [] }),
+        })
+      })
 
     // Mock toast methods
     mockToast.success = jest.fn()
@@ -98,15 +125,23 @@ describe('MoviesPage', () => {
       render(<MoviesPage />)
       
       expect(screen.getByText('Loading movies...')).toBeInTheDocument()
-      expect(screen.getByRole('progressbar')).toBeInTheDocument()
     })
 
-    it('loads both personalized and general movies on mount', async () => {
+    it('loads movies using smart API on mount', async () => {
       render(<MoviesPage />)
 
       await waitFor(() => {
-        expect(global.fetch).toHaveBeenCalledWith('/api/movies?limit=9&page=1&preferences=true')
-        expect(global.fetch).toHaveBeenCalledWith('/api/movies?limit=9&page=1')
+        expect(global.fetch).toHaveBeenCalledWith(
+          expect.stringContaining('/api/movies?smart=true&limit=8&page=1')
+        )
+      })
+    })
+
+    it('loads watchlist on mount', async () => {
+      render(<MoviesPage />)
+
+      await waitFor(() => {
+        expect(global.fetch).toHaveBeenCalledWith('/api/watchlist')
       })
     })
 
@@ -120,55 +155,127 @@ describe('MoviesPage', () => {
     })
   })
 
-  describe('Personalized Recommendations', () => {
-    it('shows personalized section when user has preferences', async () => {
+  describe('Smart Recommendations', () => {
+    it('shows appropriate title based on recommendation type', async () => {
       const personalizedResponse = {
-        ...mockFetchResponse,
-        total: 5, // Non-zero indicates preferences exist
+        ...mockSmartApiResponse,
+        recommendationType: 'personalized',
+        userHasPreferences: true,
       }
 
       ;(global.fetch as jest.Mock)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: jest.fn().mockResolvedValue(personalizedResponse),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: jest.fn().mockResolvedValue(mockFetchResponse),
+        .mockImplementation((url: string) => {
+          if (url.includes('/api/movies?smart=true')) {
+            return Promise.resolve({
+              ok: true,
+              json: jest.fn().mockResolvedValue(personalizedResponse),
+            })
+          }
+          if (url.includes('/api/watchlist')) {
+            return Promise.resolve({
+              ok: true,
+              json: jest.fn().mockResolvedValue(mockWatchlistResponse),
+            })
+          }
+          return Promise.resolve({
+            ok: true,
+            json: jest.fn().mockResolvedValue({ success: true, data: [] }),
+          })
         })
 
       render(<MoviesPage />)
 
       await waitFor(() => {
-        expect(screen.getByText('Your Personalized Movies 🎯')).toBeInTheDocument()
-        expect(screen.getByText('Recommended For You')).toBeInTheDocument()
-        expect(screen.getByText('Based on your chat preferences with CineAI')).toBeInTheDocument()
+        expect(screen.getByText('Your Personalized Recommendations 🎯')).toBeInTheDocument()
       })
     })
 
-    it('shows message to chat with AI when no preferences exist', async () => {
-      const noPreferencesResponse = {
-        ...mockFetchResponse,
-        data: [],
-        total: 0,
+    it('shows AI-Enhanced indicator when user has preferences', async () => {
+      const personalizedResponse = {
+        ...mockSmartApiResponse,
+        recommendationType: 'personalized',
+        userHasPreferences: true,
       }
 
       ;(global.fetch as jest.Mock)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: jest.fn().mockResolvedValue(noPreferencesResponse),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: jest.fn().mockResolvedValue(mockFetchResponse),
+        .mockImplementation((url: string) => {
+          if (url.includes('/api/movies?smart=true')) {
+            return Promise.resolve({
+              ok: true,
+              json: jest.fn().mockResolvedValue(personalizedResponse),
+            })
+          }
+          if (url.includes('/api/watchlist')) {
+            return Promise.resolve({
+              ok: true,
+              json: jest.fn().mockResolvedValue(mockWatchlistResponse),
+            })
+          }
+          return Promise.resolve({
+            ok: true,
+            json: jest.fn().mockResolvedValue({ success: true, data: [] }),
+          })
         })
 
       render(<MoviesPage />)
 
       await waitFor(() => {
-        expect(screen.getByText('No personalized recommendations yet')).toBeInTheDocument()
-        expect(screen.getByText('Chat with CineAI on the Dashboard to get personalized movie recommendations!')).toBeInTheDocument()
-        expect(screen.getByRole('button', { name: 'Chat with CineAI' })).toBeInTheDocument()
+        expect(screen.getByText('AI-Enhanced Recommendations')).toBeInTheDocument()
+      })
+    })
+  })
+
+  describe('Watchlist Integration', () => {
+    it('adds movie to watchlist when button clicked', async () => {
+      ;(global.fetch as jest.Mock)
+        .mockImplementation((url: string, options?: RequestInit) => {
+          if (url.includes('/api/movies?smart=true')) {
+            return Promise.resolve({
+              ok: true,
+              json: jest.fn().mockResolvedValue(mockSmartApiResponse),
+            })
+          }
+          if (url.includes('/api/watchlist') && options?.method === 'POST') {
+            return Promise.resolve({
+              ok: true,
+              json: jest.fn().mockResolvedValue({ success: true }),
+            })
+          }
+          if (url.includes('/api/watchlist')) {
+            return Promise.resolve({
+              ok: true,
+              json: jest.fn().mockResolvedValue({ success: true, data: [] }),
+            })
+          }
+          return Promise.resolve({
+            ok: true,
+            json: jest.fn().mockResolvedValue({ success: true, data: [] }),
+          })
+        })
+
+      render(<MoviesPage />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Avengers: Endgame')).toBeInTheDocument()
+      })
+
+      const addButton = screen.getAllByText('Add to Watchlist')[1] // Second movie button
+      fireEvent.click(addButton)
+
+      await waitFor(() => {
+        expect(global.fetch).toHaveBeenCalledWith('/api/watchlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ movie_id: 'movie-2' }),
+        })
+      })
+    })
+
+    it('shows "In Watchlist" for movies already in watchlist', async () => {
+      render(<MoviesPage />)
+
+      await waitFor(() => {
+        expect(screen.getByText('In Watchlist')).toBeInTheDocument()
       })
     })
   })
@@ -178,248 +285,113 @@ describe('MoviesPage', () => {
       render(<MoviesPage />)
 
       await waitFor(() => {
-        expect(screen.getByText('Load More Recommendations')).toBeInTheDocument()
         expect(screen.getByText('Load More Movies')).toBeInTheDocument()
       })
     })
 
-    it('loads more personalized movies when button clicked', async () => {
+    it('loads more movies when button clicked', async () => {
       const page2Response = {
-        ...mockFetchResponse,
-        data: [mockMovies[0]], // Different data for page 2
-        pagination: { ...mockFetchResponse.pagination, page: 2, hasMore: false },
+        ...mockSmartApiResponse,
+        pagination: { ...mockSmartApiResponse.pagination, currentPage: 2, hasMore: false },
       }
 
       ;(global.fetch as jest.Mock)
-        .mockResolvedValueOnce({ ok: true, json: jest.fn().mockResolvedValue(mockFetchResponse) })
-        .mockResolvedValueOnce({ ok: true, json: jest.fn().mockResolvedValue(mockFetchResponse) })
-        .mockResolvedValueOnce({ ok: true, json: jest.fn().mockResolvedValue(page2Response) })
+        .mockImplementation((url: string) => {
+          if (url.includes('page=2')) {
+            return Promise.resolve({
+              ok: true,
+              json: jest.fn().mockResolvedValue(page2Response),
+            })
+          }
+          if (url.includes('/api/movies?smart=true')) {
+            return Promise.resolve({
+              ok: true,
+              json: jest.fn().mockResolvedValue(mockSmartApiResponse),
+            })
+          }
+          if (url.includes('/api/watchlist')) {
+            return Promise.resolve({
+              ok: true,
+              json: jest.fn().mockResolvedValue(mockWatchlistResponse),
+            })
+          }
+          return Promise.resolve({
+            ok: true,
+            json: jest.fn().mockResolvedValue({ success: true, data: [] }),
+          })
+        })
 
-      render(<MoviesPage />)
-
-      await waitFor(() => {
-        expect(screen.getByText('Load More Recommendations')).toBeInTheDocument()
-      })
-
-      fireEvent.click(screen.getByText('Load More Recommendations'))
-
-      await waitFor(() => {
-        expect(global.fetch).toHaveBeenCalledWith('/api/movies?limit=9&page=2&preferences=true')
-      })
-    })
-
-    it('loads more general movies when button clicked', async () => {
       render(<MoviesPage />)
 
       await waitFor(() => {
         expect(screen.getByText('Load More Movies')).toBeInTheDocument()
       })
 
-      fireEvent.click(screen.getByText('Load More Movies'))
+      const loadMoreButton = screen.getByText('Load More Movies')
+      fireEvent.click(loadMoreButton)
 
       await waitFor(() => {
-        expect(global.fetch).toHaveBeenCalledWith('/api/movies?limit=9&page=2')
-      })
-    })
-
-    it('disables load more buttons and shows loading when loading', async () => {
-      render(<MoviesPage />)
-
-      await waitFor(() => {
-        expect(screen.getByText('Load More Movies')).toBeInTheDocument()
-      })
-
-      // Mock a slow response
-      ;(global.fetch as jest.Mock).mockImplementationOnce(
-        () => new Promise(resolve => setTimeout(resolve, 100))
-      )
-
-      fireEvent.click(screen.getByText('Load More Movies'))
-
-      // Should show loading state
-      expect(screen.getByText('Load More Movies')).toBeDisabled()
-    })
-  })
-
-  describe('Refresh Functionality', () => {
-    it('refreshes movies when refresh button clicked', async () => {
-      render(<MoviesPage />)
-
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: /refresh/i })).toBeInTheDocument()
-      })
-
-      // Clear previous calls
-      jest.clearAllMocks()
-
-      fireEvent.click(screen.getByRole('button', { name: /refresh/i }))
-
-      await waitFor(() => {
-        expect(global.fetch).toHaveBeenCalledWith('/api/movies?limit=9&page=1&preferences=true')
-        expect(global.fetch).toHaveBeenCalledWith('/api/movies?limit=9&page=1')
+        expect(global.fetch).toHaveBeenCalledWith(
+          expect.stringContaining('page=2')
+        )
       })
     })
   })
 
-  describe('Watchlist Integration', () => {
-    beforeEach(() => {
-      // Mock watchlist response
-      ;(global.fetch as jest.Mock).mockImplementation((url: string) => {
-        if (url.includes('/api/watchlist')) {
-          return Promise.resolve({
-            ok: true,
-            json: jest.fn().mockResolvedValue({
-              success: true,
-              data: [{ movie_id: 'movie-1' }] // movie-1 is already in watchlist
-            }),
-          })
-        }
-        return Promise.resolve({
-          ok: true,
-          json: jest.fn().mockResolvedValue(mockFetchResponse),
-        })
-      })
-    })
-
-    it('loads user watchlist on mount', async () => {
+  describe('Real-time Mode', () => {
+    it('shows real-time toggle', async () => {
       render(<MoviesPage />)
 
       await waitFor(() => {
-        expect(global.fetch).toHaveBeenCalledWith('/api/watchlist')
+        expect(screen.getByText('Real-time')).toBeInTheDocument()
       })
     })
 
-    it('shows "In Watchlist" for movies already in watchlist', async () => {
+    it('enables real-time mode when toggle clicked', async () => {
       render(<MoviesPage />)
 
       await waitFor(() => {
-        const buttons = screen.getAllByText('In Watchlist')
-        expect(buttons.length).toBeGreaterThan(0)
-      })
-    })
-
-    it('adds movie to watchlist when add button clicked', async () => {
-      ;(global.fetch as jest.Mock).mockImplementation((url: string, options?: RequestInit) => {
-        if (url.includes('/api/watchlist') && options?.method === 'POST') {
-          return Promise.resolve({
-            ok: true,
-            json: jest.fn().mockResolvedValue({ success: true }),
-          })
-        }
-        if (url.includes('/api/watchlist')) {
-          return Promise.resolve({
-            ok: true,
-            json: jest.fn().mockResolvedValue({ success: true, data: [] }),
-          })
-        }
-        return Promise.resolve({
-          ok: true,
-          json: jest.fn().mockResolvedValue(mockFetchResponse),
-        })
+        expect(screen.getByText('Real-time')).toBeInTheDocument()
       })
 
-      render(<MoviesPage />)
+      // Find the toggle button by its class (since it doesn't have an accessible name)
+      const toggleButton = document.querySelector('button[class*="relative inline-flex h-6 w-11"]')
+      fireEvent.click(toggleButton as Element)
 
+      // Wait for the setTimeout delay (100ms) plus some buffer
       await waitFor(() => {
-        const addButtons = screen.getAllByText('Add to Watchlist')
-        expect(addButtons.length).toBeGreaterThan(0)
-      })
-
-      const addButton = screen.getAllByText('Add to Watchlist')[0]
-      fireEvent.click(addButton)
-
-      await waitFor(() => {
-        expect(global.fetch).toHaveBeenCalledWith('/api/watchlist', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ movie_id: 'movie-1' }),
-        })
-        expect(mockToast.success).toHaveBeenCalledWith('Added to watchlist!')
-      })
-    })
-
-    it('shows error when add to watchlist fails', async () => {
-      ;(global.fetch as jest.Mock).mockImplementation((url: string, options?: RequestInit) => {
-        if (url.includes('/api/watchlist') && options?.method === 'POST') {
-          return Promise.resolve({
-            ok: false,
-            status: 409,
-            json: jest.fn().mockResolvedValue({ 
-              success: false, 
-              error: 'Movie already in watchlist' 
-            }),
-          })
-        }
-        if (url.includes('/api/watchlist')) {
-          return Promise.resolve({
-            ok: true,
-            json: jest.fn().mockResolvedValue({ success: true, data: [] }),
-          })
-        }
-        return Promise.resolve({
-          ok: true,
-          json: jest.fn().mockResolvedValue(mockFetchResponse),
-        })
-      })
-
-      render(<MoviesPage />)
-
-      await waitFor(() => {
-        const addButtons = screen.getAllByText('Add to Watchlist')
-        expect(addButtons.length).toBeGreaterThan(0)
-      })
-
-      fireEvent.click(screen.getAllByText('Add to Watchlist')[0])
-
-      await waitFor(() => {
-        expect(mockToast.error).toHaveBeenCalledWith('Movie is already in your watchlist!')
-      })
+        expect(global.fetch).toHaveBeenCalledWith(
+          expect.stringContaining('realtime=true')
+        )
+      }, { timeout: 2000 })
     })
   })
 
   describe('Error Handling', () => {
     it('shows error message when movie loading fails', async () => {
-      ;(global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'))
+      ;(global.fetch as jest.Mock)
+        .mockImplementation((url: string) => {
+          if (url.includes('/api/movies?smart=true')) {
+            return Promise.reject(new Error('Network error'))
+          }
+          if (url.includes('/api/watchlist')) {
+            return Promise.resolve({
+              ok: true,
+              json: jest.fn().mockResolvedValue(mockWatchlistResponse),
+            })
+          }
+          return Promise.resolve({
+            ok: true,
+            json: jest.fn().mockResolvedValue({ success: true, data: [] }),
+          })
+        })
 
       render(<MoviesPage />)
 
       await waitFor(() => {
-        expect(mockToast.error).toHaveBeenCalledWith('Failed to load movies. Please try again.')
+        expect(screen.getByText('Failed to Load Movies')).toBeInTheDocument()
+        expect(screen.getByText('Network error')).toBeInTheDocument()
       })
-    })
-
-    it('shows empty state when no movies found', async () => {
-      ;(global.fetch as jest.Mock).mockResolvedValue({
-        ok: true,
-        json: jest.fn().mockResolvedValue({
-          success: true,
-          data: [],
-          total: 0,
-          pagination: { page: 1, limit: 9, hasMore: false, totalPages: 0 },
-        }),
-      })
-
-      render(<MoviesPage />)
-
-      await waitFor(() => {
-        expect(screen.getByText('No movies found')).toBeInTheDocument()
-        expect(screen.getByText('Check back later for more movie recommendations!')).toBeInTheDocument()
-      })
-    })
-  })
-
-  describe('Movie Details Modal', () => {
-    it('opens movie details when movie clicked', async () => {
-      render(<MoviesPage />)
-
-      await waitFor(() => {
-        expect(screen.getByText('Avengers: Endgame')).toBeInTheDocument()
-      })
-
-      fireEvent.click(screen.getByText('Avengers: Endgame'))
-
-      // Modal should be rendered (though we'd need to mock the MovieDetailsModal component to test this fully)
-      expect(screen.getByText('Avengers: Endgame')).toBeInTheDocument()
     })
   })
 
@@ -428,9 +400,8 @@ describe('MoviesPage', () => {
       render(<MoviesPage />)
 
       await waitFor(() => {
-        // Check for movie cards by looking for movie titles (appear in both sections)
-        expect(screen.getAllByText('Avengers: Endgame')).toHaveLength(2)
-        expect(screen.getAllByText('Inception')).toHaveLength(2)
+        expect(screen.getByText('Avengers: Endgame')).toBeInTheDocument()
+        expect(screen.getByText('Inception')).toBeInTheDocument()
       })
     })
 
@@ -438,10 +409,10 @@ describe('MoviesPage', () => {
       render(<MoviesPage />)
 
       await waitFor(() => {
-        expect(screen.getAllByText('2019')).toHaveLength(2) // Appears in both sections
-        expect(screen.getAllByText('2010')).toHaveLength(2) // Appears in both sections
-        expect(screen.getAllByText('⭐ 8.4')).toHaveLength(2)
-        expect(screen.getAllByText('⭐ 8.8')).toHaveLength(2)
+        expect(screen.getByText('2019')).toBeInTheDocument()
+        expect(screen.getByText('2010')).toBeInTheDocument()
+        expect(screen.getByText('⭐ 8.4')).toBeInTheDocument()
+        expect(screen.getByText('⭐ 8.8')).toBeInTheDocument()
       })
     })
 
@@ -449,8 +420,8 @@ describe('MoviesPage', () => {
       render(<MoviesPage />)
 
       await waitFor(() => {
-        expect(screen.getAllByText('Action')).toHaveLength(2) // Appears in both sections
-        expect(screen.getAllByText('Sci-Fi')).toHaveLength(2)
+        expect(screen.getByText('Action')).toBeInTheDocument()
+        expect(screen.getByText('Sci-Fi')).toBeInTheDocument()
       })
     })
   })

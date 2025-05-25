@@ -15,6 +15,21 @@ const analyticsSchema = z.object({
   }).optional(),
 })
 
+interface AnalyticsRecord {
+  id?: string
+  session_id: string
+  event_type: string
+  metadata?: {
+    messageCount?: number
+    responseTime?: number
+    userSatisfaction?: number
+    extractionAccuracy?: number
+    preferenceCategories?: number
+    conversationLength?: number
+  }
+  timestamp: string
+}
+
 // POST - Track conversation events
 export async function POST(request: NextRequest) {
   try {
@@ -92,7 +107,7 @@ export async function GET(request: NextRequest) {
     } else {
       // Apply timeframe filter
       const now = new Date()
-      let startDate = new Date()
+      const startDate = new Date()
       
       switch (timeframe) {
         case '1d':
@@ -139,7 +154,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-function calculateAnalyticsSummary(analytics: any[]) {
+function calculateAnalyticsSummary(analytics: AnalyticsRecord[]) {
   const conversationStarts = analytics.filter(a => a.event_type === 'conversation_started').length
   const conversationCompletions = analytics.filter(a => a.event_type === 'conversation_completed').length
   const preferencesExtracted = analytics.filter(a => a.event_type === 'preferences_extracted').length
@@ -150,7 +165,8 @@ function calculateAnalyticsSummary(analytics: any[]) {
 
   const avgResponseTimes = analytics
     .filter(a => a.metadata?.responseTime)
-    .map(a => a.metadata.responseTime)
+    .map(a => a.metadata?.responseTime)
+    .filter((time): time is number => time !== undefined)
 
   const avgResponseTime = avgResponseTimes.length > 0 
     ? avgResponseTimes.reduce((sum, time) => sum + time, 0) / avgResponseTimes.length 
@@ -158,7 +174,8 @@ function calculateAnalyticsSummary(analytics: any[]) {
 
   const satisfactionScores = analytics
     .filter(a => a.metadata?.userSatisfaction)
-    .map(a => a.metadata.userSatisfaction)
+    .map(a => a.metadata?.userSatisfaction)
+    .filter((score): score is number => score !== undefined)
 
   const avgSatisfaction = satisfactionScores.length > 0 
     ? satisfactionScores.reduce((sum, score) => sum + score, 0) / satisfactionScores.length 

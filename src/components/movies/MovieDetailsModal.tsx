@@ -171,18 +171,18 @@ export function MovieDetailsModal({
               </div>
             )}
 
-            {/* Additional Movie Info */}
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              {movie.omdb_id && (
-                <div>
-                  <h4 className="text-xs font-medium text-gray-500">OMDB ID</h4>
-                  <p className="text-sm text-gray-900">{movie.omdb_id}</p>
-                </div>
-              )}
+            {/* Movie IDs */}
+            <div className="flex flex-wrap gap-4">
               {movie.imdb_id && (
                 <div>
                   <h4 className="text-xs font-medium text-gray-500">IMDb ID</h4>
                   <p className="text-sm text-gray-900">{movie.imdb_id}</p>
+                </div>
+              )}
+              {movie.tmdb_id && (
+                <div>
+                  <h4 className="text-xs font-medium text-gray-500">TMDB ID</h4>
+                  <p className="text-sm text-gray-900">{movie.tmdb_id}</p>
                 </div>
               )}
             </div>
