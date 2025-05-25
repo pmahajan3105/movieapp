@@ -1,15 +1,15 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
+import Link from 'next/link'
 import type { PreferenceData } from '@/types/chat'
 
 interface PreferenceSummaryProps {
   preferences: PreferenceData
-  onContinue?: () => void
   onEdit?: () => void
 }
 
-export function PreferenceSummary({ preferences, onContinue, onEdit }: PreferenceSummaryProps) {
+export function PreferenceSummary({ preferences, onEdit }: PreferenceSummaryProps) {
   const hasPreferences = Object.keys(preferences).some(key => {
     const value = preferences[key as keyof PreferenceData]
     return Array.isArray(value) ? value.length > 0 : value
@@ -255,9 +255,11 @@ export function PreferenceSummary({ preferences, onContinue, onEdit }: Preferenc
 
       {/* Action buttons */}
       <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-        <Button onClick={onContinue} className="flex-1">
-          Start Discovering Movies
-        </Button>
+        <Link href="/dashboard/movies" className="flex-1">
+          <Button className="w-full">
+            🎯 View Your Personalized Movies
+          </Button>
+        </Link>
         <Button onClick={onEdit} variant="outline" className="flex-1 sm:flex-none">
           Refine Preferences
         </Button>

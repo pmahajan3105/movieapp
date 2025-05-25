@@ -6,9 +6,10 @@ import type { ChatMessage as ChatMessageType } from '@/types/chat'
 interface ChatMessageProps {
   message: ChatMessageType
   isTyping?: boolean
+  isStreaming?: boolean
 }
 
-function ChatMessageComponent({ message, isTyping = false }: ChatMessageProps) {
+function ChatMessageComponent({ message, isTyping = false, isStreaming = false }: ChatMessageProps) {
   const isUser = message.role === 'user'
   const isSystem = message.role === 'system'
 
@@ -44,7 +45,13 @@ function ChatMessageComponent({ message, isTyping = false }: ChatMessageProps) {
               </div>
             </div>
           ) : (
-            <p className="whitespace-pre-wrap">{message.content}</p>
+            <div className="relative">
+              <p className="whitespace-pre-wrap">{message.content}</p>
+              {/* Streaming indicator */}
+              {isStreaming && (
+                <span className="ml-1 inline-block h-2 w-2 animate-pulse rounded-full bg-blue-500" />
+              )}
+            </div>
           )}
         </div>
 
@@ -52,6 +59,7 @@ function ChatMessageComponent({ message, isTyping = false }: ChatMessageProps) {
         {!isTyping && (
           <div className={`mt-1 text-xs ${isUser ? 'text-blue-100' : 'text-gray-500'}`}>
             {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            {isStreaming && <span className="ml-1">• Streaming...</span>}
           </div>
         )}
       </div>

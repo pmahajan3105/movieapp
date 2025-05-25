@@ -1,129 +1,149 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createServerClient } from '@/lib/supabase/client'
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const limit = parseInt(searchParams.get('limit') || '20')
+    
+    // Parse parameters with fallbacks for invalid values
+    const limitParam = searchParams.get('limit') || '20'
+    const pageParam = searchParams.get('page') || '1'
+    
+    const limit = Math.max(1, parseInt(limitParam) || 20)
+    const page = Math.max(1, parseInt(pageParam) || 1)
+    const offset = (page - 1) * limit
+    const usePreferences = searchParams.get('preferences') === 'true'
 
-    // Check if OMDB API key is configured
-    const apiKey = process.env.OMDB_API_KEY
-    if (!apiKey) {
-      return NextResponse.json({ error: 'OMDB API key not configured' }, { status: 500 })
-    }
+    console.log('🎬 Fetching movies from local database', { limit, page, offset, usePreferences })
 
-    // Use popular search terms for dashboard recommendations
-    const popularSearchTerms = [
-      'avengers',
-      'batman',
-      'spider',
-      'star wars',
-      'marvel',
-      'action',
-      'comedy',
-      'drama',
-      'thriller',
-      'adventure',
-    ]
+    const supabase = await createServerClient()
 
-    // Pick a random search term for variety
-    const searchTerm = popularSearchTerms[Math.floor(Math.random() * popularSearchTerms.length)]
+    let data, error, totalCount = 0
 
-    // Build OMDB API URL
-    const omdbUrl = `http://www.omdbapi.com/?apikey=${apiKey}&s=${encodeURIComponent(searchTerm)}&type=movie&page=1`
+    if (usePreferences) {
+      // Get current user for preference-based recommendations
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (user) {
+        // Get user preferences
+        const { data: userProfile } = await supabase
+          .from('user_profiles')
+          .select('preferences')
+          .eq('id', user.id)
+          .single()
 
-    console.log('🎬 Fetching popular movies from OMDB with term:', searchTerm)
+        if (userProfile?.preferences) {
+          console.log('🎯 Loading preference-based recommendations', userProfile.preferences)
+          
+          const preferences = userProfile.preferences as {
+            preferred_genres?: string[]
+            avoid_genres?: string[]
+            yearRange?: { min?: number; max?: number }
+            ratingRange?: { min?: number; max?: number }
+          }
+          let query = supabase.from('movies').select('*', { count: 'exact' })
 
-    // Fetch from OMDB API
-    const response = await fetch(omdbUrl)
-
-    if (!response.ok) {
-      return NextResponse.json({ error: 'Failed to fetch movies' }, { status: 500 })
-    }
-
-    const omdbData = await response.json()
-
-    // Handle OMDB API errors
-    if (omdbData.Response === 'False') {
-      return NextResponse.json({
-        success: true,
-        data: [],
-        total: 0,
-      })
-    }
-
-    // Get detailed info for each movie (limited to requested amount)
-    const moviePromises = (omdbData.Search || [])
-      .slice(0, limit)
-      .map(
-        async (movie: {
-          imdbID: string
-          Title: string
-          Year: string
-          Poster: string
-          Type: string
-        }) => {
-          try {
-            // Get detailed movie info
-            const detailResponse = await fetch(
-              `http://www.omdbapi.com/?apikey=${apiKey}&i=${movie.imdbID}&plot=short`
-            )
-
-            if (detailResponse.ok) {
-              const details = await detailResponse.json()
-
-              if (details.Response !== 'False') {
-                // Transform to our format
-                return {
-                  id: details.imdbID,
-                  title: details.Title,
-                  year: parseInt(details.Year) || null,
-                  genre: details.Genre ? details.Genre.split(', ') : [],
-                  director: details.Director ? details.Director.split(', ') : [],
-                  plot: details.Plot !== 'N/A' ? details.Plot : '',
-                  poster_url: details.Poster !== 'N/A' ? details.Poster : null,
-                  rating: parseFloat(details.imdbRating) || null,
-                  runtime: details.Runtime ? parseInt(details.Runtime.replace(' min', '')) : null,
-                  imdb_id: details.imdbID,
-                  created_at: new Date().toISOString(), // Add required field for Movie type
-                }
-              }
-            }
-          } catch (error) {
-            console.error('Error fetching movie details:', error)
+          // Build query based on preferences
+          if (preferences.preferred_genres && preferences.preferred_genres.length > 0) {
+            // Use overlap operator to match any genre
+            query = query.overlaps('genre', preferences.preferred_genres)
           }
 
-          // Fallback to basic info if detailed fetch fails
-          return {
-            id: movie.imdbID,
-            title: movie.Title,
-            year: parseInt(movie.Year) || null,
-            genre: [],
-            director: [],
-            plot: '',
-            poster_url: movie.Poster !== 'N/A' ? movie.Poster : null,
-            rating: null,
-            runtime: null,
-            imdb_id: movie.imdbID,
-            created_at: new Date().toISOString(),
+          if (preferences.avoid_genres && preferences.avoid_genres.length > 0) {
+            // Exclude movies with avoided genres
+            query = query.not('genre', 'ov', preferences.avoid_genres)
+          }
+
+          if (preferences.yearRange) {
+            if (preferences.yearRange.min) {
+              query = query.gte('year', preferences.yearRange.min)
+            }
+            if (preferences.yearRange.max) {
+              query = query.lte('year', preferences.yearRange.max)
+            }
+          }
+
+          if (preferences.ratingRange?.min) {
+            query = query.gte('rating', preferences.ratingRange.min)
+          }
+
+          // Order by rating and year for best recommendations
+          const { data: prefData, error: prefError, count } = await query
+            .order('rating', { ascending: false, nullsFirst: false })
+            .order('year', { ascending: false, nullsFirst: false })
+            .range(offset, offset + limit - 1)
+
+          if (prefError) {
+            console.error('❌ Error with preference-based query, falling back to general results')
+            // Fall back to general query
+          } else {
+            data = prefData
+            error = prefError
+            totalCount = count || 0
+            console.log('✅ Loaded preference-based recommendations', { 
+              count: data?.length || 0,
+              total: totalCount,
+              preferences: {
+                genres: preferences.preferred_genres,
+                avoidGenres: preferences.avoid_genres,
+                yearRange: preferences.yearRange,
+                ratingMin: preferences.ratingRange?.min
+              }
+            })
           }
         }
-      )
+      }
+    }
 
-    // Wait for all movie details
-    const movies = await Promise.all(moviePromises)
+    // Fall back to general movies if preferences didn't work or weren't requested
+    if (!data) {
+      console.log('🎬 Loading general movie recommendations')
+      const { data: generalData, error: generalError, count } = await supabase
+        .from('movies')
+        .select('*', { count: 'exact' })
+        .order('rating', { ascending: false, nullsFirst: false })
+        .order('year', { ascending: false, nullsFirst: false })
+        .range(offset, offset + limit - 1)
 
-    // Filter out any failed fetches and sort by rating (highest first)
-    const validMovies = movies
-      .filter(movie => movie !== null)
-      .sort((a, b) => (b.rating || 0) - (a.rating || 0))
+      data = generalData
+      error = generalError
+      totalCount = count || 0
+    }
+
+    if (error) {
+      console.error('❌ Error fetching movies from database:', {
+        error: error.message,
+        code: error.code,
+        details: error.details
+      })
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Failed to fetch movies from database' 
+      }, { status: 500 })
+    }
+
+    console.log('✅ Successfully fetched movies from database', { 
+      count: data?.length || 0,
+      total: totalCount,
+      hasMore: (data?.length || 0) === limit
+    })
 
     return NextResponse.json({
       success: true,
-      data: validMovies,
-      total: validMovies.length,
+      data: data || [],
+      total: totalCount,
+      pagination: {
+        page,
+        limit,
+        hasMore: (data?.length || 0) === limit,
+        totalPages: Math.ceil(totalCount / limit),
+      },
     })
   } catch (error) {
-    console.error('API error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('❌ Movies API error:', error)
+    return NextResponse.json({ 
+      success: false, 
+      error: 'Internal server error' 
+    }, { status: 500 })
   }
 }

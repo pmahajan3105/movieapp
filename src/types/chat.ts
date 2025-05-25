@@ -34,6 +34,24 @@ export interface PreferenceData {
     energizing?: string
   }
   additional_notes?: string
+  
+  genres?: string[]
+  actors?: string[]
+  directors?: string[]
+  moods?: string[]
+  disliked_genres?: string[]
+  languages?: string[]
+  viewingContexts?: string[]
+  yearRange?: {
+    min: number
+    max: number
+  }
+  ratingRange?: {
+    min: number
+    max: number
+  }
+  
+  [key: string]: any
 }
 
 export interface ChatApiRequest {
@@ -48,4 +66,25 @@ export interface ChatApiResponse {
   preferencesExtracted?: boolean
   preferences?: PreferenceData
   error?: string
+}
+
+export interface AnalyticsEvent {
+  sessionId: string
+  event: 'conversation_started' | 'message_sent' | 'preferences_extracted' | 'conversation_completed'
+  metadata?: {
+    messageCount?: number
+    responseTime?: number
+    userSatisfaction?: number
+    extractionAccuracy?: number
+    preferenceCategories?: number
+    conversationLength?: number
+  }
+}
+
+export interface ConversationAnalytics {
+  id: string
+  session_id: string
+  event_type: string
+  metadata: Record<string, any>
+  timestamp: string
 }

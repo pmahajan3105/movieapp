@@ -8,29 +8,42 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-const RECOMMENDATION_SYSTEM_PROMPT = `You are an expert movie recommendation AI. Based on user preferences and viewing history, generate highly personalized movie recommendations.
+const ENHANCED_RECOMMENDATION_PROMPT = `You are an expert movie recommendation AI with deep understanding of user preferences extracted from conversational data.
 
-Generate exactly 15 movie recommendations in this JSON format:
+Generate exactly 15 highly personalized movie recommendations in this JSON format:
 {
   "recommendations": [
     {
       "title": "Movie Title",
       "year": 2020,
       "confidence": 0.95,
-      "reason": "Matches your love for sci-fi and complex narratives like Interstellar"
+      "reason": "Perfect match for your love of mind-bending sci-fi narratives like Inception",
+      "genre_match": ["sci-fi", "thriller"],
+      "mood_match": "thought-provoking",
+      "similarity_score": 0.92
     }
   ]
 }
 
+ADVANCED MATCHING CRITERIA:
+- Analyze user's conversational preferences deeply
+- Consider viewing context (solo, date night, family, etc.)
+- Match emotional moods and themes mentioned in conversation
+- Factor in specific actors, directors, and filmmaking styles discussed
+- Consider year preferences and rating ranges if specified
+- Avoid explicitly disliked genres or elements
+- Balance between user's stated preferences and introducing quality surprises
+- Provide confidence scores based on multi-factor preference alignment
+
 IMPORTANT:
 - Only recommend movies that actually exist
-- Provide diverse recommendations (different genres, years, styles)
-- Include confidence score (0.1-1.0) based on how well it matches their taste
-- Give specific, personalized reasons for each recommendation
-- Mix popular and lesser-known quality films
-- Consider the user's specific preferences and viewing patterns`
+- Diversify across user's preferred spectrum
+- Include specific, personalized reasoning
+- Consider conversational context and implicit preferences
+- Balance popular films with hidden gems`
 
-interface UserPreferences {
+interface EnhancedPreferences {
+  // Original preferences
   favorite_movies?: string[]
   preferred_genres?: string[]
   avoid_genres?: string[]
@@ -38,17 +51,39 @@ interface UserPreferences {
   preferred_eras?: string[]
   favorite_actors?: string[]
   favorite_directors?: string[]
+  // Enhanced from conversation
+  viewing_context?: {
+    solo?: boolean
+    social?: boolean
+    weekend?: string
+    weekday?: string
+  }
+  mood_preferences?: {
+    default?: string
+    relaxing?: string
+    energizing?: string
+  }
+  // New advanced fields
+  disliked_genres?: string[]
+  languages?: string[]
+  yearRange?: { min: number; max: number }
+  ratingRange?: { min: number; max: number }
+  moods?: string[]
+  viewingContexts?: string[]
 }
 
-interface RecommendationItem {
+interface EnhancedRecommendationItem {
   title: string
   year?: number
   reason?: string
   confidence?: number
+  genre_match?: string[]
+  mood_match?: string
+  similarity_score?: number
 }
 
-interface RecommendationResponse {
-  recommendations: RecommendationItem[]
+interface EnhancedRecommendationResponse {
+  recommendations: EnhancedRecommendationItem[]
 }
 
 interface RecommendationRequest {
@@ -56,6 +91,7 @@ interface RecommendationRequest {
   regenerate?: boolean
   mood?: string
   userId?: string
+  context?: string
 }
 
 export async function POST(request: NextRequest) {
@@ -65,24 +101,38 @@ export async function POST(request: NextRequest) {
       regenerate = false,
       mood,
       userId,
+      context,
     }: RecommendationRequest = await request.json()
 
     // For now, work with anonymous users
-    const effectiveUserId = userId || 'anonymous-user'
+    const effectiveUserId = userId || '00000000-0000-0000-0000-000000000001' // UUID for anonymous user
 
-    console.log('🎬 AI Recommendation request:', {
+    console.log('🎬 Enhanced AI Recommendation request:', {
       count,
       regenerate,
       mood,
+      context,
       userId: effectiveUserId,
     })
 
-    // Get user preferences from chat sessions or profile
-    let userPreferences: UserPreferences = {}
+    // Get comprehensive user preferences from multiple sources
+    let userPreferences: EnhancedPreferences = {}
+    let conversationData: any = null
     let viewingHistory: Movie[] = []
 
     try {
-      // Try to get preferences from latest chat session
+      // Get preferences from user profile (primary source)
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('preferences, onboarding_completed')
+        .eq('id', effectiveUserId)
+        .single()
+
+      if (profile?.preferences) {
+        userPreferences = profile.preferences
+      }
+
+      // Get latest chat session for additional context
       const { data: chatSession } = await supabase
         .from('chat_sessions')
         .select('*')
@@ -92,66 +142,72 @@ export async function POST(request: NextRequest) {
         .limit(1)
         .single()
 
-      if (chatSession) {
-        // Try to get preferences from user profile
-        const { data: profile } = await supabase
-          .from('user_profiles')
-          .select('preferences')
-          .eq('id', effectiveUserId)
-          .single()
+      conversationData = chatSession
 
-        userPreferences = profile?.preferences || {}
-      }
-
-      // Get recent movies (simulate viewing history)
-      const { data: recentMovies } = await supabase
-        .from('movies')
-        .select('*')
-        .order('rating', { ascending: false })
+      // Get viewing history (watchlist, ratings, etc.)
+      const { data: watchlistItems } = await supabase
+        .from('watchlist_items')
+        .select(`
+          movies (
+            id, title, year, genre, rating, description, poster_url
+          ),
+          status,
+          rating
+        `)
+        .eq('user_id', effectiveUserId)
+        .eq('status', 'watched')
+        .order('created_at', { ascending: false })
         .limit(20)
 
-      viewingHistory = recentMovies || []
-    } catch {
-      console.log('Using fallback preferences for anonymous user')
-      // Fallback preferences for anonymous users
+      if (watchlistItems) {
+        viewingHistory = watchlistItems
+          .map(item => item.movies)
+          .filter(movie => movie !== null) as Movie[]
+      }
+
+      // Get popular movies as fallback context
+      if (viewingHistory.length === 0) {
+        const { data: popularMovies } = await supabase
+          .from('movies')
+          .select('*')
+          .order('rating', { ascending: false })
+          .limit(10)
+
+        viewingHistory = popularMovies || []
+      }
+
+    } catch (error) {
+      console.log('Using fallback preferences for user:', error)
+      // Enhanced fallback preferences
       userPreferences = {
-        preferred_genres: ['action', 'sci-fi', 'thriller'],
-        favorite_movies: ['The Dark Knight', 'Inception'],
-        themes: ['complex narratives', 'heroic journeys'],
+        preferred_genres: ['action', 'drama', 'sci-fi'],
+        favorite_movies: ['The Dark Knight', 'Inception', 'Parasite'],
+        themes: ['complex narratives', 'character development'],
+        moods: ['thought-provoking', 'exciting'],
+        yearRange: { min: 2000, max: 2024 },
+        ratingRange: { min: 7.0, max: 10.0 },
       }
     }
 
-    // Build comprehensive prompt
-    const userContext = `
-USER PREFERENCES:
-- Favorite Movies: ${userPreferences.favorite_movies?.join(', ') || 'Not specified'}
-- Preferred Genres: ${userPreferences.preferred_genres?.join(', ') || 'Action, Drama, Sci-Fi'}
-- Avoided Genres: ${userPreferences.avoid_genres?.join(', ') || 'None specified'}
-- Favorite Themes: ${userPreferences.themes?.join(', ') || 'Character development, interesting plots'}
-- Preferred Eras: ${userPreferences.preferred_eras?.join(', ') || 'Any'}
-- Favorite Actors: ${userPreferences.favorite_actors?.join(', ') || 'Not specified'}
-- Favorite Directors: ${userPreferences.favorite_directors?.join(', ') || 'Not specified'}
+    // Build enhanced context for AI
+    const enhancedUserContext = buildEnhancedUserContext(
+      userPreferences,
+      viewingHistory,
+      conversationData,
+      mood,
+      context
+    )
 
-RECENT VIEWING CONTEXT:
-${viewingHistory
-  .slice(0, 10)
-  .map(movie => `- ${movie.title} (${movie.year}) - ${movie.genre?.join(', ')}`)
-  .join('\n')}
-
-${mood ? `CURRENT MOOD: ${mood}` : ''}
-
-Based on this profile, recommend ${count} movies that perfectly match their taste. Focus on quality films they haven't seen yet.`
-
-    // Call Groq API for recommendations
+    // Call Groq API with enhanced prompt
     const completion = await groq.chat.completions.create({
       messages: [
-        { role: 'system', content: RECOMMENDATION_SYSTEM_PROMPT },
-        { role: 'user', content: userContext },
+        { role: 'system', content: ENHANCED_RECOMMENDATION_PROMPT },
+        { role: 'user', content: enhancedUserContext },
       ],
       model: groqConfig.model,
-      max_tokens: groqConfig.maxTokens,
-      temperature: groqConfig.temperature,
-      top_p: groqConfig.topP,
+      max_tokens: 1000, // Increased for enhanced recommendations
+      temperature: 0.7, // Balanced for creativity and relevance
+      top_p: 0.9,
     })
 
     const aiResponse = completion.choices[0]?.message?.content
@@ -160,26 +216,26 @@ Based on this profile, recommend ${count} movies that perfectly match their tast
       throw new Error('No response from AI')
     }
 
-    // Parse JSON response
-    let recommendations: RecommendationItem[] = []
+    // Parse and validate AI response
+    let recommendations: EnhancedRecommendationItem[] = []
     try {
-      const parsed: RecommendationResponse = JSON.parse(aiResponse)
+      const parsed: EnhancedRecommendationResponse = JSON.parse(aiResponse)
       recommendations = parsed.recommendations || []
     } catch (parseError) {
       console.error('Failed to parse AI response:', parseError)
-      // Fallback to popular movies
-      recommendations = await getFallbackRecommendations(count)
+      // Fallback to database-based recommendations
+      recommendations = await getFallbackRecommendations(count, userPreferences)
     }
 
-    // Validate and enrich recommendations with real movie data
+    // Enrich recommendations with real movie data and enhanced metadata
     const enrichedRecommendations = await Promise.all(
       recommendations.slice(0, count).map(async (rec, index) => {
         try {
-          // Try to find movie in our database first
+          // Search for movie in database with fuzzy matching
           const { data: existingMovie } = await supabase
             .from('movies')
             .select('*')
-            .ilike('title', rec.title)
+            .or(`title.ilike.%${rec.title}%,title.ilike.%${rec.title.replace(/[^\w\s]/gi, '')}%`)
             .limit(1)
             .single()
 
@@ -189,90 +245,206 @@ Based on this profile, recommend ${count} movies that perfectly match their tast
               reason: rec.reason || 'AI recommended based on your preferences',
               confidence: rec.confidence || 0.8,
               position: index + 1,
+              genre_match: rec.genre_match || [],
+              mood_match: rec.mood_match || '',
+              similarity_score: rec.similarity_score || 0.7,
             }
           }
 
-          // If not in database, try OMDB API
+          // Try OMDB as fallback
           const omdbMovie = await fetchMovieFromOMDB(rec.title, rec.year)
           if (omdbMovie) {
             return {
               movie: omdbMovie,
               reason: rec.reason || 'AI recommended based on your preferences',
-              confidence: rec.confidence || 0.8,
+              confidence: rec.confidence || 0.7,
               position: index + 1,
+              genre_match: rec.genre_match || [],
+              mood_match: rec.mood_match || '',
+              similarity_score: rec.similarity_score || 0.6,
             }
           }
 
           return null
         } catch (error) {
-          console.error(`Error enriching recommendation: ${rec.title}`, error)
+          console.error(`Error enriching recommendation for ${rec.title}:`, error)
           return null
         }
       })
     )
 
-    // Filter out null recommendations and ensure we have some results
+    // Filter out null results and ensure we have recommendations
     const validRecommendations = enrichedRecommendations.filter(Boolean)
 
     if (validRecommendations.length === 0) {
-      // Return fallback recommendations
-      const fallbackRecs = await getFallbackRecommendations(count)
+      // Ultimate fallback to popular movies
+      const fallbackMovies = await getFallbackMoviesFromDatabase(count)
       return NextResponse.json({
         success: true,
-        recommendations: fallbackRecs,
-        batchId: `batch-${Date.now()}`,
+        recommendations: fallbackMovies,
         source: 'fallback',
+        message: 'Using popular movies as recommendations',
       })
     }
-
-    console.log(`🎬 AI Recommendations generated: ${validRecommendations.length} movies`)
 
     return NextResponse.json({
       success: true,
       recommendations: validRecommendations,
-      batchId: `batch-${Date.now()}`,
-      source: 'ai',
-      userPreferences: userPreferences,
+      source: 'ai_enhanced',
+      userPreferences,
+      totalGenerated: recommendations.length,
+      validCount: validRecommendations.length,
     })
-  } catch (error) {
-    console.error('AI Recommendation error:', error)
 
-    // Return fallback recommendations on error
+  } catch (error) {
+    console.error('❌ AI Recommendation error:', error)
+    
+    // Fallback to database recommendations
     try {
-      const fallbackRecs = await getFallbackRecommendations(15)
+      const fallbackMovies = await getFallbackMoviesFromDatabase(count || 15)
       return NextResponse.json({
         success: true,
-        recommendations: fallbackRecs,
-        batchId: `fallback-${Date.now()}`,
-        source: 'fallback',
-        warning: 'AI service unavailable, showing popular movies',
+        recommendations: fallbackMovies,
+        source: 'database_fallback',
+        error: 'AI service unavailable, using database recommendations',
       })
-    } catch {
+    } catch (fallbackError) {
+      console.error('❌ Fallback recommendation error:', fallbackError)
       return NextResponse.json(
-        { success: false, error: 'Recommendation service unavailable' },
+        {
+          error: 'Failed to generate recommendations',
+          success: false,
+        },
         { status: 500 }
       )
     }
   }
 }
 
-// Fallback recommendation function
-async function getFallbackRecommendations(count: number) {
+function buildEnhancedUserContext(
+  preferences: EnhancedPreferences,
+  viewingHistory: Movie[],
+  conversationData: any,
+  mood?: string,
+  context?: string
+): string {
+  const sections = []
+
+  // User preferences section
+  sections.push(`USER PREFERENCES:`)
+  sections.push(`- Favorite Movies: ${preferences.favorite_movies?.join(', ') || 'Not specified'}`)
+  sections.push(`- Preferred Genres: ${preferences.preferred_genres?.join(', ') || 'Action, Drama, Sci-Fi'}`)
+  sections.push(`- Avoided Genres: ${(preferences.avoid_genres || preferences.disliked_genres || []).join(', ') || 'None specified'}`)
+  sections.push(`- Favorite Themes: ${preferences.themes?.join(', ') || 'Character development, engaging plots'}`)
+  sections.push(`- Preferred Eras: ${preferences.preferred_eras?.join(', ') || 'Any era'}`)
+  sections.push(`- Favorite Actors: ${preferences.favorite_actors?.join(', ') || 'Not specified'}`)
+  sections.push(`- Favorite Directors: ${preferences.favorite_directors?.join(', ') || 'Not specified'}`)
+
+  // Enhanced preferences
+  if (preferences.moods?.length) {
+    sections.push(`- Preferred Moods: ${preferences.moods.join(', ')}`)
+  }
+  if (preferences.viewingContexts?.length) {
+    sections.push(`- Viewing Contexts: ${preferences.viewingContexts.join(', ')}`)
+  }
+  if (preferences.languages?.length) {
+    sections.push(`- Preferred Languages: ${preferences.languages.join(', ')}`)
+  }
+  if (preferences.yearRange) {
+    sections.push(`- Year Range: ${preferences.yearRange.min} - ${preferences.yearRange.max}`)
+  }
+  if (preferences.ratingRange) {
+    sections.push(`- Rating Range: ${preferences.ratingRange.min}/10 - ${preferences.ratingRange.max}/10`)
+  }
+
+  // Viewing history
+  if (viewingHistory.length > 0) {
+    sections.push(`\nVIEWING HISTORY:`)
+    viewingHistory.slice(0, 10).forEach(movie => {
+      sections.push(`- ${movie.title} (${movie.year}) - ${movie.genre?.join(', ')} - ${movie.rating}/10`)
+    })
+  }
+
+  // Conversation context
+  if (conversationData?.messages) {
+    sections.push(`\nCONVERSATION INSIGHTS:`)
+    sections.push(`- Conversation completed: ${conversationData.preferences_extracted ? 'Yes' : 'No'}`)
+    sections.push(`- Total messages: ${conversationData.messages.length}`)
+    // Extract key themes from conversation
+    const userMessages = conversationData.messages
+      .filter((msg: any) => msg.role === 'user')
+      .slice(-3) // Last 3 user messages
+      .map((msg: any) => msg.content)
+      .join(' ')
+    if (userMessages) {
+      sections.push(`- Recent preferences mentioned: "${userMessages.substring(0, 200)}..."`)
+    }
+  }
+
+  // Current context
+  if (mood) {
+    sections.push(`\nCURRENT MOOD: ${mood}`)
+  }
+  if (context) {
+    sections.push(`\nCURRENT CONTEXT: ${context}`)
+  }
+
+  sections.push(`\nBased on this comprehensive profile, recommend ${15} movies that perfectly align with their preferences. Focus on quality films they likely haven't seen, with detailed reasoning for each recommendation.`)
+
+  return sections.join('\n')
+}
+
+// ... existing code ...
+
+async function getFallbackRecommendations(count: number, preferences: EnhancedPreferences): Promise<EnhancedRecommendationItem[]> {
+  // Enhanced fallback using user preferences
+  const preferredGenres = preferences.preferred_genres || ['action', 'drama']
+  const recommendations: EnhancedRecommendationItem[] = []
+
+  // Try to get movies from preferred genres
+  for (const genre of preferredGenres.slice(0, 3)) {
+    const { data: genreMovies } = await supabase
+      .from('movies')
+      .select('*')
+      .contains('genre', [genre])
+      .order('rating', { ascending: false })
+      .limit(Math.ceil(count / preferredGenres.length))
+
+    if (genreMovies) {
+      genreMovies.forEach((movie, index) => {
+        recommendations.push({
+          title: movie.title,
+          year: movie.year,
+          confidence: 0.6,
+          reason: `Popular ${genre} movie that matches your preferences`,
+          genre_match: [genre],
+          similarity_score: 0.6,
+        })
+      })
+    }
+  }
+
+  return recommendations.slice(0, count)
+}
+
+async function getFallbackMoviesFromDatabase(count: number) {
   const { data: movies } = await supabase
     .from('movies')
     .select('*')
     .order('rating', { ascending: false })
     .limit(count)
 
-  return (movies || []).map(movie => ({
-    title: movie.title,
-    year: movie.year,
+  return (movies || []).map((movie, index) => ({
+    movie,
     reason: 'Popular highly-rated movie',
-    confidence: 0.7,
+    confidence: 0.5,
+    position: index + 1,
+    genre_match: movie.genre || [],
+    mood_match: 'popular',
+    similarity_score: 0.5,
   }))
 }
 
-// Fetch movie from OMDB API
 async function fetchMovieFromOMDB(title: string, year?: number) {
   try {
     const apiKey = process.env.OMDB_API_KEY
