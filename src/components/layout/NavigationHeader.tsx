@@ -1,19 +1,34 @@
 'use client'
 
-import React from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
-import { Film, Home, LogOut, Sparkles, Menu, X, Search } from 'lucide-react'
+import { Film, LogOut, Sparkles, Menu, X, User, List, ChevronDown } from 'lucide-react'
 import { SearchInterface } from '@/components/search/SearchInterface'
-import { useState } from 'react'
 
 export function NavigationHeader() {
   const { user, loading } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [isAccountDropdownOpen, setIsAccountDropdownOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsAccountDropdownOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
 
   // Don't show navigation on auth pages or landing page
   if (loading || !user || pathname === '/' || pathname.startsWith('/auth')) {
@@ -37,20 +52,21 @@ export function NavigationHeader() {
   // Handle search navigation
   const handleSearch = (query: string) => {
     router.push(`/search?q=${encodeURIComponent(query)}`)
+    setIsMobileMenuOpen(false)
   }
 
   const navigation = [
     {
-      name: 'Dashboard',
-      href: '/dashboard',
-      icon: Home,
-      current: pathname === '/dashboard' || pathname.startsWith('/dashboard'),
+      name: 'Movies',
+      href: '/dashboard/movies',
+      icon: Film,
+      current: pathname.startsWith('/dashboard/movies'),
     },
     {
-      name: 'Search',
-      href: '/search',
-      icon: Search,
-      current: pathname === '/search',
+      name: 'Watchlist',
+      href: '/dashboard/watchlist',
+      icon: List,
+      current: pathname.startsWith('/dashboard/watchlist'),
     },
   ]
 
@@ -70,7 +86,7 @@ export function NavigationHeader() {
               </Link>
             </div>
 
-            {/* Search Bar - Desktop Only */}
+            {/* Unified Search Bar - Desktop */}
             <div className="mx-8 hidden max-w-lg flex-1 lg:flex">
               <SearchInterface
                 onSearch={handleSearch}
@@ -101,12 +117,43 @@ export function NavigationHeader() {
               })}
             </nav>
 
-            {/* User Menu */}
-            <div className="hidden items-center space-x-4 md:flex">
-              <Button variant="outline" size="sm" onClick={handleSignOut}>
-                <LogOut className="mr-2 h-4 w-4" />
-                Sign Out
+            {/* Account Dropdown - Desktop */}
+            <div className="hidden md:flex relative" ref={dropdownRef}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsAccountDropdownOpen(!isAccountDropdownOpen)}
+                className="flex items-center space-x-2"
+              >
+                <User className="h-4 w-4" />
+                <span className="text-sm font-medium">{user?.email?.split('@')[0] || 'Account'}</span>
+                <ChevronDown className="h-3 w-3" />
               </Button>
+
+              {/* Dropdown Menu */}
+              {isAccountDropdownOpen && (
+                <div className="absolute right-0 top-full mt-2 w-48 rounded-md border bg-white py-1 shadow-lg z-50">
+                  <Link
+                    href="/dashboard/account"
+                    className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    onClick={() => setIsAccountDropdownOpen(false)}
+                  >
+                    <User className="mr-2 h-4 w-4" />
+                    Account Settings
+                  </Link>
+                  <hr className="my-1" />
+                  <button
+                    onClick={() => {
+                      setIsAccountDropdownOpen(false)
+                      handleSignOut()
+                    }}
+                    className="flex w-full items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Sign Out
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Mobile menu button */}
@@ -127,16 +174,14 @@ export function NavigationHeader() {
               {/* Mobile Search */}
               <div className="border-b border-gray-200 px-4 py-3">
                 <SearchInterface
-                  onSearch={query => {
-                    handleSearch(query)
-                    setIsMobileMenuOpen(false)
-                  }}
+                  onSearch={handleSearch}
                   placeholder="Search movies..."
-                  showAutocomplete={false} // Simplified for mobile
+                  showAutocomplete={false}
                   className="w-full"
                 />
               </div>
 
+              {/* Mobile Navigation Links */}
               <div className="space-y-1 pb-3 pt-2">
                 {navigation.map(item => {
                   const Icon = item.icon
@@ -159,9 +204,27 @@ export function NavigationHeader() {
                   )
                 })}
               </div>
+
+              {/* Mobile Account Section */}
               <div className="border-t border-gray-200 pb-3 pt-4">
-                <div className="px-4">
-                  <Button variant="outline" size="sm" onClick={handleSignOut} className="w-full">
+                <div className="px-4 space-y-2">
+                  <Link
+                    href="/dashboard/account"
+                    className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <User className="mr-2 h-4 w-4" />
+                    Account Settings
+                  </Link>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => {
+                      setIsMobileMenuOpen(false)
+                      handleSignOut()
+                    }} 
+                    className="w-full justify-start"
+                  >
                     <LogOut className="mr-2 h-4 w-4" />
                     Sign Out
                   </Button>

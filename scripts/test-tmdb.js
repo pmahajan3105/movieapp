@@ -5,6 +5,7 @@
  * Verifies that TMDB integration is working properly
  */
 
+/* eslint-disable @typescript-eslint/no-require-imports */
 require('dotenv').config({ path: '.env.local' })
 
 // Fetch polyfill for Node.js versions that don't have it built-in
@@ -12,7 +13,7 @@ let fetch
 if (typeof globalThis.fetch === 'undefined') {
   try {
     fetch = require('node-fetch')
-  } catch (e) {
+  } catch (_error) {
     console.error('❌ This script requires either Node.js 18+ or the node-fetch package.')
     console.error('   Please run: npm install node-fetch')
     console.error('   Or upgrade to Node.js 18+')

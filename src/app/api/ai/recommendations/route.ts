@@ -83,9 +83,7 @@ interface EnhancedRecommendationItem {
   similarity_score?: number
 }
 
-interface EnhancedRecommendationResponse {
-  recommendations: EnhancedRecommendationItem[]
-}
+// EnhancedRecommendationResponse interface removed as unused
 
 interface RecommendationRequest {
   count?: number

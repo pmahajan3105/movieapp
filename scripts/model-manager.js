@@ -136,7 +136,7 @@ async function modelInfo(modelId) {
   
   // Check current usage
   const currentTasks = Object.entries(data.currentAssignments)
-    .filter(([task, assignedModel]) => assignedModel.id === modelId)
+    .filter(([, assignedModel]) => assignedModel.id === modelId)
     .map(([task]) => task)
   
   if (currentTasks.length > 0) {

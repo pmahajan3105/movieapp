@@ -163,8 +163,8 @@ async function getDatabaseInfo(databaseId) {
 
   // Check current assignments
   const assignments = Object.entries(data.currentAssignments)
-    .filter(([_, db]) => db.id === databaseId)
-    .map(([task, _]) => task)
+    .filter(([, db]) => db.id === databaseId)
+    .map(([task]) => task)
 
   if (assignments.length > 0) {
     console.log('\n🎯 CURRENT ASSIGNMENTS')
@@ -202,8 +202,8 @@ async function checkHealth() {
 
   // Recommendations
   const missingKeys = Object.entries(data.apiKeyStatus)
-    .filter(([_, configured]) => !configured)
-    .map(([provider, _]) => provider)
+    .filter(([, configured]) => !configured)
+    .map(([provider]) => provider)
 
   if (missingKeys.length > 0) {
     console.log('\n💡 RECOMMENDATIONS')
