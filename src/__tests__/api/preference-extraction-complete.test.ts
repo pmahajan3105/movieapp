@@ -1,25 +1,28 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 // Mock external dependencies
 jest.mock('@/lib/supabase/client', () => ({
   createServerClient: jest.fn(() => ({
     auth: {
       getUser: jest.fn().mockResolvedValue({
         data: { user: { id: 'test-user-123', email: 'test@example.com' } },
-        error: null
-      })
+        error: null,
+      }),
     },
     from: jest.fn(() => ({
       select: jest.fn().mockReturnThis(),
       eq: jest.fn().mockReturnThis(),
       single: jest.fn().mockResolvedValue({ data: null, error: null }),
-      upsert: jest.fn().mockResolvedValue({ data: { id: 'pref-123' }, error: null })
-    }))
-  }))
+      upsert: jest.fn().mockResolvedValue({ data: { id: 'pref-123' }, error: null }),
+    })),
+  })),
 }))
 
 jest.mock('@/lib/mem0/client', () => ({
   movieMemoryService: {
-    addConversation: jest.fn().mockResolvedValue([{ id: 'memory-123' }])
-  }
+    addConversation: jest.fn().mockResolvedValue([{ id: 'memory-123' }]),
+  },
 }))
 
 jest.mock('groq-sdk', () => ({
@@ -27,10 +30,10 @@ jest.mock('groq-sdk', () => ({
   default: jest.fn().mockImplementation(() => ({
     chat: {
       completions: {
-        create: jest.fn()
-      }
-    }
-  }))
+        create: jest.fn(),
+      },
+    },
+  })),
 }))
 
 interface PreferenceData {
@@ -71,12 +74,12 @@ describe('Preference Extraction Complete Workflow', () => {
       const detectPreferenceTrigger = (message: string): boolean => {
         const triggers = [
           'save my preferences',
-          'update my account', 
+          'update my account',
           'save that',
           'remember this',
           'store my',
           'keep track',
-          'save in my preference'
+          'save in my preference',
         ]
 
         const lowerMessage = message.toLowerCase()
@@ -100,7 +103,7 @@ describe('Preference Extraction Complete Workflow', () => {
           'recorded',
           'preferences',
           'perfect!',
-          'great'
+          'great',
         ]
 
         const lowerResponse = response.toLowerCase()
@@ -110,7 +113,7 @@ describe('Preference Extraction Complete Workflow', () => {
       expect(detectAICompletion("I've updated your preferences")).toBe(true)
       expect(detectAICompletion("Perfect! I've saved that")).toBe(true)
       expect(detectAICompletion("Great choice! I've noted your preferences")).toBe(true)
-      expect(detectAICompletion("What kind of movies do you like?")).toBe(false)
+      expect(detectAICompletion('What kind of movies do you like?')).toBe(false)
     })
   })
 
@@ -128,7 +131,7 @@ describe('Preference Extraction Complete Workflow', () => {
         }
 
         const lowerText = text.toLowerCase()
-        
+
         for (const [genre, keywords] of Object.entries(genreMap)) {
           if (keywords.some(keyword => lowerText.includes(keyword))) {
             genres.push(genre)
@@ -138,7 +141,11 @@ describe('Preference Extraction Complete Workflow', () => {
         return [...new Set(genres)] // Remove duplicates
       }
 
-      expect(extractGenres('I love horror movies and comedy films')).toEqual(['comedy', 'horror', 'romance'])
+      expect(extractGenres('I love horror movies and comedy films')).toEqual([
+        'comedy',
+        'horror',
+        'romance',
+      ])
       expect(extractGenres('The Shining is a great scary movie')).toEqual(['horror'])
       expect(extractGenres('I enjoy action and sci-fi adventures')).toEqual(['action', 'sci-fi'])
       expect(extractGenres('Romantic comedies make me laugh')).toEqual(['comedy', 'romance'])
@@ -153,11 +160,11 @@ describe('Preference Extraction Complete Workflow', () => {
           /[A-Z][a-z]+ [A-Z][a-z]+/g,
           /Avengers[^a-z]*/g,
           /Matrix[^a-z]*/g,
-          /Shining[^a-z]*/g
+          /Shining[^a-z]*/g,
         ]
 
         const movies: string[] = []
-        
+
         for (const pattern of moviePatterns) {
           const matches = text.match(pattern)
           if (matches) {
@@ -184,9 +191,11 @@ describe('Preference Extraction Complete Workflow', () => {
           movies: oldPrefs.favorite_movies || [],
           themes: oldPrefs.themes || [],
           years: oldPrefs.yearRange ? `${oldPrefs.yearRange.min}-${oldPrefs.yearRange.max}` : null,
-          ratings: oldPrefs.ratingRange ? `${oldPrefs.ratingRange.min}-${oldPrefs.ratingRange.max}` : null,
+          ratings: oldPrefs.ratingRange
+            ? `${oldPrefs.ratingRange.min}-${oldPrefs.ratingRange.max}`
+            : null,
           languages: oldPrefs.languages || [],
-          avoid: oldPrefs.dislikedGenres || []
+          avoid: oldPrefs.dislikedGenres || [],
         }
       }
 
@@ -196,7 +205,7 @@ describe('Preference Extraction Complete Workflow', () => {
         favorite_movies: ['The Shining'],
         yearRange: { min: 1990, max: 2023 },
         ratingRange: { min: 7.0, max: 10.0 },
-        dislikedGenres: ['romance']
+        dislikedGenres: ['romance'],
       }
 
       const mapped = mapPreferencesSchema(oldPrefs)
@@ -228,7 +237,10 @@ describe('Preference Extraction Complete Workflow', () => {
           }
 
           if (typeof memory.text !== 'string') {
-            console.warn('⚠️ Memory text is not a string', { id: memory.id, type: typeof memory.text })
+            console.warn('⚠️ Memory text is not a string', {
+              id: memory.id,
+              type: typeof memory.text,
+            })
             return
           }
 
@@ -236,7 +248,7 @@ describe('Preference Extraction Complete Workflow', () => {
           processed.push({
             id: memory.id || 'unknown',
             text: memory.text.toLowerCase(),
-            score: memory.score || 0.8
+            score: memory.score || 0.8,
           })
         })
 
@@ -249,7 +261,7 @@ describe('Preference Extraction Complete Workflow', () => {
         { id: 'mem-3', text: undefined },
         { id: 'mem-4' }, // Missing text entirely
         { id: 'mem-5', text: 123 }, // Non-string text
-        { id: 'mem-6', text: 'Another valid memory' }
+        { id: 'mem-6', text: 'Another valid memory' },
       ]
 
       expect(() => {
@@ -265,12 +277,13 @@ describe('Preference Extraction Complete Workflow', () => {
     it('should handle streaming with preference extraction', () => {
       const processStreamingChunk = (chunk: string) => {
         const lines = chunk.split('\n')
-        const events: any[] = []
+        const events: Array<{ type?: string; content?: string; preferencesExtracted?: boolean }> =
+          []
 
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             const eventData = line.slice(6).trim()
-            
+
             if (eventData === '[DONE]') {
               events.push({ type: 'done' })
               continue
@@ -279,7 +292,7 @@ describe('Preference Extraction Complete Workflow', () => {
             try {
               const event = JSON.parse(eventData)
               events.push(event)
-            } catch (e) {
+            } catch {
               // Invalid JSON, skip
             }
           }
@@ -289,9 +302,9 @@ describe('Preference Extraction Complete Workflow', () => {
       }
 
       const mockChunk = `data: {"type":"start","sessionId":"test-123"}\ndata: {"type":"content","content":"I've saved"}\ndata: {"type":"complete","preferencesExtracted":true}\ndata: [DONE]\n`
-      
+
       const events = processStreamingChunk(mockChunk)
-      
+
       expect(events).toHaveLength(4)
       expect(events[0].type).toBe('start')
       expect(events[1].type).toBe('content')
@@ -303,22 +316,26 @@ describe('Preference Extraction Complete Workflow', () => {
 
   describe('Account Preferences Display', () => {
     it('should format preferences for display correctly', () => {
-      const formatPreferencesForDisplay = (prefs: any) => {
+      const formatPreferencesForDisplay = (prefs: {
+        genres?: string[]
+        movies?: string[]
+        directors?: string[]
+      }) => {
         const sections = []
 
         if (prefs.genres?.length > 0) {
           sections.push({
             category: 'Favorite Genres',
             value: prefs.genres.join(', '),
-            type: 'genre'
+            type: 'genre',
           })
         }
 
         if (prefs.movies?.length > 0) {
           sections.push({
-            category: 'Favorite Movies', 
+            category: 'Favorite Movies',
             value: prefs.movies.join(', '),
-            type: 'movie'
+            type: 'movie',
           })
         }
 
@@ -326,7 +343,7 @@ describe('Preference Extraction Complete Workflow', () => {
           sections.push({
             category: 'Favorite Directors',
             value: prefs.directors.join(', '),
-            type: 'director'
+            type: 'director',
           })
         }
 
@@ -336,11 +353,11 @@ describe('Preference Extraction Complete Workflow', () => {
       const mockPrefs = {
         genres: ['horror', 'comedy'],
         movies: ['The Shining', 'Avengers'],
-        directors: ['Christopher Nolan']
+        directors: ['Christopher Nolan'],
       }
 
       const display = formatPreferencesForDisplay(mockPrefs)
-      
+
       expect(display).toHaveLength(3)
       expect(display[0].category).toBe('Favorite Genres')
       expect(display[0].value).toBe('horror, comedy')
@@ -351,22 +368,26 @@ describe('Preference Extraction Complete Workflow', () => {
 
   describe('Error Recovery and Fallbacks', () => {
     it('should gracefully handle Mem0 service failures', () => {
-      const handleMemoryServiceError = (error: Error, fallbackData: any) => {
+      const handleMemoryServiceError = (
+        error: Error,
+        fallbackData: { genres: string[]; movies: string[]; directors: string[] }
+      ) => {
         console.warn('Memory service error, using fallback:', error.message)
-        
+
         return {
           success: true,
           data: fallbackData,
           source: 'fallback',
-          memoryError: error.message
+          memoryError: error.message,
         }
       }
 
-      const fallbackPrefs = { genres: [], movies: [], directors: [] }
-      const result = handleMemoryServiceError(
-        new Error('Mem0 API unavailable'),
-        fallbackPrefs
-      )
+      const fallbackPrefs = {
+        genres: [] as string[],
+        movies: [] as string[],
+        directors: [] as string[],
+      }
+      const result = handleMemoryServiceError(new Error('Mem0 API unavailable'), fallbackPrefs)
 
       expect(result.success).toBe(true)
       expect(result.source).toBe('fallback')
@@ -378,9 +399,7 @@ describe('Preference Extraction Complete Workflow', () => {
       const handleTimeout = (promise: Promise<any>, timeoutMs: number) => {
         return Promise.race([
           promise,
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Timeout')), timeoutMs)
-          )
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeoutMs)),
         ]).catch(error => {
           if (error.message === 'Timeout') {
             return { success: false, error: 'Service timeout', fallback: true }
@@ -390,7 +409,7 @@ describe('Preference Extraction Complete Workflow', () => {
       }
 
       const slowPromise = new Promise(resolve => setTimeout(resolve, 2000))
-      
+
       return handleTimeout(slowPromise, 100).then(result => {
         expect(result.success).toBe(false)
         expect(result.error).toBe('Service timeout')
@@ -403,48 +422,48 @@ describe('Preference Extraction Complete Workflow', () => {
     it('should handle complete preference extraction flow', () => {
       const extractionWorkflow = {
         steps: [] as string[],
-        
+
         detectTrigger(message: string): boolean {
           this.steps.push('trigger-detection')
           return message.toLowerCase().includes('save')
         },
-        
+
         extractPreferences(conversation: string[]): any {
           this.steps.push('preference-extraction')
           return {
             genres: ['horror'],
             movies: ['The Shining'],
-            confidence: 0.9
+            confidence: 0.9,
           }
         },
-        
+
         saveToDatabase(prefs: any): boolean {
           this.steps.push('database-save')
           return true
         },
-        
+
         storeInMemory(conversation: string[]): boolean {
           this.steps.push('memory-storage')
           return true
         },
-        
+
         processComplete(userMessage: string, aiResponse: string): any {
           const triggered = this.detectTrigger(userMessage)
-          
+
           if (triggered || aiResponse.toLowerCase().includes('saved')) {
             const prefs = this.extractPreferences([userMessage, aiResponse])
             const dbSaved = this.saveToDatabase(prefs)
             const memorySaved = this.storeInMemory([userMessage, aiResponse])
-            
+
             return {
               success: dbSaved && memorySaved,
               preferences: prefs,
-              steps: this.steps
+              steps: this.steps,
             }
           }
-          
+
           return { success: false, triggered: false }
-        }
+        },
       }
 
       const result = extractionWorkflow.processComplete(
@@ -457,10 +476,10 @@ describe('Preference Extraction Complete Workflow', () => {
       expect(result.preferences.movies).toEqual(['The Shining'])
       expect(result.steps).toEqual([
         'trigger-detection',
-        'preference-extraction', 
+        'preference-extraction',
         'database-save',
-        'memory-storage'
+        'memory-storage',
       ])
     })
   })
-}) 
+})
