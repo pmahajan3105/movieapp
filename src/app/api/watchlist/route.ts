@@ -5,6 +5,20 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = await createServerClient()
 
+    // Debug: Check session first
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession()
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔍 Watchlist GET: Session check', { 
+        hasSession: !!session, 
+        sessionError: sessionError?.message,
+        userId: session?.user?.id
+      })
+    }
+
     // Get current user
     const {
       data: { user },
@@ -13,7 +27,11 @@ export async function GET(request: NextRequest) {
 
     if (authError || !user) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('❌ Watchlist GET: Authentication failed', { authError: authError?.message })
+        console.log('❌ Watchlist GET: Authentication failed', { 
+          authError: authError?.message,
+          hasSession: !!session,
+          sessionUserId: session?.user?.id
+        })
       }
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }

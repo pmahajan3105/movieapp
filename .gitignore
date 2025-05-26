@@ -39,3 +39,17 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# development files
+test-*.js
+*.sql
+!supabase/migrations/*.sql
+!supabase/seed.sql
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# temporary files
+*.tmp
+*.temp

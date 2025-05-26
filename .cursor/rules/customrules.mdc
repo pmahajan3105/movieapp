@@ -1,7 +1,7 @@
 ---
 description: 
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
 Project: CineAI Movie Recommendation App
 Stack: Next.js 14, TypeScript, Supabase, Tailwind, Shadcn/ui
@@ -10,6 +10,7 @@ Styling: Tailwind CSS only, no inline styles
 State: React Query for server state, Context for auth
 
 Dont create new functionality without confirming with user. 
+
 1. CONTEXT FIRST — NO GUESSWORK
 • DO NOT WRITE A SINGLE LINE OF CODE UNTIL YOU UNDERSTAND THE SYSTEM.
 • IMMEDIATELY LIST FILES IN THE TARGET DIRECTORY.

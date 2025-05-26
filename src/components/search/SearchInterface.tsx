@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Search, X, Clock, Film } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardBody } from '@/components/ui/card'
 import type { AutocompleteResponse } from '@/types/search'
 import Image from 'next/image'
 
@@ -176,7 +176,7 @@ export function SearchInterface({
       {/* Autocomplete Suggestions */}
       {showSuggestions && autocompleteData && (
         <Card className="absolute left-0 right-0 top-full z-50 mt-1 max-h-96 overflow-y-auto">
-          <CardContent className="p-0">
+          <CardBody className="p-0">
             {/* Movie Suggestions */}
             {autocompleteData.movies.length > 0 && (
               <div className="p-2">
@@ -254,7 +254,7 @@ export function SearchInterface({
               autocompleteData.suggestions.length === 0 && (
                 <div className="p-4 text-center text-gray-500">No suggestions found</div>
               )}
-          </CardContent>
+          </CardBody>
         </Card>
       )}
     </div>

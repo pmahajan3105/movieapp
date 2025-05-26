@@ -3,6 +3,8 @@
 **Last Updated**: January 2025  
 **Version**: 1.0
 
+> **📋 NOTE**: For the complete, up-to-date reference of all AI prompts, see [AI_PROMPTS_REFERENCE.md](./AI_PROMPTS_REFERENCE.md) which contains the centralized repository of all prompts used in the system.
+
 ## 📋 **Overview**
 
 This document outlines the AI prompt system used in CineAI for conversational movie preference gathering, recommendation generation, and user interaction management.

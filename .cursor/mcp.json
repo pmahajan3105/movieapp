@@ -1,19 +1,18 @@
 {
-    "mcpServers": {
-             "Context7": {
-               "type": "stdio",
-               "command": "npx",
-               "args": ["-y", "@upstash/context7-mcp@latest"]
-             }
-            }
-      "supabase": {
-        "command": "npx",
-        "args": [
-          "-y",
-          "@supabase/mcp-server-supabase@latest",
-          "--access-token",
-          "sbp_e1aa91728be3f31b80a0ebab70c5f0ecce2e2907"
-        ]
-      }
+  "mcpServers": {
+    "Context7": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp@latest"]
+    },
+    "supabase": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@supabase/mcp-server-supabase@latest",
+        "--access-token",
+        "sbp_e1aa91728be3f31b80a0ebab70c5f0ecce2e2907"
+      ]
     }
   }
+}

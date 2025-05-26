@@ -1,12 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 
 const loginSchema = z.object({
   email: z
@@ -24,6 +21,17 @@ interface LoginFormProps {
 export function LoginForm({ onMagicLinkSent }: LoginFormProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  
+  // Check for error from URL params (from auth callback)
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const urlError = urlParams.get('error')
+    if (urlError) {
+      setError(urlError)
+      // Clear error from URL
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [])
 
   const {
     register,
@@ -69,14 +77,18 @@ export function LoginForm({ onMagicLinkSent }: LoginFormProps) {
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
         <div className="space-y-2">
-          <Label htmlFor="email">Email address</Label>
-          <Input
+          <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+            Email address
+          </label>
+          <input
             id="email"
             type="email"
             placeholder="Enter your email"
             {...register('email')}
             disabled={isLoading}
-            className={errors.email ? 'border-red-500' : ''}
+            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+              errors.email ? 'border-red-500' : 'border-gray-300'
+            }`}
           />
           {errors.email && <p className="text-sm text-red-600">{errors.email.message}</p>}
         </div>
@@ -87,16 +99,20 @@ export function LoginForm({ onMagicLinkSent }: LoginFormProps) {
           </div>
         )}
 
-        <Button type="submit" className="w-full" disabled={isLoading}>
+        <button 
+          type="submit" 
+          className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          disabled={isLoading}
+        >
           {isLoading ? (
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center justify-center space-x-2">
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
               <span>Sending magic link...</span>
             </div>
           ) : (
             'Send magic link'
           )}
-        </Button>
+        </button>
       </form>
 
       <div className="mt-6 text-center text-sm text-gray-600">

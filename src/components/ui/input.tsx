@@ -2,15 +2,45 @@ import * as React from 'react'
 
 import { cn } from '@/lib/utils'
 
-export type InputProps = React.InputHTMLAttributes<HTMLInputElement>
+interface InputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'> {
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
+  variant?: 'default' | 'ghost'
+  color?: 'neutral' | 'primary' | 'secondary' | 'accent' | 'info' | 'success' | 'warning' | 'error'
+}
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type, ...props }, ref) => {
+  ({ className, size = 'md', variant = 'default', color, ...props }, ref) => {
+    const sizeClasses = {
+      xs: 'input-xs',
+      sm: 'input-sm',
+      md: 'input-md',
+      lg: 'input-lg',
+      xl: 'input-xl'
+    }
+
+    const variantClasses = {
+      default: '',
+      ghost: 'input-ghost'
+    }
+
+    const colorClasses = color ? {
+      neutral: 'input-neutral',
+      primary: 'input-primary',
+      secondary: 'input-secondary',
+      accent: 'input-accent',
+      info: 'input-info',
+      success: 'input-success',
+      warning: 'input-warning',
+      error: 'input-error'
+    }[color] : ''
+
     return (
       <input
-        type={type}
         className={cn(
-          'border-input placeholder:text-muted-foreground focus-visible:ring-ring flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
+          'input',
+          sizeClasses[size],
+          variantClasses[variant],
+          colorClasses,
           className
         )}
         ref={ref}

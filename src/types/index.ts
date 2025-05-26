@@ -54,6 +54,52 @@ export interface Recommendation {
   created_at: string
 }
 
+// Enhanced recommendation with detailed explanations
+export interface EnhancedRecommendation {
+  movie: Movie
+  reason: string
+  confidence: number // 0-1 confidence score
+  position: number
+  explanation: RecommendationExplanation
+  source?: 'ai' | 'database' | 'fallback'
+}
+
+export interface RecommendationExplanation {
+  // Primary reasons why this was recommended
+  primaryReasons: string[]
+  
+  // Specific matches with user preferences
+  preferenceMatches: {
+    genres?: string[]
+    directors?: string[]
+    actors?: string[]
+    themes?: string[]
+    mood?: string
+  }
+  
+  // Quality indicators
+  qualitySignals: {
+    rating?: number
+    criticsScore?: number
+    userRatings?: number
+    awards?: string[]
+  }
+  
+  // Context matches
+  contextMatch: {
+    runtime?: string // e.g., "Perfect for your 90-120 minute preference"
+    year?: string // e.g., "Recent release (2023)"
+    availability?: string // e.g., "Currently on Netflix"
+    mood?: string // e.g., "Great for relaxing weekend viewing"
+  }
+  
+  // Warnings or considerations
+  considerations?: string[]
+  
+  // Similar movies in user's liked list
+  similarToLiked?: string[]
+}
+
 // Watchlist Types
 export interface WatchlistItem {
   id: string

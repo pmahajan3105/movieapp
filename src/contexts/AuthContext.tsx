@@ -21,12 +21,22 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [loading, setLoading] = useState(true)
-  const supabase = createBrowserClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
+  
+  // Check if Supabase environment variables are available
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  
+  const supabase = supabaseUrl && supabaseAnonKey 
+    ? createBrowserClient<Database>(supabaseUrl, supabaseAnonKey)
+    : null
 
   const refreshUser = async () => {
+    if (!supabase) {
+      console.warn('Supabase not configured - skipping user refresh')
+      setUser(null)
+      return
+    }
+
     if (process.env.NODE_ENV === 'development') {
       console.log('🔄 refreshUser called')
     }
@@ -60,6 +70,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
+    if (!supabase) {
+      console.warn('Supabase not configured - skipping sign out')
+      setUser(null)
+      return
+    }
+
     try {
       setLoading(true)
       const { error } = await supabase.auth.signOut()
@@ -75,6 +91,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
+    if (!supabase) {
+      console.warn('Supabase not configured - auth will be disabled')
+      setLoading(false)
+      setUser(null)
+      return
+    }
+
     if (process.env.NODE_ENV === 'development') {
       console.log('🚀 AuthContext useEffect triggered')
     }
@@ -181,6 +204,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log('🎯 AuthContext state:', {
       user: user?.email || 'null',
       loading,
+      supabaseConfigured: !!supabase,
       timestamp: new Date().toISOString(),
     })
   }

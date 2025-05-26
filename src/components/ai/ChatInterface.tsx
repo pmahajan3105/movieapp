@@ -373,17 +373,17 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
   }, [])
 
   return (
-    <div className="flex h-full flex-col bg-gray-50" style={{ contain: 'layout style' }}>
+    <div className="flex h-full flex-col bg-base-100" style={{ contain: 'layout style' }}>
       {/* Enhanced Header */}
-      <div className="flex-shrink-0 border-b border-gray-200 bg-white px-6 py-4">
+      <div className="flex-shrink-0 border-b border-base-300 bg-base-200 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100">
-              <span className="text-lg text-purple-600">🎬</span>
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20">
+              <span className="text-lg text-primary">🎬</span>
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">CineAI Assistant</h2>
-              <p className="flex items-center gap-1 text-sm text-gray-500">
+              <h2 className="text-lg font-semibold text-base-content">CineAI Assistant</h2>
+              <p className="flex items-center gap-1 text-sm text-base-content/70">
                 {isComplete ? (
                   <>
                     <CheckCircle className="h-3 w-3 text-green-500" />
@@ -391,12 +391,12 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
                   </>
                 ) : isLoading || isStreaming ? (
                   <>
-                    <span className="inline-block h-3 w-3 animate-pulse rounded-full bg-blue-500" />
+                    <span className="inline-block h-3 w-3 animate-pulse rounded-full bg-primary" />
                     {isStreaming ? 'Streaming response...' : 'Thinking...'}
                   </>
                 ) : (
                   <>
-                    <Sparkles className="h-3 w-3 text-purple-500" />
+                    <Sparkles className="h-3 w-3 text-primary" />
                     Learning your movie preferences...
                   </>
                 )}
@@ -406,16 +406,14 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
 
           {/* Reset button */}
           {(messages.length > 1 || isComplete) && (
-            <Button
-              variant="outline"
-              size="sm"
+            <button
+              className="btn btn-outline btn-sm"
               onClick={resetConversation}
-              className="flex items-center gap-2"
               disabled={isLoading || isStreaming}
             >
               <RefreshCw className="h-3 w-3" />
               Start Over
-            </Button>
+            </button>
           )}
         </div>
       </div>

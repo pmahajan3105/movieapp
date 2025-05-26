@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { MovieDetailsModal } from '@/components/movies/MovieDetailsModal'
+import { MarkWatchedModal } from '@/components/movies/MarkWatchedModal'
 import { Film, CheckCircle, Circle, Star, Calendar, Trash2, SortAsc } from 'lucide-react'
 import type { Movie, WatchlistItem } from '@/types'
 import { useRouter } from 'next/navigation'
@@ -18,6 +19,8 @@ interface WatchlistPageState {
   filter: 'all' | 'watched' | 'unwatched'
   sortBy: 'added_at' | 'title' | 'year'
   selectedMovie: Movie | null
+  movieToMarkWatched: Movie | null
+  isMarkingWatched: boolean
 }
 
 export default function WatchlistPage() {
@@ -30,6 +33,8 @@ export default function WatchlistPage() {
     filter: 'all',
     sortBy: 'added_at',
     selectedMovie: null,
+    movieToMarkWatched: null,
+    isMarkingWatched: false,
   })
 
   const loadWatchlist = useCallback(async () => {
@@ -88,37 +93,84 @@ export default function WatchlistPage() {
 
   const handleRemoveFromWatchlist = async (movieId: string) => {
     try {
+      console.log('🗑️ Removing movie from watchlist:', { movieId, user: user?.email })
+
       const response = await fetch(`/api/watchlist?movie_id=${movieId}`, {
         method: 'DELETE',
       })
 
-      if (response.ok) {
+      const data = await response.json()
+      console.log('🗑️ Delete response:', { status: response.status, data })
+
+      if (response.ok && data.success) {
         setState(prev => ({
           ...prev,
           items: prev.items.filter(item => item.movie_id !== movieId),
         }))
+        console.log('✅ Movie removed from watchlist successfully')
+      } else {
+        console.error('❌ Failed to remove from watchlist:', data.error)
+        
+        // Show specific error messages to the user
+        if (response.status === 401) {
+          router.push('/auth/login')
+        } else if (response.status === 404) {
+          // Movie wasn't in watchlist anyway, remove from UI
+          setState(prev => ({
+            ...prev,
+            items: prev.items.filter(item => item.movie_id !== movieId),
+          }))
+        } else {
+          alert(`Failed to remove movie: ${data.error || 'Unknown error'}`)
+        }
       }
     } catch (error) {
-      console.error('Error removing from watchlist:', error)
+      console.error('❌ Network error removing from watchlist:', error)
+      alert('Failed to remove movie: Network error')
     }
   }
 
-  const handleMarkWatched = async (watchlistId: string, watched: boolean) => {
+  const handleMarkWatched = async (movieId: string, watchlistId: string) => {
+    // Find the movie to mark as watched
+    const item = state.items.find(item => item.id === watchlistId)
+    if (!item) return
+
+    setState(prev => ({ ...prev, movieToMarkWatched: item.movies }))
+  }
+
+  const handleConfirmMarkWatched = async (rating?: number, notes?: string) => {
+    const movie = state.movieToMarkWatched
+    if (!movie) return
+
+    // Find the watchlist item for this movie
+    const item = state.items.find(item => item.movie_id === movie.id)
+    if (!item) return
+
+    setState(prev => ({ ...prev, isMarkingWatched: true }))
+
     try {
       const response = await fetch('/api/watchlist', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          watchlist_id: watchlistId,
-          watched,
+          watchlist_id: item.id,
+          watched: true,
+          rating,
+          notes,
         }),
       })
 
       if (response.ok) {
         loadWatchlist() // Reload to get updated data
+        setState(prev => ({ 
+          ...prev, 
+          movieToMarkWatched: null, 
+          isMarkingWatched: false 
+        }))
       }
     } catch (error) {
       console.error('Error updating watch status:', error)
+      setState(prev => ({ ...prev, isMarkingWatched: false }))
     }
   }
 
@@ -324,6 +376,15 @@ export default function WatchlistPage() {
           onRemoveFromWatchlist={handleRemoveFromWatchlist}
           isInWatchlist={true}
         />
+
+        {/* Mark as Watched Modal */}
+        <MarkWatchedModal
+          movie={state.movieToMarkWatched}
+          open={!!state.movieToMarkWatched}
+          onClose={() => setState(prev => ({ ...prev, movieToMarkWatched: null }))}
+          onConfirm={handleConfirmMarkWatched}
+          isLoading={state.isMarkingWatched}
+        />
       </div>
     </div>
   )
@@ -333,7 +394,7 @@ interface WatchlistCardProps {
   item: WatchlistItem & { movies: Movie }
   onMovieClick: (movie: Movie) => void
   onRemove: (movieId: string) => void
-  onMarkWatched: (watchlistId: string, watched: boolean) => void
+  onMarkWatched: (movieId: string, watchlistId: string) => void
 }
 
 function WatchlistCard({ item, onMovieClick, onRemove, onMarkWatched }: WatchlistCardProps) {
@@ -367,7 +428,7 @@ function WatchlistCard({ item, onMovieClick, onRemove, onMarkWatched }: Watchlis
           {item.watched ? (
             <Badge className="bg-green-600">Watched</Badge>
           ) : (
-            <Badge variant="secondary">To Watch</Badge>
+            <Badge variant="outline">To Watch</Badge>
           )}
         </div>
       </div>
@@ -396,7 +457,7 @@ function WatchlistCard({ item, onMovieClick, onRemove, onMarkWatched }: Watchlis
             size="sm"
             variant={item.watched ? 'outline' : 'default'}
             className="flex-1"
-            onClick={() => onMarkWatched(item.id, !item.watched)}
+            onClick={() => onMarkWatched(item.movies?.id || item.movie_id, item.id)}
           >
             {item.watched ? (
               <>

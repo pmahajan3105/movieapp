@@ -1,12 +1,9 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
+import { ThemeProvider } from '@/contexts/ThemeContext'
 import { AuthProvider } from '@/contexts/AuthContext'
-import { Toaster } from 'react-hot-toast'
 import { NavigationHeader } from '@/components/layout/NavigationHeader'
-
-// Force dynamic rendering due to auth context
-export const dynamic = 'force-dynamic'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -21,12 +18,17 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} font-sans antialiased`}>
-        <AuthProvider>
-          <NavigationHeader />
-          <main>{children}</main>
-          <Toaster position="top-right" />
-        </AuthProvider>
+      <body className={`${inter.variable} font-sans antialiased min-h-screen`}>
+        <ThemeProvider defaultTheme="pastel">
+          <AuthProvider>
+            <div className="min-h-screen bg-white">
+              <NavigationHeader />
+              <main>
+                {children}
+              </main>
+            </div>
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   )

@@ -189,7 +189,8 @@ scripts/
 └── model-manager.js       # CLI tool for model management
 
 docs/
-└── ai-model-system.md     # Detailed AI system documentation
+├── ai-model-system.md     # Detailed AI system documentation
+└── AI_PROMPTS_REFERENCE.md # Complete AI prompts reference
 ```
 
 ## 🔑 Environment Variables

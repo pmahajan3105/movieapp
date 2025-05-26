@@ -1,33 +1,58 @@
 import * as React from 'react'
-import { cva, type VariantProps } from 'class-variance-authority'
-
 import { cn } from '@/lib/utils'
 
-const badgeVariants = cva(
-  'inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
-  {
-    variants: {
-      variant: {
-        default: 'border-transparent bg-primary text-primary-foreground shadow hover:bg-primary/80',
-        secondary:
-          'border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80',
-        destructive:
-          'border-transparent bg-destructive text-destructive-foreground shadow hover:bg-destructive/80',
-        outline: 'text-foreground',
-      },
-    },
-    defaultVariants: {
-      variant: 'default',
-    },
-  }
-)
-
-export interface BadgeProps
-  extends React.HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof badgeVariants> {}
-
-function Badge({ className, variant, ...props }: BadgeProps) {
-  return <div className={cn(badgeVariants({ variant }), className)} {...props} />
+interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
+  variant?: 'default' | 'outline' | 'dash' | 'soft' | 'ghost'
+  color?: 'primary' | 'secondary' | 'accent' | 'neutral' | 'info' | 'success' | 'warning' | 'error'
 }
 
-export { Badge, badgeVariants }
+function Badge({ 
+  className, 
+  size = 'md', 
+  variant = 'default', 
+  color,
+  ...props 
+}: BadgeProps) {
+  const sizeClasses = {
+    xs: 'badge-xs',
+    sm: 'badge-sm',
+    md: 'badge-md',
+    lg: 'badge-lg',
+    xl: 'badge-xl'
+  }
+
+  const variantClasses = {
+    default: '',
+    outline: 'badge-outline',
+    dash: 'badge-dash',
+    soft: 'badge-soft',
+    ghost: 'badge-ghost'
+  }
+
+  const colorClasses = color ? {
+    primary: 'badge-primary',
+    secondary: 'badge-secondary',
+    accent: 'badge-accent',
+    neutral: 'badge-neutral',
+    info: 'badge-info',
+    success: 'badge-success',
+    warning: 'badge-warning',
+    error: 'badge-error'
+  }[color] : ''
+
+  return (
+    <div 
+      className={cn(
+        'badge',
+        sizeClasses[size],
+        variantClasses[variant],
+        colorClasses,
+        className
+      )} 
+      {...props} 
+    />
+  )
+}
+
+export { Badge }

@@ -1,8 +1,6 @@
 'use client'
 
 import { useState, useRef, KeyboardEvent } from 'react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 
 interface ChatInputProps {
   onSendMessage: (message: string) => void
@@ -45,9 +43,9 @@ export function ChatInput({
   }
 
   return (
-    <div className="flex items-center space-x-2 border-t border-gray-200 bg-white p-4 flex-shrink-0">
+    <div className="flex items-center space-x-2 border-t border-base-300 bg-base-200 p-4 flex-shrink-0">
       <div className="flex-1">
-        <Input
+        <input
           ref={inputRef}
           type="text"
           value={message}
@@ -55,16 +53,20 @@ export function ChatInput({
           onKeyPress={handleKeyPress}
           placeholder={placeholder}
           disabled={disabled}
-          className="w-full"
+          className="input input-bordered w-full"
           maxLength={1000}
           onFocus={handleFocus}
         />
       </div>
 
-      <Button onClick={handleSend} disabled={disabled || !message.trim()} className="px-6">
+      <button 
+        onClick={handleSend} 
+        disabled={disabled || !message.trim()} 
+        className="btn btn-primary px-6"
+      >
         {disabled ? (
           <div className="flex items-center space-x-2">
-            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+            <span className="loading loading-spinner loading-sm"></span>
             <span>Sending...</span>
           </div>
         ) : (
@@ -77,7 +79,7 @@ export function ChatInput({
             />
           </svg>
         )}
-      </Button>
+      </button>
     </div>
   )
 }
