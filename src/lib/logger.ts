@@ -1,164 +1,111 @@
 import { isDevelopment, isProduction } from './env'
 
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
-
-interface LogContext {
-  [key: string]: unknown
-}
-
-interface LogEntry {
-  level: LogLevel
-  message: string
-  context?: LogContext
-  timestamp: string
-  stack?: string
-}
+type LogLevel = 'debug' | 'info' | 'warn' | 'error'
+type LogContext = Record<string, any>
 
 class Logger {
-  private shouldLog(level: LogLevel): boolean {
-    if (isProduction()) {
-      return level === 'warn' || level === 'error'
-    }
-    return true // Log everything in development and test
-  }
-
-  private formatMessage(entry: LogEntry): string {
+  private formatMessage(level: LogLevel, message: string, context?: LogContext): string {
     const emoji = {
       debug: '🔍',
       info: 'ℹ️',
       warn: '⚠️',
       error: '❌',
+    }[level]
+
+    const levelStr = level.toUpperCase()
+    let logMessage = `${emoji} [${levelStr}] ${message}`
+
+    if (context && Object.keys(context).length > 0) {
+      try {
+        // Handle circular references with a replacer function
+        const contextStr = JSON.stringify(
+          context,
+          (key, value) => {
+            if (typeof value === 'object' && value !== null) {
+              // Check for circular references
+              if (this.seenObjects?.has(value)) {
+                return '[Circular Reference]'
+              }
+              if (!this.seenObjects) {
+                this.seenObjects = new WeakSet()
+              }
+              this.seenObjects.add(value)
+            }
+            return value
+          },
+          2
+        )
+        logMessage += ` | Context: ${contextStr}`
+        // Clear the seen objects for next use
+        this.seenObjects = undefined
+      } catch (error) {
+        logMessage += ` | Context: [Unable to serialize context: ${error instanceof Error ? error.message : 'Unknown error'}]`
+      }
     }
 
-    if (isDevelopment()) {
-      const contextStr = entry.context ? `\n${JSON.stringify(entry.context, null, 2)}` : ''
-      const stackStr = entry.stack ? `\n${entry.stack}` : ''
-      return `${emoji[entry.level]} [${entry.level.toUpperCase()}] ${entry.message}${contextStr}${stackStr}`
-    }
-
-    // Production format (JSON for log aggregation)
-    return JSON.stringify(entry)
+    return logMessage
   }
 
-  private log(level: LogLevel, message: string, context?: LogContext, error?: Error): void {
-    if (!this.shouldLog(level)) return
+  private seenObjects?: WeakSet<object>
 
-    const entry: LogEntry = {
-      level,
-      message,
-      context,
-      timestamp: new Date().toISOString(),
-      stack: error?.stack,
+  private shouldLog(level: LogLevel): boolean {
+    if (isProduction()) {
+      return level === 'warn' || level === 'error'
     }
-
-    const formattedMessage = this.formatMessage(entry)
-
-    // Console output based on level
-    switch (level) {
-      case 'debug':
-        console.debug(formattedMessage)
-        break
-      case 'info':
-        console.info(formattedMessage)
-        break
-      case 'warn':
-        console.warn(formattedMessage)
-        break
-      case 'error':
-        console.error(formattedMessage)
-        break
-    }
-
-    // In production, you might want to send to external logging service
-    if (isProduction() && (level === 'error' || level === 'warn')) {
-      this.sendToExternalLogger()
-    }
-  }
-
-  private async sendToExternalLogger(): Promise<void> {
-    // Placeholder for external logging service (e.g., Sentry, LogRocket, etc.)
-    // Example:
-    // await fetch('/api/logs', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(entry)
-    // })
+    return isDevelopment()
   }
 
   debug(message: string, context?: LogContext): void {
-    this.log('debug', message, context)
+    if (this.shouldLog('debug')) {
+      console.debug(this.formatMessage('debug', message, context))
+    }
   }
 
   info(message: string, context?: LogContext): void {
-    this.log('info', message, context)
+    if (this.shouldLog('info')) {
+      console.info(this.formatMessage('info', message, context))
+    }
   }
 
-  warn(message: string, context?: LogContext, error?: Error): void {
-    this.log('warn', message, context, error)
+  warn(message: string, context?: LogContext): void {
+    if (this.shouldLog('warn')) {
+      console.warn(this.formatMessage('warn', message, context))
+    }
   }
 
-  error(message: string, context?: LogContext, error?: Error): void {
-    this.log('error', message, context, error)
+  error(message: string, context?: LogContext): void {
+    if (this.shouldLog('error')) {
+      console.error(this.formatMessage('error', message, context))
+    }
   }
 
-  // Convenience method for API errors
+  // Specialized logging methods
   apiError(endpoint: string, error: Error, context?: LogContext): void {
-    this.error(
-      `API Error at ${endpoint}`,
-      {
-        endpoint,
-        errorMessage: error.message,
-        ...context,
-      },
-      error
-    )
+    this.error(`API Error at ${endpoint}: ${error.message}`, {
+      endpoint,
+      error: error.message,
+      stack: error.stack || undefined,
+      ...context,
+    })
   }
 
-  // Convenience method for auth errors
-  authError(action: string, error: Error, context?: LogContext): void {
-    this.error(
-      `Auth Error during ${action}`,
-      {
-        action,
-        errorMessage: error.message,
-        ...context,
-      },
-      error
-    )
+  authError(operation: string, error: Error, context?: LogContext): void {
+    this.error(`Auth Error during ${operation}: ${error.message}`, {
+      operation,
+      error: error.message,
+      stack: error.stack,
+      ...context,
+    })
   }
 
-  // Convenience method for database errors
   dbError(operation: string, error: Error, context?: LogContext): void {
-    this.error(
-      `Database Error during ${operation}`,
-      {
-        operation,
-        errorMessage: error.message,
-        ...context,
-      },
-      error
-    )
+    this.error(`Database Error during ${operation}: ${error.message}`, {
+      operation,
+      error: error.message,
+      stack: error.stack,
+      ...context,
+    })
   }
 }
 
 export const logger = new Logger()
-
-// Global error handler for unhandled promises
-if (typeof window !== 'undefined') {
-  window.addEventListener('unhandledrejection', event => {
-    logger.error('Unhandled Promise Rejection', {
-      reason: event.reason,
-      stack: event.reason?.stack,
-    })
-  })
-
-  window.addEventListener('error', event => {
-    logger.error('Global Error', {
-      message: event.message,
-      filename: event.filename,
-      lineno: event.lineno,
-      colno: event.colno,
-      stack: event.error?.stack,
-    })
-  })
-}

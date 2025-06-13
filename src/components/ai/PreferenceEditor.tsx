@@ -53,7 +53,7 @@ export function PreferenceEditor({ initialPreferences, onSave, onCancel }: Prefe
   }, [preferences, initialPreferences])
 
   const addItem = (field: keyof typeof newItems, value?: string) => {
-    const itemToAdd = value || newItems[field].trim()
+    const itemToAdd = value || newItems[field]?.trim()
     if (!itemToAdd) return
 
     setPreferences(prev => {
@@ -218,7 +218,7 @@ export function PreferenceEditor({ initialPreferences, onSave, onCancel }: Prefe
             onKeyPress={e => e.key === 'Enter' && addItem(field)}
             className="text-xs"
           />
-          <Button size="sm" onClick={() => addItem(field)} disabled={!newItems[field].trim()}>
+          <Button size="sm" onClick={() => addItem(field)} disabled={!newItems[field]?.trim()}>
             <Plus className="h-3 w-3" />
           </Button>
         </div>
@@ -226,7 +226,7 @@ export function PreferenceEditor({ initialPreferences, onSave, onCancel }: Prefe
         {/* Suggestions */}
         {suggestions && (
           <div className="space-y-2">
-            <Label className="text-xs text-muted-foreground">Quick add:</Label>
+            <Label className="text-muted-foreground text-xs">Quick add:</Label>
             <div className="flex flex-wrap gap-1">
               {suggestions
                 .filter(
@@ -325,7 +325,7 @@ export function PreferenceEditor({ initialPreferences, onSave, onCancel }: Prefe
                   step={1}
                   className="w-full"
                 />
-                <div className="mt-2 flex justify-between text-xs text-muted-foreground">
+                <div className="text-muted-foreground mt-2 flex justify-between text-xs">
                   <span>1960</span>
                   <span>2024</span>
                 </div>
@@ -352,7 +352,7 @@ export function PreferenceEditor({ initialPreferences, onSave, onCancel }: Prefe
                   step={0.1}
                   className="w-full"
                 />
-                <div className="mt-2 flex justify-between text-xs text-muted-foreground">
+                <div className="text-muted-foreground mt-2 flex justify-between text-xs">
                   <span>1.0</span>
                   <span>10.0</span>
                 </div>

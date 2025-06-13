@@ -13,10 +13,7 @@ const envSchema = z.object({
   ANTHROPIC_API_KEY: z.string().min(1, 'Anthropic API key is required'),
 
   // Groq API (optional)
-  GROQ_API_KEY: z.string().optional(),
-
-  // OpenAI API (optional)
-  OPENAI_API_KEY: z.string().optional(),
+  GROQ_API_KEY: z.string().min(1, 'Groq API key is required'),
 
   // Environment
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -50,7 +47,7 @@ export function getEnv(): z.infer<typeof envSchema> {
       if (missingKeys.length > 0) {
         throw new Error(
           `Missing required environment variables: ${missingKeys.join(', ')}\n` +
-          'Please check your .env.local file and ensure all required variables are set.'
+            'Please check your .env.local file and ensure all required variables are set.'
         )
       }
 
@@ -61,7 +58,7 @@ export function getEnv(): z.infer<typeof envSchema> {
       if (invalidKeys.length > 0) {
         throw new Error(
           `Invalid environment variables:\n${invalidKeys.join('\n')}\n` +
-          'Please check your .env.local file and ensure all variables have valid values.'
+            'Please check your .env.local file and ensure all variables have valid values.'
         )
       }
     }
@@ -76,7 +73,6 @@ export const getSupabaseAnonKey = () => getEnv().NEXT_PUBLIC_SUPABASE_ANON_KEY
 export const getSupabaseServiceRoleKey = () => getEnv().SUPABASE_SERVICE_ROLE_KEY
 export const getAnthropicApiKey = () => getEnv().ANTHROPIC_API_KEY
 export const getGroqApiKey = () => getEnv().GROQ_API_KEY
-export const getOpenAIApiKey = () => getEnv().OPENAI_API_KEY
 export const getTMDBApiKey = () => getEnv().TMDB_API_KEY
 
 // Environment helpers

@@ -148,7 +148,7 @@ function transformOMDBToMovie(omdbData: OMDBMovieResponse): MovieRecord {
   if (omdbData.Runtime && omdbData.Runtime !== 'N/A') {
     const match = omdbData.Runtime.match(/(\d+)/)
     if (match) {
-      runtime = parseInt(match[1])
+      runtime = match[1] ? parseInt(match[1]) : 0
     }
   }
 
@@ -212,7 +212,7 @@ export async function POST() {
       try {
         console.log(`Fetching: ${title} (${i + 1}/${POPULAR_MOVIES.length})`)
 
-        const omdbData = await fetchMovieFromOMDB(title)
+        const omdbData = title ? await fetchMovieFromOMDB(title) : null
 
         if (omdbData) {
           const movie = transformOMDBToMovie(omdbData)

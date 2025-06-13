@@ -10,18 +10,21 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const user_id = searchParams.get('user_id')
-    const date = searchParams.get('date') || new Date().toISOString().split('T')[0]
+    const date = (searchParams.get('date') || new Date().toISOString().split('T')[0]) as string
     const limit = parseInt(searchParams.get('limit') || '6')
 
     if (!user_id) {
       return NextResponse.json({ error: 'Missing user_id' }, { status: 400 })
     }
 
+    // Type-safe user_id after validation - we know it's not null here
+    const validUserId = user_id!
+
     // Check if categories exist for today
     const { data, error } = await supabase
       .from('browse_categories')
       .select('*')
-      .eq('user_id', user_id)
+      .eq('user_id', validUserId)
       .eq('generated_date', date)
       .order('position')
       .limit(limit)
@@ -33,7 +36,7 @@ export async function GET(request: NextRequest) {
 
     // If no categories exist, generate them
     if (!data || data.length === 0) {
-      const generated = await generateBrowseCategories(user_id, date, limit)
+      const generated = await generateBrowseCategories(validUserId, date, limit)
       return NextResponse.json({
         data: generated,
         success: true,
@@ -78,19 +81,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing user_id' }, { status: 400 })
     }
 
-    const date = new Date().toISOString().split('T')[0]
+    // Type-safe user_id after validation - we know it's not null here
+    const validUserId = user_id!
+    const date = new Date().toISOString().split('T')[0] as string
 
     // Delete existing categories if force regenerating
     if (force_regenerate) {
       await supabase
         .from('browse_categories')
         .delete()
-        .eq('user_id', user_id)
+        .eq('user_id', validUserId)
         .eq('generated_date', date)
     }
 
     // Generate new categories
-    const categories = await generateBrowseCategories(user_id, date, limit)
+    const categories = await generateBrowseCategories(validUserId, date, limit)
 
     return NextResponse.json({
       data: categories,

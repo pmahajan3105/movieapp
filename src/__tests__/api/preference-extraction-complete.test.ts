@@ -19,11 +19,7 @@ jest.mock('@/lib/supabase/client', () => ({
   })),
 }))
 
-jest.mock('@/lib/mem0/client', () => ({
-  movieMemoryService: {
-    addConversation: jest.fn().mockResolvedValue([{ id: 'memory-123' }]),
-  },
-}))
+// jest.mock('@/lib/mem0/client') // Removed - package deleted
 
 jest.mock('groq-sdk', () => ({
   __esModule: true,
@@ -267,8 +263,8 @@ describe('Preference Extraction Complete Workflow', () => {
       expect(() => {
         const result = processMemories(badMemories)
         expect(result).toHaveLength(2)
-        expect(result[0].text).toBe('valid memory')
-        expect(result[1].text).toBe('another valid memory')
+        expect(result[0]?.text).toBe('valid memory')
+        expect(result[1]?.text).toBe('another valid memory')
       }).not.toThrow()
     })
   })
@@ -306,11 +302,11 @@ describe('Preference Extraction Complete Workflow', () => {
       const events = processStreamingChunk(mockChunk)
 
       expect(events).toHaveLength(4)
-      expect(events[0].type).toBe('start')
-      expect(events[1].type).toBe('content')
-      expect(events[2].type).toBe('complete')
-      expect(events[2].preferencesExtracted).toBe(true)
-      expect(events[3].type).toBe('done')
+      expect(events[0]?.type).toBe('start')
+      expect(events[1]?.type).toBe('content')
+      expect(events[2]?.type).toBe('complete')
+      expect(events[2]?.preferencesExtracted).toBe(true)
+      expect(events[3]?.type).toBe('done')
     })
   })
 
@@ -323,26 +319,26 @@ describe('Preference Extraction Complete Workflow', () => {
       }) => {
         const sections = []
 
-        if (prefs.genres?.length > 0) {
+        if ((prefs.genres?.length ?? 0) > 0) {
           sections.push({
             category: 'Favorite Genres',
-            value: prefs.genres.join(', '),
+            value: prefs.genres!.join(', '),
             type: 'genre',
           })
         }
 
-        if (prefs.movies?.length > 0) {
+        if ((prefs.movies?.length ?? 0) > 0) {
           sections.push({
             category: 'Favorite Movies',
-            value: prefs.movies.join(', '),
+            value: prefs.movies!.join(', '),
             type: 'movie',
           })
         }
 
-        if (prefs.directors?.length > 0) {
+        if ((prefs.directors?.length ?? 0) > 0) {
           sections.push({
             category: 'Favorite Directors',
-            value: prefs.directors.join(', '),
+            value: prefs.directors!.join(', '),
             type: 'director',
           })
         }
@@ -359,10 +355,10 @@ describe('Preference Extraction Complete Workflow', () => {
       const display = formatPreferencesForDisplay(mockPrefs)
 
       expect(display).toHaveLength(3)
-      expect(display[0].category).toBe('Favorite Genres')
-      expect(display[0].value).toBe('horror, comedy')
-      expect(display[1].value).toBe('The Shining, Avengers')
-      expect(display[2].value).toBe('Christopher Nolan')
+      expect(display[0]?.category).toBe('Favorite Genres')
+      expect(display[0]?.value).toBe('horror, comedy')
+      expect(display[1]?.value).toBe('The Shining, Avengers')
+      expect(display[2]?.value).toBe('Christopher Nolan')
     })
   })
 

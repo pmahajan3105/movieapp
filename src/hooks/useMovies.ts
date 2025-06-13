@@ -1,78 +1,56 @@
-import { useState, useEffect, useCallback } from 'react'
-import type { Movie, Recommendation } from '@/types'
+import {
+  useInfiniteQuery,
+  type InfiniteData,
+  type QueryFunctionContext,
+} from '@tanstack/react-query'
+import type { Movie } from '@/types'
 
-interface UseMoviesReturn {
-  movies: Movie[]
-  recommendations: Recommendation[]
-  loading: boolean
-  error: string | null
-  refreshMovies: () => Promise<void>
-  refreshRecommendations: () => Promise<void>
+interface MoviesResponse {
+  data: Movie[]
+  pagination: {
+    currentPage: number
+    totalPages: number
+    hasMore: boolean
+  }
+  mem0Enhanced?: boolean
 }
 
-export function useMovies(): UseMoviesReturn {
-  const [movies, setMovies] = useState<Movie[]>([])
-  const [recommendations, setRecommendations] = useState<Recommendation[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+const fetchMovies = async ({
+  pageParam = 1,
+}: QueryFunctionContext<['movies', string | undefined], number>): Promise<MoviesResponse> => {
+  const params = new URLSearchParams({
+    smart: 'true',
+    limit: '12',
+    page: pageParam.toString(),
+    realtime: 'true',
+    database: 'tmdb',
+  })
 
-  const fetchMovies = useCallback(async () => {
-    try {
-      // Use the new smart endpoint for unified movie recommendations
-      const response = await fetch('/api/movies?smart=true&limit=20')
-      const result = await response.json()
-
-      if (result.success) {
-        setMovies(result.data || [])
-      } else {
-        setError(result.error || 'Failed to fetch movies')
-      }
-    } catch (err) {
-      setError('Network error fetching movies')
-      console.error('Error fetching movies:', err)
-    }
-  }, [])
-
-  const fetchRecommendations = useCallback(async () => {
-    try {
-      // Use AI-powered recommendations endpoint
-      const response = await fetch('/api/ai/recommendations?limit=10')
-      const result = await response.json()
-
-      if (result.success) {
-        setRecommendations(result.data || [])
-      } else {
-        setError(result.error || 'Failed to fetch recommendations')
-      }
-    } catch (err) {
-      setError('Network error fetching recommendations')
-      console.error('Error fetching recommendations:', err)
-    }
-  }, [])
-
-  useEffect(() => {
-    const loadData = async () => {
-      setLoading(true)
-      setError(null)
-
-      try {
-        await Promise.all([fetchMovies(), fetchRecommendations()])
-      } catch (err) {
-        console.error('Error loading movie data:', err)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    loadData()
-  }, [fetchMovies, fetchRecommendations])
-
-  return {
-    movies,
-    recommendations,
-    loading,
-    error,
-    refreshMovies: fetchMovies,
-    refreshRecommendations: fetchRecommendations,
+  const response = await fetch(`/api/movies?${params}`)
+  if (!response.ok) {
+    throw new Error('Failed to fetch movies')
   }
+  return response.json()
+}
+
+export const useMovies = (userId: string | undefined) => {
+  return useInfiniteQuery<
+    MoviesResponse,
+    Error,
+    InfiniteData<MoviesResponse>,
+    ['movies', string | undefined],
+    number
+  >({
+    queryKey: ['movies', userId],
+    queryFn: fetchMovies,
+    initialPageParam: 1,
+    getNextPageParam: lastPage => {
+      if (lastPage?.pagination?.hasMore) {
+        return lastPage.pagination.currentPage + 1
+      }
+      return undefined
+    },
+    enabled: !!userId,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  })
 }

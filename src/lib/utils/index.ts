@@ -2,7 +2,7 @@ import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
+  return twMerge(clsx(...inputs))
 }
 
 export function formatDate(date: string | Date): string {
@@ -14,8 +14,15 @@ export function formatDate(date: string | Date): string {
 }
 
 export function formatRuntime(minutes: number): string {
+  if (minutes < 0) {
+    const absMinutes = Math.abs(minutes)
+    const hours = Math.floor(absMinutes / 60)
+    const mins = Math.floor(absMinutes % 60)
+    return hours > 0 ? `-${hours}h -${mins}m` : `-${mins}m`
+  }
+
   const hours = Math.floor(minutes / 60)
-  const mins = minutes % 60
+  const mins = Math.floor(minutes % 60)
   return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`
 }
 

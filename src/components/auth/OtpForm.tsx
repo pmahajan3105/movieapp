@@ -62,6 +62,7 @@ export function OtpForm({ email, onBackToLogin }: OtpFormProps) {
     } else {
       setCanResend(true)
     }
+    return undefined
   }, [resendTimer])
 
   const onSubmit = useCallback(

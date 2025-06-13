@@ -3,6 +3,51 @@ Version: 2.0
 Date: November 2024
 Owner: PM-turned-Founder
 Status: Ready for Development
+
+## 🚫 PROJECT CONSTRAINTS & SCOPE
+
+**IMPORTANT: These constraints must be followed for all future development and suggestions.**
+
+### ❌ EXPLICITLY OUT OF SCOPE
+
+- **NO Mobile App Development**: This is a web-only application. Do not suggest mobile app features, React Native, or mobile-specific optimizations
+- **NO Enhanced Recommendation Categories**: The current recommendation system is sufficient. Do not suggest mood-based categories, social recommendations, or complex recommendation algorithms beyond behavioral analysis
+
+### ✅ CONFIRMED SCOPE
+
+- **Personal Use Only**: No privacy concerns, full data utilization allowed
+- **Web Application**: Responsive design for desktop and mobile browsers
+- **Behavioral Intelligence**: Real-time learning from user ratings and watchlist behavior
+- **Memory System**: Mem0 integration for storing user preferences and behavioral patterns
+- **Real-time Updates**: Immediate learning from user interactions
+
+## Vision
+
+Create the ultimate personal movie recommendation experience that understands user preferences better than any existing platform by learning from ALL user interactions across platforms.
+
+## 🚫 PROJECT SCOPE & CONSTRAINTS
+
+**IMPORTANT: These constraints define the permanent scope of this project and must be followed for all future development.**
+
+### ❌ EXPLICITLY OUT OF SCOPE
+
+- **NO Mobile App Development**: This is a web-only application. Do not suggest mobile app features, React Native, mobile optimizations, or Progressive Web App features
+- **NO Enhanced Recommendation Categories**: The current AI recommendation system is sufficient. Do not suggest mood-based recommendations, social recommendations, or additional recommendation engines
+
+### ✅ APPROVED SCOPE
+
+- Web application functionality and optimization
+- Core movie recommendation system using AI
+- User preference learning and memory systems
+- Watchlist and viewing history management
+- AI chat interface improvements
+- Bug fixes and performance optimization
+- Search and filtering functionality
+
+**These constraints are permanent project decisions and should not be revisited or suggested as enhancements.**
+
+---
+
 1.1 Executive Summary
 CineAI is a personal AI-powered movie recommendation web application that uses conversational AI to understand user preferences and provides personalized movie suggestions through an intuitive swipe interface. Built for personal use (creator + friends), it prioritizes recommendation quality over scale.
 Key Differentiators

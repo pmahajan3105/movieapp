@@ -1,7 +1,7 @@
 // AI Model Management System
 // Centralized configuration for all AI models and providers
 
-export type AIProvider = 'anthropic' | 'openai' | 'groq' | 'google'
+export type AIProvider = 'anthropic' | 'groq' | 'google'
 
 export interface ModelConfig {
   id: string
@@ -11,16 +11,19 @@ export interface ModelConfig {
   maxTokens: number
   temperature: number
   description: string
-  costPer1kTokens: number
+  costPer1kTokens: { input: number; output: number } | number
   capabilities: ModelCapability[]
   recommended: boolean
+  contextWindow?: number
+  tier?: 'basic' | 'standard' | 'premium'
+  supported?: boolean
 }
 
-export type ModelCapability = 
-  | 'chat' 
-  | 'streaming' 
-  | 'function-calling' 
-  | 'vision' 
+export type ModelCapability =
+  | 'chat'
+  | 'streaming'
+  | 'function-calling'
+  | 'vision'
   | 'long-context'
   | 'fast-response'
   | 'high-quality'
@@ -39,68 +42,68 @@ export interface AIModelResponse {
 // Available Models Configuration
 export const AVAILABLE_MODELS: Record<string, ModelConfig> = {
   // Anthropic Models
-  'claude-3-5-sonnet': {
-    id: 'claude-3-5-sonnet',
+  'claude-3.5-sonnet': {
+    id: 'claude-3.5-sonnet',
     name: 'Claude 3.5 Sonnet',
     provider: 'anthropic',
     modelId: 'claude-3-5-sonnet-20241022',
-    maxTokens: 1000,
+    tier: 'premium',
+    maxTokens: 8192,
     temperature: 0.7,
+    capabilities: ['streaming', 'function-calling', 'vision'],
+    costPer1kTokens: { input: 0.003, output: 0.015 },
     description: 'Most capable model, best for complex reasoning and movie recommendations',
-    costPer1kTokens: 0.015,
-    capabilities: ['chat', 'streaming', 'function-calling', 'long-context', 'high-quality'],
+    contextWindow: 200000,
+    supported: true,
     recommended: true,
   },
+
   'claude-3-haiku': {
     id: 'claude-3-haiku',
     name: 'Claude 3 Haiku',
     provider: 'anthropic',
     modelId: 'claude-3-haiku-20240307',
-    maxTokens: 1000,
+    tier: 'standard',
+    maxTokens: 4096,
     temperature: 0.7,
-    description: 'Fast and efficient, good for quick responses',
-    costPer1kTokens: 0.0025,
-    capabilities: ['chat', 'streaming', 'fast-response'],
+    capabilities: ['streaming'],
+    costPer1kTokens: { input: 0.00025, output: 0.00125 },
+    description: 'Fast and efficient model for simple tasks',
+    contextWindow: 200000,
+    supported: true,
     recommended: false,
   },
 
-  // OpenAI Models (future support)
-  'gpt-4-turbo': {
-    id: 'gpt-4-turbo',
-    name: 'GPT-4 Turbo',
-    provider: 'openai',
-    modelId: 'gpt-4-turbo-preview',
-    maxTokens: 1000,
-    temperature: 0.7,
-    description: 'OpenAI\'s most capable model',
-    costPer1kTokens: 0.01,
-    capabilities: ['chat', 'function-calling', 'vision', 'high-quality'],
-    recommended: false,
-  },
-  'gpt-3.5-turbo': {
-    id: 'gpt-3.5-turbo',
-    name: 'GPT-3.5 Turbo',
-    provider: 'openai',
-    modelId: 'gpt-3.5-turbo',
-    maxTokens: 1000,
-    temperature: 0.7,
-    description: 'Fast and cost-effective OpenAI model',
-    costPer1kTokens: 0.001,
-    capabilities: ['chat', 'fast-response'],
-    recommended: false,
-  },
-
-  // Groq Models (if we want to re-enable)
+  // Groq Models
   'llama-3.3-70b': {
     id: 'llama-3.3-70b',
-    name: 'Llama 3.3 70B (Groq)',
+    name: 'Llama 3.3 70B',
     provider: 'groq',
     modelId: 'llama-3.3-70b-versatile',
-    maxTokens: 500,
+    tier: 'standard',
+    maxTokens: 8192,
     temperature: 0.7,
-    description: 'Very fast inference via Groq',
-    costPer1kTokens: 0.0005,
-    capabilities: ['chat', 'streaming', 'fast-response'], // Groq DOES support streaming!
+    capabilities: ['streaming'],
+    costPer1kTokens: { input: 0.00059, output: 0.00079 },
+    description: 'Large Llama model via Groq - fast inference',
+    contextWindow: 131072,
+    supported: true,
+    recommended: false,
+  },
+
+  'llama-3.1-8b': {
+    id: 'llama-3.1-8b',
+    name: 'Llama 3.1 8B',
+    provider: 'groq',
+    modelId: 'llama-3.1-8b-instant',
+    tier: 'basic',
+    maxTokens: 8192,
+    temperature: 0.7,
+    capabilities: ['streaming'],
+    costPer1kTokens: { input: 0.00005, output: 0.00008 },
+    description: 'Fast and cost-effective model for basic tasks',
+    contextWindow: 131072,
+    supported: true,
     recommended: false,
   },
 }
@@ -126,18 +129,27 @@ export class AIModelSelector {
   getModelForTask(task: string): ModelConfig {
     const modelId = this.taskSpecificModels[task] || this.defaultModel
     const model = AVAILABLE_MODELS[modelId]
-    
+
     if (!model) {
       console.warn(`Model ${modelId} not found, falling back to default`)
-      return AVAILABLE_MODELS[this.defaultModel] || AVAILABLE_MODELS['claude-3-5-sonnet']
+      const fallbackModel =
+        AVAILABLE_MODELS[this.defaultModel] || AVAILABLE_MODELS['claude-3-5-sonnet']
+      if (!fallbackModel) {
+        throw new Error(`No valid models available. Check AVAILABLE_MODELS configuration.`)
+      }
+      return fallbackModel
     }
-    
+
     return model
   }
 
   // Get default model
   getDefaultModel(): ModelConfig {
-    return AVAILABLE_MODELS[this.defaultModel] || AVAILABLE_MODELS['claude-3-5-sonnet']
+    const model = AVAILABLE_MODELS[this.defaultModel] || AVAILABLE_MODELS['claude-3-5-sonnet']
+    if (!model) {
+      throw new Error(`No valid default model available. Check AVAILABLE_MODELS configuration.`)
+    }
+    return model
   }
 
   // Get all available models
@@ -170,9 +182,19 @@ export class AIModelSelector {
   }
 
   // Get cost estimate for tokens
-  estimateCost(modelId: string, tokens: number): number {
+  estimateCost(modelId: string, inputTokens: number, outputTokens: number = 0): number {
     const model = AVAILABLE_MODELS[modelId]
-    return model ? (model.costPer1kTokens * tokens) / 1000 : 0
+    if (!model) return 0
+
+    if (typeof model.costPer1kTokens === 'number') {
+      // Legacy single price
+      return (model.costPer1kTokens * (inputTokens + outputTokens)) / 1000
+    } else {
+      // Input/output pricing
+      const inputCost = (model.costPer1kTokens.input * inputTokens) / 1000
+      const outputCost = (model.costPer1kTokens.output * outputTokens) / 1000
+      return inputCost + outputCost
+    }
   }
 }
 
@@ -182,4 +204,10 @@ export const modelSelector = new AIModelSelector()
 // Convenience functions
 export const getModelForTask = (task: string) => modelSelector.getModelForTask(task)
 export const getDefaultModel = () => modelSelector.getDefaultModel()
-export const supportsStreaming = (modelId: string) => modelSelector.supportsCapability(modelId, 'streaming') 
+export const supportsStreaming = (modelId: string) =>
+  modelSelector.supportsCapability(modelId, 'streaming')
+
+export const DEFAULT_MODELS = {
+  chat: process.env.AI_CHAT_MODEL || 'llama-3.3-70b',
+  recommendations: process.env.AI_RECOMMENDATIONS_MODEL || 'llama-3.3-70b', // Switched to Groq
+}

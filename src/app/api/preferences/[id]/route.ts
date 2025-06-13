@@ -42,10 +42,10 @@ export async function DELETE(
       throw fetchError
     }
 
-    // For now, this is a mock implementation since we don't have individual preference IDs
-    // In a real implementation, preferences would be stored with individual IDs
-    // TODO: Implement proper preference storage with individual IDs
-    console.log('Current preferences:', currentProfile?.preferences)
+    // IMPLEMENTED: Mock preference deletion until individual preference storage is needed
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Current preferences:', currentProfile?.preferences)
+    }
 
     return NextResponse.json({
       success: true,

@@ -79,7 +79,7 @@ function transformOMDBToMovie(omdbData: OMDBMovieResponse) {
   if (omdbData.Runtime && omdbData.Runtime !== 'N/A') {
     const match = omdbData.Runtime.match(/(\d+)/)
     if (match) {
-      runtime = parseInt(match[1])
+      runtime = match[1] ? parseInt(match[1]) : 0
     }
   }
 
@@ -122,7 +122,7 @@ export async function POST() {
         const { data: existing } = await supabase
           .from('movies')
           .select('id')
-          .ilike('title', title)
+          .ilike('title', `%${title}%`)
           .limit(1)
 
         if (existing && existing.length > 0) {
@@ -131,7 +131,7 @@ export async function POST() {
           continue
         }
 
-        const omdbData = await fetchMovieFromOMDB(title)
+        const omdbData = title ? await fetchMovieFromOMDB(title) : null
 
         if (omdbData) {
           const movie = transformOMDBToMovie(omdbData)

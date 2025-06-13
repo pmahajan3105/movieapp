@@ -6,11 +6,9 @@ import { movieService } from '@/lib/services/movie-service'
 import { getModelForTask, supportsStreaming } from '@/lib/ai/models'
 import { v4 as uuidv4 } from 'uuid'
 import type { ChatMessage, PreferenceData } from '@/types/chat'
-import { movieMemoryService } from '@/lib/mem0/client'
-import type { Message } from 'mem0ai'
-
-// Use ChatMessage from our AI service
-// import type { ChatMessage } from '@/lib/ai/service'
+// Legacy mem0 integration removed - using simpler preference extraction
+// import { movieMemoryService } from '@/lib/mem0/client'
+// import type { Message } from 'mem0ai'
 
 const chatRequestSchema = z.object({
   message: z.string().min(1, 'Message cannot be empty').max(1000, 'Message too long'),
@@ -33,10 +31,14 @@ function detectMovieQuery(message: string): { isMovieQuery: boolean; movieTitle?
   for (const pattern of moviePatterns) {
     const match = message.match(pattern)
     if (match) {
-      const potentialTitle = match[1].trim()
+      const potentialTitle = match[1]?.trim()
       // Filter out common non-movie terms
       const nonMovieTerms = ['movies', 'films', 'cinema', 'that', 'this', 'it', 'them']
-      if (!nonMovieTerms.includes(potentialTitle.toLowerCase()) && potentialTitle.length > 2) {
+      if (
+        potentialTitle &&
+        !nonMovieTerms.includes(potentialTitle.toLowerCase()) &&
+        potentialTitle.length > 2
+      ) {
         return { isMovieQuery: true, movieTitle: potentialTitle }
       }
     }
@@ -58,11 +60,7 @@ export async function POST(request: NextRequest) {
     })
 
     // Check if AI service is available
-    if (
-      !process.env.ANTHROPIC_API_KEY &&
-      !process.env.GROQ_API_KEY &&
-      !process.env.OPENAI_API_KEY
-    ) {
+    if (!process.env.ANTHROPIC_API_KEY && !process.env.GROQ_API_KEY) {
       console.error('❌ No AI API keys configured')
       return NextResponse.json(
         { error: 'AI service not configured', success: false },
@@ -343,35 +341,10 @@ export async function POST(request: NextRequest) {
                         try {
                           console.log('🔍 Extracting preferences from conversation (streaming)')
 
-                          // Store conversation in Mem0 for advanced memory management
-                          try {
-                            const mem0Messages: Message[] = chatHistory.map(msg => ({
-                              role: msg.role as 'user' | 'assistant',
-                              content: msg.content,
-                            }))
+                          // Legacy mem0 integration removed - now using direct preference extraction
+                          console.log('💾 Processing conversation for preference extraction')
 
-                            const memories = await movieMemoryService.addConversation(
-                              mem0Messages,
-                              user.id,
-                              {
-                                session_id: currentSessionId,
-                                conversation_type: 'preference_extraction',
-                              }
-                            )
-
-                            console.log(
-                              '💾 Stored conversation in Mem0:',
-                              memories.length,
-                              'memories created'
-                            )
-                          } catch (mem0Error) {
-                            console.error(
-                              '❌ Mem0 storage error (continuing without Mem0):',
-                              mem0Error
-                            )
-                          }
-
-                          // Simple but effective preference extraction from conversation
+                          // Use the same enhanced preference extraction logic
                           const conversationText = chatHistory
                             .map(m => m.content)
                             .join(' ')
@@ -403,13 +376,91 @@ export async function POST(request: NextRequest) {
                             }
                           }
 
+                          // Extract year range from conversation (same logic as non-streaming)
+                          let yearRange = { min: 1980, max: 2024 }
+                          const currentYear = new Date().getFullYear()
+
+                          const yearPatterns = [
+                            /last (\d+) years?/gi,
+                            /past (\d+) years?/gi,
+                            /recent (\d+) years?/gi,
+                            /from (\d{4}) to (\d{4})/gi,
+                            /between (\d{4}) and (\d{4})/gi,
+                            /(\d{4})-(\d{4})/gi,
+                            /after (\d{4})/gi,
+                            /since (\d{4})/gi,
+                            /before (\d{4})/gi,
+                            /until (\d{4})/gi,
+                            /(\d{4})s/gi,
+                          ]
+
+                          for (const pattern of yearPatterns) {
+                            const matches = Array.from(conversationText.matchAll(pattern))
+                            for (const match of matches) {
+                              if (pattern.source.includes('last|past|recent')) {
+                                const yearsBack = parseInt(match[1]!, 10)
+                                if (yearsBack && yearsBack > 0 && yearsBack <= 50) {
+                                  yearRange = { min: currentYear - yearsBack, max: currentYear }
+                                  console.log(
+                                    `📅 Extracted year range from "last ${yearsBack} years":`,
+                                    yearRange
+                                  )
+                                  break
+                                }
+                              } else if (
+                                pattern.source.includes('from.*to|between.*and|\\d{4}-\\d{4}')
+                              ) {
+                                const startYear = parseInt(match[1]!, 10)
+                                const endYear = parseInt(match[2]!, 10)
+                                if (
+                                  startYear &&
+                                  endYear &&
+                                  startYear >= 1900 &&
+                                  endYear <= currentYear &&
+                                  startYear <= endYear
+                                ) {
+                                  yearRange = { min: startYear, max: endYear }
+                                  break
+                                }
+                              }
+                              // Add other year extraction logic as needed
+                            }
+                          }
+
+                          // Extract rating range from conversation (same logic as non-streaming)
+                          let ratingRange = { min: 6.0, max: 10.0 }
+
+                          const ratingPatterns = [
+                            /(\d+(?:\.\d+)?)\s*\+/gi,
+                            /(\d+(?:\.\d+)?)\s*or\s*higher/gi,
+                            /above\s*(\d+(?:\.\d+)?)/gi,
+                            /over\s*(\d+(?:\.\d+)?)/gi,
+                          ]
+
+                          for (const pattern of ratingPatterns) {
+                            const matches = Array.from(conversationText.matchAll(pattern))
+                            for (const match of matches) {
+                              if (pattern.source.includes('\\+|or.*higher|above|over')) {
+                                const minRating = parseFloat(match[1]!)
+                                if (minRating && minRating >= 1 && minRating <= 10) {
+                                  ratingRange = { min: minRating, max: 10.0 }
+                                  console.log(
+                                    `⭐ Extracted rating range from "${match[0]}":`,
+                                    ratingRange
+                                  )
+                                  break
+                                }
+                              }
+                            }
+                          }
+
                           // Extract actors/directors if mentioned
                           const actors: string[] = []
                           const directors: string[] = []
 
-                          // Create preferences object
+                          // Create enhanced preferences object
                           const extractedPreferenceData = {
-                            genres: genres.length > 0 ? genres : ['Comedy'], // Default to Comedy if nothing detected
+                            genres: genres.length > 0 ? genres : [],
                             actors,
                             directors,
                             themes: [],
@@ -417,8 +468,8 @@ export async function POST(request: NextRequest) {
                             dislikedGenres: [],
                             languages: ['English'],
                             viewingContexts: [],
-                            yearRange: { min: 1980, max: 2024 },
-                            ratingRange: { min: 6.0, max: 10.0 },
+                            yearRange,
+                            ratingRange,
                           }
 
                           console.log(
@@ -866,23 +917,10 @@ export async function POST(request: NextRequest) {
           console.log('🔍 Extracting preferences from conversation')
 
           // Store conversation in Mem0 for advanced memory management
-          try {
-            const mem0Messages: Message[] = chatHistory.map(msg => ({
-              role: msg.role as 'user' | 'assistant',
-              content: msg.content,
-            }))
+          // Legacy mem0 integration removed - now using direct preference extraction
+          console.log('💾 Processing conversation for preference extraction')
 
-            const memories = await movieMemoryService.addConversation(mem0Messages, user.id, {
-              session_id: currentSessionId,
-              conversation_type: 'preference_extraction',
-            })
-
-            console.log('💾 Stored conversation in Mem0:', memories.length, 'memories created')
-          } catch (mem0Error) {
-            console.error('❌ Mem0 storage error (continuing without Mem0):', mem0Error)
-          }
-
-          // Simple but effective preference extraction from conversation
+          // Enhanced preference extraction from conversation
           const conversationText = chatHistory
             .map(m => m.content)
             .join(' ')
@@ -907,13 +945,170 @@ export async function POST(request: NextRequest) {
             }
           }
 
+          // Extract year range from conversation
+          let yearRange = { min: 1980, max: 2024 }
+          const currentYear = new Date().getFullYear()
+
+          // Look for specific year mentions
+          const yearPatterns = [
+            // "last X years" patterns
+            /last (\d+) years?/gi,
+            /past (\d+) years?/gi,
+            /recent (\d+) years?/gi,
+            // "from year X to Y" patterns
+            /from (\d{4}) to (\d{4})/gi,
+            /between (\d{4}) and (\d{4})/gi,
+            /(\d{4})-(\d{4})/gi,
+            // "after year X" patterns
+            /after (\d{4})/gi,
+            /since (\d{4})/gi,
+            /from (\d{4})/gi,
+            // "before year X" patterns
+            /before (\d{4})/gi,
+            /until (\d{4})/gi,
+            // Decade patterns
+            /(\d{4})s/gi,
+          ]
+
+          for (const pattern of yearPatterns) {
+            const matches = Array.from(conversationText.matchAll(pattern))
+            for (const match of matches) {
+              if (pattern.source.includes('last|past|recent')) {
+                // "last X years" - calculate from current year
+                const yearsBack = parseInt(match[1]!, 10)
+                if (yearsBack && yearsBack > 0 && yearsBack <= 50) {
+                  yearRange = { min: currentYear - yearsBack, max: currentYear }
+                  console.log(`📅 Extracted year range from "last ${yearsBack} years":`, yearRange)
+                  break
+                }
+              } else if (pattern.source.includes('from.*to|between.*and|\\d{4}-\\d{4}')) {
+                // Range patterns
+                const startYear = parseInt(match[1]!, 10)
+                const endYear = parseInt(match[2]!, 10)
+                if (
+                  startYear &&
+                  endYear &&
+                  startYear >= 1900 &&
+                  endYear <= currentYear &&
+                  startYear <= endYear
+                ) {
+                  yearRange = { min: startYear, max: endYear }
+                  console.log(`📅 Extracted year range:`, yearRange)
+                  break
+                }
+              } else if (pattern.source.includes('after|since|from')) {
+                // "after year X"
+                const year = parseInt(match[1]!, 10)
+                if (year && year >= 1900 && year <= currentYear) {
+                  yearRange = { min: year, max: currentYear }
+                  console.log(`📅 Extracted year range from "after ${year}":`, yearRange)
+                  break
+                }
+              } else if (pattern.source.includes('before|until')) {
+                // "before year X"
+                const year = parseInt(match[1]!, 10)
+                if (year && year >= 1900 && year <= currentYear) {
+                  yearRange = { min: 1980, max: year }
+                  console.log(`📅 Extracted year range from "before ${year}":`, yearRange)
+                  break
+                }
+              } else if (pattern.source.includes('\\d{4}s')) {
+                // Decade pattern (e.g., "1990s")
+                const decade = parseInt(match[1]!, 10)
+                if (decade && decade >= 1900 && decade <= currentYear) {
+                  yearRange = { min: decade, max: decade + 9 }
+                  console.log(`📅 Extracted year range from "${decade}s":`, yearRange)
+                  break
+                }
+              }
+            }
+          }
+
+          // Extract rating range from conversation
+          let ratingRange = { min: 6.0, max: 10.0 }
+
+          const ratingPatterns = [
+            // "8+ rating" or "8 or higher"
+            /(\d+(?:\.\d+)?)\s*\+/gi,
+            /(\d+(?:\.\d+)?)\s*or\s*higher/gi,
+            /above\s*(\d+(?:\.\d+)?)/gi,
+            /over\s*(\d+(?:\.\d+)?)/gi,
+            // "6-9 rating" or "between 7 and 9"
+            /(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)/gi,
+            /between\s*(\d+(?:\.\d+)?)\s*and\s*(\d+(?:\.\d+)?)/gi,
+            // "at least X rating"
+            /at\s*least\s*(\d+(?:\.\d+)?)/gi,
+            /minimum\s*(\d+(?:\.\d+)?)/gi,
+            // "under X rating"
+            /under\s*(\d+(?:\.\d+)?)/gi,
+            /below\s*(\d+(?:\.\d+)?)/gi,
+            /less\s*than\s*(\d+(?:\.\d+)?)/gi,
+          ]
+
+          for (const pattern of ratingPatterns) {
+            const matches = Array.from(conversationText.matchAll(pattern))
+            for (const match of matches) {
+              if (pattern.source.includes('\\+|or.*higher|above|over|at.*least|minimum')) {
+                // "X+ rating" or "X or higher"
+                const minRating = parseFloat(match[1]!)
+                if (minRating && minRating >= 1 && minRating <= 10) {
+                  ratingRange = { min: minRating, max: 10.0 }
+                  console.log(`⭐ Extracted rating range from "${match[0]}":`, ratingRange)
+                  break
+                }
+              } else if (pattern.source.includes('-|between.*and')) {
+                // Range patterns
+                const minRating = parseFloat(match[1]!)
+                const maxRating = parseFloat(match[2]!)
+                if (
+                  minRating &&
+                  maxRating &&
+                  minRating >= 1 &&
+                  maxRating <= 10 &&
+                  minRating <= maxRating
+                ) {
+                  ratingRange = { min: minRating, max: maxRating }
+                  console.log(`⭐ Extracted rating range:`, ratingRange)
+                  break
+                }
+              } else if (pattern.source.includes('under|below|less.*than')) {
+                // "under X rating"
+                const maxRating = parseFloat(match[1]!)
+                if (maxRating && maxRating >= 1 && maxRating <= 10) {
+                  ratingRange = { min: 1.0, max: maxRating }
+                  console.log(`⭐ Extracted rating range from "under ${maxRating}":`, ratingRange)
+                  break
+                }
+              }
+            }
+          }
+
           // Extract actors/directors if mentioned
           const actors: string[] = []
           const directors: string[] = []
 
-          // Create preferences object
+          // Extract specific movie titles mentioned
+          const movieTitles: string[] = []
+          // Look for movie title patterns in quotes or after "like"
+          const moviePatterns = [
+            /"([^"]+)"/gi,
+            /'([^']+)'/gi,
+            /like\s+([A-Z][A-Za-z\s:,&-]+?)(?:\s+(?:movie|film)|[,.;]|$)/gi,
+          ]
+
+          for (const pattern of moviePatterns) {
+            const matches = Array.from(conversationText.matchAll(pattern))
+            for (const match of matches) {
+              const title = (match[1] ?? '').trim()
+              if (title.length > 2 && title.length < 100) {
+                movieTitles.push(title)
+              }
+            }
+          }
+
+          // Create enhanced preferences object
           const extractedPreferenceData = {
-            genres: genres.length > 0 ? genres : ['Comedy'], // Default to Comedy if nothing detected
+            genres: genres.length > 0 ? genres : [],
             actors,
             directors,
             themes: [],
@@ -921,8 +1116,9 @@ export async function POST(request: NextRequest) {
             dislikedGenres: [],
             languages: ['English'],
             viewingContexts: [],
-            yearRange: { min: 1980, max: 2024 },
-            ratingRange: { min: 6.0, max: 10.0 },
+            movieTitles: movieTitles.length > 0 ? movieTitles : [],
+            yearRange,
+            ratingRange,
           }
 
           console.log('✅ Extracted preferences:', extractedPreferenceData)
@@ -998,7 +1194,10 @@ export async function POST(request: NextRequest) {
     console.error('❌ Chat API error:', error)
 
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors[0].message, success: false }, { status: 400 })
+      return NextResponse.json(
+        { error: error.errors?.[0]?.message ?? 'Unknown error', success: false },
+        { status: 400 }
+      )
     }
 
     if (error instanceof Error && error.message.includes('API key')) {

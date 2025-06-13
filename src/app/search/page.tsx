@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect, Suspense } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSearchParams } from 'next/navigation'
 import { FilterPanel } from '@/components/search/FilterPanel'
@@ -11,7 +11,7 @@ import type { Movie } from '@/types'
 import type { SearchFilters, SearchResponse } from '@/types/search'
 import { toast } from 'react-hot-toast'
 
-export default function SearchPage() {
+function SearchPageContent() {
   const { user } = useAuth()
   const searchParams = useSearchParams()
 
@@ -240,5 +240,22 @@ export default function SearchPage() {
         />
       </div>
     </div>
+  )
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-gray-50">
+          <div className="text-center">
+            <div className="mx-auto h-32 w-32 animate-spin rounded-full border-b-2 border-purple-600"></div>
+            <p className="mt-4 text-gray-600">Loading search...</p>
+          </div>
+        </div>
+      }
+    >
+      <SearchPageContent />
+    </Suspense>
   )
 }

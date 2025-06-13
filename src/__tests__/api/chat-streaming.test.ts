@@ -4,27 +4,23 @@ jest.mock('@/lib/supabase/client', () => ({
     auth: {
       getUser: jest.fn().mockResolvedValue({
         data: { user: { id: 'test-user-123', email: 'test@example.com' } },
-        error: null
-      })
-    }
-  }))
+        error: null,
+      }),
+    },
+  })),
 }))
 
-jest.mock('@/lib/mem0/client', () => ({
-  movieMemoryService: {
-    addConversation: jest.fn().mockResolvedValue([{ id: 'memory-123' }])
-  }
-}))
+// jest.mock('@/lib/mem0/client') // Removed - package deleted
 
 jest.mock('groq-sdk', () => ({
   __esModule: true,
   default: jest.fn().mockImplementation(() => ({
     chat: {
       completions: {
-        create: jest.fn()
-      }
-    }
-  }))
+        create: jest.fn(),
+      },
+    },
+  })),
 }))
 
 describe('Chat Streaming API', () => {
@@ -41,9 +37,9 @@ describe('Chat Streaming API', () => {
           'save that',
           'remember this',
           'store my',
-          'save in my preference'
+          'save in my preference',
         ]
-        
+
         const lowerMessage = message.toLowerCase()
         return triggers.some(trigger => lowerMessage.includes(trigger))
       }
@@ -55,22 +51,22 @@ describe('Chat Streaming API', () => {
 
     it('should detect AI completion responses', () => {
       const isCompletionResponse = (response: string): boolean => {
-                 const completionSignals = [
-           "i've updated",
-           "i've saved", 
-           "perfect!",
-           "great!",
-           "got it",
-           "preferences updated"
-         ]
-        
+        const completionSignals = [
+          "i've updated",
+          "i've saved",
+          'perfect!',
+          'great!',
+          'got it',
+          'preferences updated',
+        ]
+
         const lowerResponse = response.toLowerCase()
         return completionSignals.some(signal => lowerResponse.includes(signal))
       }
 
       expect(isCompletionResponse("Perfect! I've updated your preferences.")).toBe(true)
       expect(isCompletionResponse("I've saved your movie preferences.")).toBe(true)
-      expect(isCompletionResponse("What kind of movies do you like?")).toBe(false)
+      expect(isCompletionResponse('What kind of movies do you like?')).toBe(false)
     })
   })
 
@@ -78,10 +74,18 @@ describe('Chat Streaming API', () => {
     it('should identify movie-related queries', () => {
       const isMovieQuery = (message: string): boolean => {
         const movieKeywords = [
-          'movie', 'film', 'cinema', 'watch', 'recommend',
-          'genre', 'actor', 'director', 'series', 'show'
+          'movie',
+          'film',
+          'cinema',
+          'watch',
+          'recommend',
+          'genre',
+          'actor',
+          'director',
+          'series',
+          'show',
         ]
-        
+
         const lowerMessage = message.toLowerCase()
         return movieKeywords.some(keyword => lowerMessage.includes(keyword))
       }
@@ -96,18 +100,18 @@ describe('Chat Streaming API', () => {
         const preferences = {
           genres: [] as string[],
           movies: [] as string[],
-          directors: [] as string[]
+          directors: [] as string[],
         }
 
         const lowerMessage = message.toLowerCase()
 
         // Extract genres
         const genreMap = {
-          'horror': ['horror', 'scary', 'frightening', 'shining'],
-          'comedy': ['comedy', 'funny', 'laugh', 'humor'],
-          'action': ['action', 'adventure', 'fight', 'explosion'],
-          'drama': ['drama', 'emotional', 'serious'],
-          'sci-fi': ['sci-fi', 'science fiction', 'futuristic', 'space']
+          horror: ['horror', 'scary', 'frightening', 'shining'],
+          comedy: ['comedy', 'funny', 'laugh', 'humor'],
+          action: ['action', 'adventure', 'fight', 'explosion'],
+          drama: ['drama', 'emotional', 'serious'],
+          'sci-fi': ['sci-fi', 'science fiction', 'futuristic', 'space'],
         }
 
         for (const [genre, keywords] of Object.entries(genreMap)) {
@@ -117,13 +121,7 @@ describe('Chat Streaming API', () => {
         }
 
         // Extract specific movies (simple pattern matching)
-        const moviePatterns = [
-          'the shining',
-          'avengers',
-          'matrix',
-          'inception',
-          'interstellar'
-        ]
+        const moviePatterns = ['the shining', 'avengers', 'matrix', 'inception', 'interstellar']
 
         for (const movie of moviePatterns) {
           if (lowerMessage.includes(movie)) {
@@ -149,7 +147,7 @@ describe('Chat Streaming API', () => {
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             const eventData = line.slice(6).trim()
-            
+
             if (eventData === '[DONE]') {
               events.push({ type: 'done' })
               continue
@@ -168,7 +166,7 @@ describe('Chat Streaming API', () => {
       }
 
       const mockStream = `data: {"choices":[{"delta":{"content":"I've"}}]}\ndata: {"choices":[{"delta":{"content":" saved"}}]}\ndata: [DONE]\n`
-      
+
       const events = processStreamChunk(mockStream)
       expect(events).toHaveLength(3)
       expect(events[2].type).toBe('done')
@@ -180,16 +178,13 @@ describe('Chat Streaming API', () => {
         content: string
       }
 
-      const buildConversationContext = (
-        messages: Message[], 
-        currentMessage: string
-      ): Message[] => {
+      const buildConversationContext = (messages: Message[], currentMessage: string): Message[] => {
         const context = [...messages]
-        
+
         if (currentMessage.trim()) {
           context.push({
             role: 'user',
-            content: currentMessage
+            content: currentMessage,
           })
         }
 
@@ -199,72 +194,20 @@ describe('Chat Streaming API', () => {
 
       const existingMessages: Message[] = [
         { role: 'user', content: 'Hi there' },
-        { role: 'assistant', content: 'Hello! How can I help you?' }
+        { role: 'assistant', content: 'Hello! How can I help you?' },
       ]
 
       const context = buildConversationContext(existingMessages, 'I love horror movies')
-      
+
       expect(context).toHaveLength(3)
-      expect(context[2].content).toBe('I love horror movies')
-      expect(context[2].role).toBe('user')
+      expect(context[2]?.content).toBe('I love horror movies')
+      expect(context[2]?.role).toBe('user')
     })
   })
 
-  describe('Memory Integration', () => {
-    it('should handle conversation storage', async () => {
-      const { movieMemoryService } = await import('@/lib/mem0/client')
-      
-             const storeConversation = async (messages: Array<{role: 'user' | 'assistant', content: string}>, userId: string) => {
-        try {
-          return await movieMemoryService.addConversation(messages, userId, {
-            timestamp: new Date().toISOString(),
-            context: 'preference_extraction'
-          })
-        } catch (error) {
-          console.warn('Failed to store conversation:', error)
-          return null
-        }
-      }
-
-             const messages: Array<{role: 'user' | 'assistant', content: string}> = [
-         { role: 'user', content: 'I love horror movies' },
-         { role: 'assistant', content: "I've noted your preference for horror movies!" }
-       ]
-
-      await storeConversation(messages, 'test-user-123')
-      
-      expect(movieMemoryService.addConversation).toHaveBeenCalledWith(
-        messages,
-        'test-user-123',
-        expect.objectContaining({
-          context: 'preference_extraction'
-        })
-      )
-    })
-
-    it('should handle memory storage failures gracefully', async () => {
-      const { movieMemoryService } = await import('@/lib/mem0/client')
-      
-      // Mock failure
-      movieMemoryService.addConversation = jest.fn().mockRejectedValue(new Error('Storage failed'))
-
-      const attemptStorage = async () => {
-        try {
-          await movieMemoryService.addConversation([], 'test-user', {})
-          return { success: true }
-        } catch (error) {
-          return { 
-            success: false, 
-            error: error instanceof Error ? error.message : 'Unknown error'
-          }
-        }
-      }
-
-      const result = await attemptStorage()
-      expect(result.success).toBe(false)
-      expect(result.error).toBe('Storage failed')
-    })
-  })
+  // describe('Memory Integration', () => {
+  //   // Removed - mem0 package deleted
+  // })
 
   describe('Session Management', () => {
     it('should generate unique session IDs', () => {
@@ -283,9 +226,10 @@ describe('Chat Streaming API', () => {
     it('should validate session data', () => {
       const validateSession = (sessionId?: string) => {
         if (!sessionId) return { valid: false, reason: 'Missing session ID' }
-        if (typeof sessionId !== 'string') return { valid: false, reason: 'Invalid session ID type' }
+        if (typeof sessionId !== 'string')
+          return { valid: false, reason: 'Invalid session ID type' }
         if (sessionId.length < 10) return { valid: false, reason: 'Session ID too short' }
-        
+
         return { valid: true }
       }
 
@@ -299,22 +243,25 @@ describe('Chat Streaming API', () => {
     it('should handle API failures gracefully', () => {
       const handleAPIError = (error: Error) => {
         const errorMap = {
-          'RATE_LIMITED': 'Too many requests, please try again later',
-          'UNAUTHORIZED': 'Authentication failed',
-          'SERVICE_UNAVAILABLE': 'Service temporarily unavailable'
+          RATE_LIMITED: 'Too many requests, please try again later',
+          UNAUTHORIZED: 'Authentication failed',
+          SERVICE_UNAVAILABLE: 'Service temporarily unavailable',
         }
 
-                 const lowerMessage = error.message.toLowerCase()
-         const errorType = lowerMessage.includes('rate') ? 'RATE_LIMITED' :
-                          lowerMessage.includes('auth') ? 'UNAUTHORIZED' :
-                          lowerMessage.includes('unavailable') ? 'SERVICE_UNAVAILABLE' :
-                          'UNKNOWN_ERROR'
+        const lowerMessage = error.message.toLowerCase()
+        const errorType = lowerMessage.includes('rate')
+          ? 'RATE_LIMITED'
+          : lowerMessage.includes('auth')
+            ? 'UNAUTHORIZED'
+            : lowerMessage.includes('unavailable')
+              ? 'SERVICE_UNAVAILABLE'
+              : 'UNKNOWN_ERROR'
 
         return {
           error: true,
           type: errorType,
           message: errorMap[errorType as keyof typeof errorMap] || 'An unexpected error occurred',
-          retryable: errorType !== 'UNAUTHORIZED'
+          retryable: errorType !== 'UNAUTHORIZED',
         }
       }
 
@@ -351,26 +298,28 @@ describe('Chat Streaming API', () => {
 
         return {
           valid: errors.length === 0,
-          errors
+          errors,
         }
       }
 
       expect(validateChatRequest({})).toEqual({
         valid: false,
-        errors: ['Message is required']
+        errors: ['Message is required'],
       })
 
       expect(validateChatRequest({ message: 'Hello' })).toEqual({
         valid: true,
-        errors: []
+        errors: [],
       })
 
-      expect(validateChatRequest({ 
-        message: 'a'.repeat(5000) 
-      })).toEqual({
+      expect(
+        validateChatRequest({
+          message: 'a'.repeat(5000),
+        })
+      ).toEqual({
         valid: false,
-        errors: ['Message too long (max 4000 characters)']
+        errors: ['Message too long (max 4000 characters)'],
       })
     })
   })
-}) 
+})

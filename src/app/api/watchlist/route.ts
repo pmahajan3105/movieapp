@@ -5,39 +5,14 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = await createServerClient()
 
-    // Debug: Check session first
-    const {
-      data: { session },
-      error: sessionError,
-    } = await supabase.auth.getSession()
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log('🔍 Watchlist GET: Session check', { 
-        hasSession: !!session, 
-        sessionError: sessionError?.message,
-        userId: session?.user?.id
-      })
-    }
-
-    // Get current user
+    // Get current user (secure method)
     const {
       data: { user },
       error: authError,
     } = await supabase.auth.getUser()
 
     if (authError || !user) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('❌ Watchlist GET: Authentication failed', { 
-          authError: authError?.message,
-          hasSession: !!session,
-          sessionUserId: session?.user?.id
-        })
-      }
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
-    }
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log('✅ Watchlist GET: User authenticated', { userId: user.id, email: user.email })
     }
 
     const { searchParams } = new URL(request.url)
@@ -81,24 +56,11 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query
 
     if (error) {
-      console.error('❌ Watchlist fetch error:', {
-        error: error.message,
-        code: error.code,
-        details: error.details,
-        hint: error.hint,
-        userId: user.id
-      })
+      console.error('❌ Watchlist fetch error:', error.message)
       return NextResponse.json(
         { success: false, error: 'Failed to fetch watchlist' },
         { status: 500 }
       )
-    }
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log('✅ Watchlist GET successful', { 
-        userId: user.id, 
-        itemCount: data?.length || 0 
-      })
     }
 
     return NextResponse.json({
@@ -127,111 +89,164 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser()
 
     if (authError || !user) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('❌ Watchlist POST: Authentication failed', { authError: authError?.message })
-      }
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
-    }
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log('✅ Watchlist POST: User authenticated', { userId: user.id, email: user.email })
     }
 
     const body = await request.json()
     const { movie_id, notes } = body
 
-    if (process.env.NODE_ENV === 'development') {
-      console.log('📝 Watchlist POST: Request data', { 
-        movie_id, 
-        notes, 
-        userId: user.id 
-      })
-    }
-
     if (!movie_id) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('❌ Watchlist POST: Missing movie_id')
-      }
       return NextResponse.json({ success: false, error: 'Movie ID is required' }, { status: 400 })
     }
 
-    // First, verify the movie exists
+    // First, try to find the movie in our local database
     const { data: movieExists, error: movieError } = await supabase
       .from('movies')
       .select('id, title')
       .eq('id', movie_id)
       .single()
 
-    if (movieError || !movieExists) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('❌ Watchlist POST: Movie not found', { 
-          movie_id, 
-          movieError: movieError?.message 
-        })
+    // If movie doesn't exist locally and it's a TMDB ID, try to fetch from TMDB and insert
+    if ((movieError || !movieExists) && movie_id.startsWith('tmdb_')) {
+      // Extract TMDB ID from the format 'tmdb_123456'
+      const tmdbId = movie_id.replace('tmdb_', '')
+
+      try {
+        // Fetch movie details from TMDB with credits for director and cast
+        const tmdbResponse = await fetch(
+          `https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${process.env.TMDB_API_KEY}&append_to_response=credits`
+        )
+
+        if (tmdbResponse.ok) {
+          const tmdbMovie = await tmdbResponse.json()
+
+          // Extract director from credits
+          const director =
+            tmdbMovie.credits?.crew?.find(
+              (member: { job: string; name: string }) => member.job === 'Director'
+            )?.name || null
+
+          // Extract main cast (top 10 actors)
+          const cast =
+            tmdbMovie.credits?.cast?.slice(0, 10).map((actor: { name: string }) => actor.name) || []
+
+          const newMovie = {
+            id: movie_id, // Use the full tmdb_xxx format as our ID
+            title: tmdbMovie.title,
+            year: tmdbMovie.release_date ? new Date(tmdbMovie.release_date).getFullYear() : null,
+            genre: tmdbMovie.genres?.map((g: { name: string }) => g.name).join(', ') || null,
+            director: director,
+            cast: cast.length > 0 ? cast : null,
+            plot: tmdbMovie.overview || null,
+            poster_url: tmdbMovie.poster_path
+              ? `https://image.tmdb.org/t/p/w500${tmdbMovie.poster_path}`
+              : null,
+            rating: tmdbMovie.vote_average || null,
+            runtime: tmdbMovie.runtime || null,
+            imdb_id: tmdbMovie.imdb_id || null,
+            tmdb_id: parseInt(tmdbId),
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }
+
+          // Insert movie into our database
+          const { error: insertError } = await supabase
+            .from('movies')
+            .insert(newMovie)
+            .select('id, title')
+            .single()
+
+          if (insertError) {
+            console.error('❌ Failed to insert movie from TMDB:', insertError.message)
+            return NextResponse.json(
+              {
+                success: false,
+                error: 'Failed to add movie to database',
+              },
+              { status: 500 }
+            )
+          }
+        } else {
+          console.error('❌ Error fetching from TMDB:', tmdbResponse.status)
+          return NextResponse.json(
+            {
+              success: false,
+              error: 'Movie not found',
+            },
+            { status: 404 }
+          )
+        }
+      } catch (tmdbError) {
+        console.error('❌ Error fetching from TMDB:', tmdbError)
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Failed to fetch movie details',
+          },
+          { status: 500 }
+        )
       }
+    }
+
+    // Re-check if movie exists after potential TMDB insertion
+    const { data: movie, error: finalMovieError } = await supabase
+      .from('movies')
+      .select('id, title')
+      .eq('id', movie_id)
+      .single()
+
+    if (finalMovieError || !movie) {
       return NextResponse.json(
-        { success: false, error: 'Movie not found' }, 
+        {
+          success: false,
+          error: 'Movie not found',
+        },
         { status: 404 }
       )
     }
 
-    if (process.env.NODE_ENV === 'development') {
-      console.log('✅ Movie exists', { movieId: movie_id, title: movieExists.title })
-    }
-
-    // Check if movie already in watchlist
-    const { data: existing, error: existingError } = await supabase
+    // Check if movie is already in watchlist
+    const { data: existingItem, error: checkError } = await supabase
       .from('watchlist')
       .select('id')
       .eq('user_id', user.id)
       .eq('movie_id', movie_id)
       .single()
 
-    if (existingError && existingError.code !== 'PGRST116') {
-      console.error('❌ Error checking existing watchlist item:', {
-        error: existingError.message,
-        code: existingError.code,
-        userId: user.id,
-        movieId: movie_id
-      })
+    if (checkError && checkError.code !== 'PGRST116') {
+      console.error('❌ Error checking existing watchlist item:', checkError.message)
       return NextResponse.json(
-        { success: false, error: 'Error checking watchlist' },
+        {
+          success: false,
+          error: 'Database error',
+        },
         { status: 500 }
       )
     }
 
-    if (existing) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('⚠️ Movie already in watchlist', { 
-          userId: user.id, 
-          movieId: movie_id,
-          existingId: existing.id
-        })
-      }
+    if (existingItem) {
       return NextResponse.json(
-        { success: false, error: 'Movie already in watchlist' },
+        {
+          success: false,
+          error: 'Movie already in watchlist',
+        },
         { status: 409 }
       )
     }
 
-    if (process.env.NODE_ENV === 'development') {
-      console.log('➕ Adding movie to watchlist...')
-    }
-
     // Add to watchlist
-    const { data, error } = await supabase
+    const { data: newItem, error: insertError } = await supabase
       .from('watchlist')
       .insert({
         user_id: user.id,
-        movie_id,
+        movie_id: movie_id,
         notes: notes || null,
-        watched: false,
+        added_at: new Date().toISOString(),
       })
-      .select(`
+      .select(
+        `
         id,
         added_at,
-        watched,
-        watched_at,
         notes,
         movies:movie_id (
           id,
@@ -245,39 +260,31 @@ export async function POST(request: NextRequest) {
           runtime,
           imdb_id
         )
-      `)
+      `
+      )
       .single()
 
-    if (error) {
-      console.error('❌ Watchlist add error:', {
-        error: error.message,
-        code: error.code,
-        details: error.details,
-        hint: error.hint,
-        userId: user.id,
-        movieId: movie_id
-      })
+    if (insertError) {
+      console.error('❌ Watchlist add error:', insertError.message)
       return NextResponse.json(
-        { success: false, error: `Failed to add to watchlist: ${error.message}` },
+        {
+          success: false,
+          error: 'Failed to add to watchlist',
+        },
         { status: 500 }
       )
     }
 
-    if (process.env.NODE_ENV === 'development') {
-      console.log('✅ Successfully added to watchlist', { 
-        userId: user.id, 
-        movieId: movie_id,
-        watchlistId: data?.id
-      })
-    }
-
-    return NextResponse.json({ success: true, data })
+    return NextResponse.json(
+      {
+        success: true,
+        data: newItem,
+      },
+      { status: 201 }
+    )
   } catch (error) {
     console.error('❌ Watchlist POST error:', error)
-    return NextResponse.json({ 
-      success: false, 
-      error: `Internal server error: ${error instanceof Error ? error.message : 'Unknown error'}` 
-    }, { status: 500 })
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
 }
 
@@ -296,7 +303,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { watchlist_id, watched, notes } = body
+    const { watchlist_id, watched, notes, rating } = body
 
     if (!watchlist_id) {
       return NextResponse.json(
@@ -314,6 +321,10 @@ export async function PATCH(request: NextRequest) {
 
     if (notes !== undefined) {
       updateData.notes = notes
+    }
+
+    if (rating !== undefined && typeof rating === 'number') {
+      updateData.rating = rating
     }
 
     const { data, error } = await supabase
@@ -371,10 +382,10 @@ export async function DELETE(request: NextRequest) {
     const movieId = searchParams.get('movie_id')
 
     if (process.env.NODE_ENV === 'development') {
-      console.log('📝 Watchlist DELETE: Request data', { 
-        movieId, 
+      console.log('📝 Watchlist DELETE: Request data', {
+        movieId,
         userId: user.id,
-        searchParams: Object.fromEntries(searchParams)
+        searchParams: Object.fromEntries(searchParams),
       })
     }
 
@@ -398,7 +409,7 @@ export async function DELETE(request: NextRequest) {
         error: existingError.message,
         code: existingError.code,
         userId: user.id,
-        movieId
+        movieId,
       })
       return NextResponse.json(
         { success: false, error: 'Error checking watchlist' },
@@ -407,21 +418,18 @@ export async function DELETE(request: NextRequest) {
     }
 
     if (!existing) {
-      console.log('⚠️ Movie not in watchlist', { 
-        userId: user.id, 
-        movieId
+      console.log('⚠️ Movie not in watchlist', {
+        userId: user.id,
+        movieId,
       })
-      return NextResponse.json(
-        { success: false, error: 'Movie not in watchlist' },
-        { status: 404 }
-      )
+      return NextResponse.json({ success: false, error: 'Movie not in watchlist' }, { status: 404 })
     }
 
     if (process.env.NODE_ENV === 'development') {
-      console.log('🗑️ Removing movie from watchlist...', { 
+      console.log('🗑️ Removing movie from watchlist...', {
         watchlistId: existing.id,
         movieId,
-        userId: user.id
+        userId: user.id,
       })
     }
 
@@ -438,7 +446,7 @@ export async function DELETE(request: NextRequest) {
         details: error.details,
         hint: error.hint,
         userId: user.id,
-        movieId
+        movieId,
       })
       return NextResponse.json(
         { success: false, error: `Failed to remove from watchlist: ${error.message}` },
@@ -447,19 +455,22 @@ export async function DELETE(request: NextRequest) {
     }
 
     if (process.env.NODE_ENV === 'development') {
-      console.log('✅ Successfully removed from watchlist', { 
-        userId: user.id, 
+      console.log('✅ Successfully removed from watchlist', {
+        userId: user.id,
         movieId,
-        watchlistId: existing.id
+        watchlistId: existing.id,
       })
     }
 
     return NextResponse.json({ success: true, message: 'Removed from watchlist' })
   } catch (error) {
     console.error('❌ Watchlist DELETE error:', error)
-    return NextResponse.json({ 
-      success: false, 
-      error: `Internal server error: ${error instanceof Error ? error.message : 'Unknown error'}` 
-    }, { status: 500 })
+    return NextResponse.json(
+      {
+        success: false,
+        error: `Internal server error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      },
+      { status: 500 }
+    )
   }
 }

@@ -44,8 +44,8 @@ describe('Memory Safety Utilities', () => {
       const result = safeExtractFromMemories(memories, keywords)
 
       expect(result).toHaveLength(2)
-      expect(result[0].keyword).toBe('horror')
-      expect(result[1].keyword).toBe('comedy')
+      expect(result[0]?.keyword).toBe('horror')
+      expect(result[1]?.keyword).toBe('comedy')
     })
 
     it('should safely handle memories with undefined text', () => {
@@ -61,8 +61,8 @@ describe('Memory Safety Utilities', () => {
       expect(() => {
         const result = safeExtractFromMemories(memories, keywords)
         expect(result).toHaveLength(2) // Only valid memories should be processed
-        expect(result[0].keyword).toBe('action')
-        expect(result[1].keyword).toBe('drama')
+        expect(result[0]?.keyword).toBe('action')
+        expect(result[1]?.keyword).toBe('drama')
       }).not.toThrow()
     })
 

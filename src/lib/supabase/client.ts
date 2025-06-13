@@ -36,21 +36,27 @@ export const createServerClient = cache(async () => {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() {
-          return cookieStore.getAll()
+        get(name: string) {
+          return cookieStore.get(name)?.value
         },
-        setAll(
-          cookiesToSet: Array<{ name: string; value: string; options?: Record<string, unknown> }>
-        ) {
+        set(name: string, value: string, options) {
           try {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              cookieStore.set(name, value, options)
-            })
-          } catch (error) {
-            // The `setAll` method was called from a Server Component.
+            cookieStore.set({ name, value, ...options })
+          } catch {
+            // The `set` method was called from a Server Component.
             // This can be ignored if you have middleware refreshing
             // user sessions.
-            console.warn('Failed to set cookies in server component:', error)
+            console.warn(`Failed to set cookie "${name}" in server component.`)
+          }
+        },
+        remove(name: string, options) {
+          try {
+            cookieStore.set({ name, value: '', ...options })
+          } catch {
+            // The `delete` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing
+            // user sessions.
+            console.warn(`Failed to remove cookie "${name}" in server component.`)
           }
         },
       },

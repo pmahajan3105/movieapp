@@ -67,14 +67,16 @@ export function FilterPanel({
 
   // Handle year range change
   const handleYearRangeChange = (values: number[]) => {
-    updateFilters({ yearRange: [values[0], values[1]] })
+    if (values.length >= 2 && values[0] !== undefined && values[1] !== undefined) {
+      updateFilters({ yearRange: [values[0], values[1]] })
+    }
   }
 
   // Handle rating range change
   const handleRatingChange = (values: number[]) => {
     updateFilters({
-      minRating: values[0] > 0 ? values[0] : undefined,
-      maxRating: values[1] < 10 ? values[1] : undefined,
+      minRating: values[0]! > 0 ? values[0]! : undefined,
+      maxRating: values[1]! < 10 ? values[1]! : undefined,
     })
   }
 
@@ -198,8 +200,8 @@ export function FilterPanel({
               />
             </div>
             <div className="flex justify-between text-sm text-gray-600">
-              <span>{filters.yearRange?.[0] || 1920}</span>
-              <span>{filters.yearRange?.[1] || 2024}</span>
+              <span>{filters.yearRange ? filters.yearRange[0] : 1920}</span>
+              <span>{filters.yearRange ? filters.yearRange[1] : 2024}</span>
             </div>
           </CollapsibleContent>
         </Collapsible>
@@ -230,11 +232,11 @@ export function FilterPanel({
             <div className="flex items-center justify-between text-sm text-gray-600">
               <div className="flex items-center gap-1">
                 <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                {filters.minRating?.toFixed(1) || '0.0'}
+                {(filters.minRating ?? 0).toFixed(1)}
               </div>
               <div className="flex items-center gap-1">
                 <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                {filters.maxRating?.toFixed(1) || '10.0'}
+                {(filters.maxRating ?? 10).toFixed(1)}
               </div>
             </div>
           </CollapsibleContent>

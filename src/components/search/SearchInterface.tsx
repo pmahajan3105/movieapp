@@ -100,12 +100,16 @@ export function SearchInterface({
         if (selectedIndex >= 0) {
           if (selectedIndex < autocompleteData.movies.length) {
             const movie = autocompleteData.movies[selectedIndex]
-            handleSearch(movie.title)
+            if (movie?.title) {
+              handleSearch(movie.title)
+            }
           } else {
             const suggestionIndex = selectedIndex - autocompleteData.movies.length
             const suggestion = autocompleteData.suggestions[suggestionIndex]
-            setQuery(suggestion)
-            handleSearch(suggestion)
+            if (suggestion) {
+              setQuery(suggestion)
+              handleSearch(suggestion)
+            }
           }
         } else {
           handleSearch()
@@ -131,7 +135,7 @@ export function SearchInterface({
     <div className={`relative w-full ${className}`}>
       {/* Search Input */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+        <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
         <Input
           ref={inputRef}
           value={query}
@@ -146,11 +150,11 @@ export function SearchInterface({
             }
           }}
           placeholder={placeholder}
-          className="h-12 pl-10 pr-20 text-base"
+          className="h-12 pr-20 pl-10 text-base"
         />
 
         {/* Clear and Search buttons */}
-        <div className="absolute right-2 top-1/2 flex -translate-y-1/2 gap-1">
+        <div className="absolute top-1/2 right-2 flex -translate-y-1/2 gap-1">
           {query && (
             <Button
               type="button"
@@ -175,12 +179,12 @@ export function SearchInterface({
 
       {/* Autocomplete Suggestions */}
       {showSuggestions && autocompleteData && (
-        <Card className="absolute left-0 right-0 top-full z-50 mt-1 max-h-96 overflow-y-auto">
+        <Card className="absolute top-full right-0 left-0 z-50 mt-1 max-h-96 overflow-y-auto">
           <CardBody className="p-0">
             {/* Movie Suggestions */}
             {autocompleteData.movies.length > 0 && (
               <div className="p-2">
-                <div className="mb-2 px-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+                <div className="mb-2 px-2 text-xs font-medium tracking-wide text-gray-500 uppercase">
                   Movies
                 </div>
                 {autocompleteData.movies.map((movie, index) => (
@@ -217,7 +221,7 @@ export function SearchInterface({
             {/* Search Suggestions */}
             {autocompleteData.suggestions.length > 0 && (
               <div className="border-t p-2">
-                <div className="mb-2 px-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+                <div className="mb-2 px-2 text-xs font-medium tracking-wide text-gray-500 uppercase">
                   Recent Searches
                 </div>
                 {autocompleteData.suggestions.map((suggestion, index) => {

@@ -14,8 +14,6 @@ export function AuthDebugger() {
   const checkAuth = async () => {
     setIsChecking(true)
     try {
-      console.log('🔍 Checking authentication...')
-
       // Test the watchlist endpoint
       const response = await fetch('/api/watchlist')
       const data = await response.json()
@@ -25,25 +23,24 @@ export function AuthDebugger() {
         userFromContext: {
           id: user?.id,
           email: user?.email,
-          exists: !!user
+          exists: !!user,
         },
         apiResponse: {
           status: response.status,
           ok: response.ok,
           success: data.success,
           error: data.error,
-          headers: Object.fromEntries(response.headers.entries())
+          headers: Object.fromEntries(response.headers.entries()),
         },
         cookies: document.cookie,
         localStorage: {
           hasSupabaseAuth: !!localStorage.getItem('sb-auth-token'),
-          keys: Object.keys(localStorage).filter(k => k.includes('supabase') || k.includes('auth'))
-        }
+          keys: Object.keys(localStorage).filter(k => k.includes('supabase') || k.includes('auth')),
+        },
       }
 
       console.log('🔍 Auth check result:', authStatus)
       setAuthCheck(authStatus)
-
     } catch (error) {
       const errorStatus = {
         timestamp: new Date().toISOString(),
@@ -52,10 +49,10 @@ export function AuthDebugger() {
         userFromContext: {
           id: user?.id,
           email: user?.email,
-          exists: !!user
-        }
+          exists: !!user,
+        },
       }
-      
+
       console.error('🔍 Auth check error:', errorStatus)
       setAuthCheck(errorStatus)
     } finally {
@@ -74,7 +71,7 @@ export function AuthDebugger() {
     return (
       <Card className="max-w-2xl">
         <CardContent className="p-6 text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-b-2 border-blue-500"></div>
           <p>Loading authentication...</p>
         </CardContent>
       </Card>
@@ -90,9 +87,8 @@ export function AuthDebugger() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        
         {/* User Status */}
-        <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+        <div className="flex items-center gap-3 rounded-lg bg-gray-50 p-3">
           {user ? (
             <>
               <CheckCircle className="h-6 w-6 text-green-600" />
@@ -115,11 +111,7 @@ export function AuthDebugger() {
         </div>
 
         {/* Test Button */}
-        <Button 
-          onClick={checkAuth} 
-          disabled={isChecking}
-          className="w-full"
-        >
+        <Button onClick={checkAuth} disabled={isChecking} className="w-full">
           {isChecking ? 'Checking...' : 'Test Authentication'}
         </Button>
 
@@ -127,79 +119,71 @@ export function AuthDebugger() {
         {authCheck && (
           <div className="space-y-3">
             <h4 className="font-medium">Authentication Test Results:</h4>
-            
+
             {/* API Response Status */}
-            <div className="p-3 bg-gray-50 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
+            <div className="rounded-lg bg-gray-50 p-3">
+              <div className="mb-2 flex items-center gap-2">
                 {authCheck.apiResponse?.ok ? (
                   <CheckCircle className="h-5 w-5 text-green-600" />
                 ) : (
                   <AlertCircle className="h-5 w-5 text-red-600" />
                 )}
-                <span className="font-medium">
-                  API Response: {authCheck.apiResponse?.status}
-                </span>
+                <span className="font-medium">API Response: {authCheck.apiResponse?.status}</span>
               </div>
-              
+
               {authCheck.apiResponse?.error && (
-                <p className="text-sm text-red-600 mb-2">
-                  Error: {authCheck.apiResponse.error}
-                </p>
+                <p className="mb-2 text-sm text-red-600">Error: {authCheck.apiResponse.error}</p>
               )}
-              
+
               <details className="text-sm">
                 <summary className="cursor-pointer text-blue-600 hover:text-blue-800">
                   View Full Response
                 </summary>
-                <pre className="mt-2 p-2 bg-white rounded border overflow-auto text-xs">
+                <pre className="mt-2 overflow-auto rounded border bg-white p-2 text-xs">
                   {JSON.stringify(authCheck.apiResponse, null, 2)}
                 </pre>
               </details>
             </div>
 
             {/* Storage Info */}
-            <div className="p-3 bg-gray-50 rounded-lg">
-              <h5 className="font-medium mb-2">Authentication Storage:</h5>
-              <div className="text-sm space-y-1">
+            <div className="rounded-lg bg-gray-50 p-3">
+              <h5 className="mb-2 font-medium">Authentication Storage:</h5>
+              <div className="space-y-1 text-sm">
                 <p>
-                  <span className="font-medium">Cookies:</span> 
+                  <span className="font-medium">Cookies:</span>
                   {authCheck.cookies ? ' Present' : ' None'}
                 </p>
                 <p>
-                  <span className="font-medium">LocalStorage Auth Keys:</span> 
+                  <span className="font-medium">LocalStorage Auth Keys:</span>
                   {authCheck.localStorage?.keys?.length || 0}
                 </p>
                 {authCheck.localStorage?.keys?.map((key: string) => (
-                  <p key={key} className="ml-4 text-gray-600">• {key}</p>
+                  <p key={key} className="ml-4 text-gray-600">
+                    • {key}
+                  </p>
                 ))}
               </div>
             </div>
 
             {/* Timestamp */}
-            <p className="text-xs text-gray-500">
-              Last checked: {authCheck.timestamp}
-            </p>
+            <p className="text-xs text-gray-500">Last checked: {authCheck.timestamp}</p>
           </div>
         )}
 
         {/* Quick Actions */}
-        <div className="flex gap-2 pt-4 border-t">
+        <div className="flex gap-2 border-t pt-4">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => window.location.href = '/auth/login'}
+            onClick={() => (window.location.href = '/auth/login')}
           >
             Go to Login
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => window.location.reload()}
-          >
+          <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
             Reload Page
           </Button>
         </div>
       </CardContent>
     </Card>
   )
-} 
+}

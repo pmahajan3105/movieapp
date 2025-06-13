@@ -9,6 +9,8 @@ export interface Movie {
   plot?: string
   poster_url?: string
   backdrop_url?: string
+  description?: string // Plot overview / TMDB overview
+  release_date?: string // YYYY-MM-DD (TMDB API)
   rating?: number
   runtime?: number
   omdb_id?: string
@@ -67,7 +69,7 @@ export interface EnhancedRecommendation {
 export interface RecommendationExplanation {
   // Primary reasons why this was recommended
   primaryReasons: string[]
-  
+
   // Specific matches with user preferences
   preferenceMatches: {
     genres?: string[]
@@ -76,7 +78,7 @@ export interface RecommendationExplanation {
     themes?: string[]
     mood?: string
   }
-  
+
   // Quality indicators
   qualitySignals: {
     rating?: number
@@ -84,7 +86,7 @@ export interface RecommendationExplanation {
     userRatings?: number
     awards?: string[]
   }
-  
+
   // Context matches
   contextMatch: {
     runtime?: string // e.g., "Perfect for your 90-120 minute preference"
@@ -92,10 +94,10 @@ export interface RecommendationExplanation {
     availability?: string // e.g., "Currently on Netflix"
     mood?: string // e.g., "Great for relaxing weekend viewing"
   }
-  
+
   // Warnings or considerations
   considerations?: string[]
-  
+
   // Similar movies in user's liked list
   similarToLiked?: string[]
 }

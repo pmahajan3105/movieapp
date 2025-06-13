@@ -65,9 +65,11 @@ export default function MovieDetailPage() {
           const watchlistData: ApiResponse<WatchlistItem[]> = await watchlistRes.json()
           if (watchlistData.success && watchlistData.data.length > 0) {
             const item = watchlistData.data[0]
-            setWatchlistItem(item)
-            setUserRating(item.rating || 0)
-            setUserNotes(item.notes || '')
+            if (item) {
+              setWatchlistItem(item)
+              setUserRating(item.rating || 0)
+              setUserNotes(item.notes || '')
+            }
           }
         }
       } catch (error) {
@@ -405,7 +407,7 @@ export default function MovieDetailPage() {
                   {userNotes ? (
                     <p className="mb-2 rounded-lg bg-gray-50 p-3 text-gray-700">{userNotes}</p>
                   ) : (
-                    <p className="mb-2 italic text-gray-500">No notes added yet</p>
+                    <p className="mb-2 text-gray-500 italic">No notes added yet</p>
                   )}
                   <button
                     onClick={() => setShowNotesForm(true)}
@@ -479,9 +481,9 @@ export default function MovieDetailPage() {
                   )}
 
                   {/* Overlay on hover */}
-                  <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black bg-opacity-0 transition-all duration-200 group-hover:bg-opacity-20">
+                  <div className="bg-opacity-0 group-hover:bg-opacity-20 absolute inset-0 flex items-center justify-center rounded-lg bg-black transition-all duration-200">
                     <div className="opacity-0 transition-opacity group-hover:opacity-100">
-                      <span className="rounded-full bg-black bg-opacity-75 px-3 py-1 text-sm font-semibold text-white">
+                      <span className="bg-opacity-75 rounded-full bg-black px-3 py-1 text-sm font-semibold text-white">
                         View Details
                       </span>
                     </div>

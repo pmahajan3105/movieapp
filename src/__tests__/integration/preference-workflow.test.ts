@@ -97,7 +97,9 @@ describe('Preference Workflow Integration', () => {
     // Reset all chain methods
     Object.keys(mockSupabase).forEach(key => {
       if (typeof mockSupabase[key as keyof typeof mockSupabase] === 'function' && key !== 'auth') {
-        (mockSupabase[key as keyof typeof mockSupabase] as jest.MockedFunction<() => unknown>).mockReturnValue(mockSupabase)
+        ;(
+          mockSupabase[key as keyof typeof mockSupabase] as jest.MockedFunction<() => unknown>
+        ).mockReturnValue(mockSupabase)
       }
     })
 
@@ -135,19 +137,22 @@ describe('Preference Workflow Integration', () => {
 
       // Step 2: User chats and preferences are extracted (simulated)
       const mockChatResponse = {
-        choices: [{
-          message: {
-            content: JSON.stringify({
-              reply: "I'd love to help you find some great action movies! What specifically do you enjoy about action films?",
-              preferences: {
-                preferred_genres: ['Action'],
-                favorite_movies: ['Avengers: Endgame'],
-                themes: ['Superhero'],
-              },
-              extractionComplete: false,
-            }),
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                reply:
+                  "I'd love to help you find some great action movies! What specifically do you enjoy about action films?",
+                preferences: {
+                  preferred_genres: ['Action'],
+                  favorite_movies: ['Avengers: Endgame'],
+                  themes: ['Superhero'],
+                },
+                extractionComplete: false,
+              }),
+            },
           },
-        }],
+        ],
       }
 
       // Mock Groq response
@@ -165,15 +170,13 @@ describe('Preference Workflow Integration', () => {
       }
 
       // Step 4: User requests movies again - should get personalized results
-      mockSupabase.single.mockResolvedValueOnce({ 
-        data: mockUserProfileWithPreferences, 
-        error: null 
+      mockSupabase.single.mockResolvedValueOnce({
+        data: mockUserProfileWithPreferences,
+        error: null,
       })
-      
-      const actionMovies = mockMovies.filter(movie => 
-        movie.genre.includes('Action')
-      )
-      
+
+      const actionMovies = mockMovies.filter(movie => movie.genre.includes('Action'))
+
       mockSupabase.range.mockResolvedValueOnce({
         data: actionMovies,
         error: null,
@@ -204,7 +207,7 @@ describe('Preference Workflow Integration', () => {
       }
 
       mockSupabase.single.mockResolvedValue({ data: mockUserProfile, error: null })
-      
+
       // First call (preference query) fails
       mockSupabase.range
         .mockResolvedValueOnce({ data: null, error: new Error('Query failed'), count: 0 })
@@ -272,7 +275,7 @@ describe('Preference Workflow Integration', () => {
 
       expect(response.status).toBe(200)
       expect(data.pagination).toEqual({
-        page: 1,
+        currentPage: 1,
         limit: 1,
         hasMore: true,
         totalPages: 5,
@@ -333,7 +336,7 @@ describe('Preference Workflow Integration', () => {
 
       // Verify all filters were applied
       expect(mockSupabase.overlaps).toHaveBeenCalledWith('genre', ['Action', 'Sci-Fi'])
-      expect(mockSupabase.not).toHaveBeenCalledWith('genre', 'ov', ['Horror'])
+      expect(mockSupabase.not).toHaveBeenCalledWith('genre', 'ov', '{Horror}')
       expect(mockSupabase.gte).toHaveBeenCalledWith('year', 2000)
       expect(mockSupabase.lte).toHaveBeenCalledWith('year', 2020)
       expect(mockSupabase.gte).toHaveBeenCalledWith('rating', 8.0)
@@ -367,4 +370,4 @@ describe('Preference Workflow Integration', () => {
       expect(mockSupabase.lte).not.toHaveBeenCalledWith('year', expect.anything())
     })
   })
-}) 
+})

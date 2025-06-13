@@ -20,6 +20,7 @@ export function MagicLinkSentForm({ email, onBackToLogin }: MagicLinkSentFormPro
       const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000)
       return () => clearTimeout(timer)
     }
+    return undefined
   }, [resendCooldown])
 
   const handleResendMagicLink = async () => {

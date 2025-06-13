@@ -18,16 +18,16 @@ export interface MovieDatabaseConfig {
   }
   recommended: boolean
   dataQuality: {
-    metadata: number    // 1-10 rating
-    images: number      // 1-10 rating  
-    freshness: number   // 1-10 rating
-    coverage: number    // 1-10 rating
+    metadata: number // 1-10 rating
+    images: number // 1-10 rating
+    freshness: number // 1-10 rating
+    coverage: number // 1-10 rating
   }
 }
 
-export type DatabaseCapability = 
-  | 'search' 
-  | 'trending' 
+export type DatabaseCapability =
+  | 'search'
+  | 'trending'
   | 'detailed-info'
   | 'images'
   | 'trailers'
@@ -41,67 +41,63 @@ export type DatabaseCapability =
 // Available Movie Databases Configuration
 export const AVAILABLE_MOVIE_DATABASES: Record<string, MovieDatabaseConfig> = {
   // The Movie Database (TMDB) - Primary
-  'tmdb': {
+  tmdb: {
     id: 'tmdb',
     name: 'The Movie Database (TMDB)',
     provider: 'tmdb',
-    description: 'Comprehensive movie database with trending, detailed metadata, and excellent image quality',
+    description:
+      'Comprehensive movie database with trending, detailed metadata, and excellent image quality',
     apiUrl: 'https://api.themoviedb.org/3',
     requiresApiKey: true,
     capabilities: [
-      'search', 
-      'trending', 
-      'detailed-info', 
-      'images', 
+      'search',
+      'trending',
+      'detailed-info',
+      'images',
       'trailers',
       'reviews',
       'similar-movies',
       'genre-filtering',
       'year-filtering',
       'real-time',
-      'free-tier'
+      'free-tier',
     ],
     costPer1kRequests: 0, // Free tier
     rateLimit: {
       requestsPerSecond: 40,
-      requestsPerDay: 1000000
+      requestsPerDay: 1000000,
     },
     recommended: true,
     dataQuality: {
       metadata: 9,
       images: 10,
       freshness: 9,
-      coverage: 9
-    }
+      coverage: 9,
+    },
   },
 
   // Local Database - Fallback
-  'local': {
+  local: {
     id: 'local',
     name: 'Local Database',
     provider: 'local',
     description: 'Movies stored in our Supabase database - fast but limited selection',
     apiUrl: 'internal',
     requiresApiKey: false,
-    capabilities: [
-      'search',
-      'detailed-info',
-      'genre-filtering',
-      'year-filtering'
-    ],
+    capabilities: ['search', 'detailed-info', 'genre-filtering', 'year-filtering'],
     costPer1kRequests: 0,
     rateLimit: {
       requestsPerSecond: 100,
-      requestsPerDay: 1000000
+      requestsPerDay: 1000000,
     },
     recommended: false,
     dataQuality: {
       metadata: 8,
       images: 7,
       freshness: 4,
-      coverage: 3
-    }
-  }
+      coverage: 3,
+    },
+  },
 }
 
 // Database Selection Logic
@@ -117,7 +113,7 @@ export class MovieDatabaseSelector {
       trending: process.env.MOVIE_TRENDING_DATABASE || 'tmdb',
       recommendations: process.env.MOVIE_RECOMMENDATIONS_DATABASE || 'tmdb',
       detailed_info: process.env.MOVIE_DETAILS_DATABASE || 'tmdb',
-      fallback: process.env.MOVIE_FALLBACK_DATABASE || 'local'
+      fallback: process.env.MOVIE_FALLBACK_DATABASE || 'local',
     }
   }
 
@@ -125,18 +121,32 @@ export class MovieDatabaseSelector {
   getDatabaseForTask(task: string): MovieDatabaseConfig {
     const databaseId = this.taskSpecificDatabases[task] || this.defaultDatabase
     const database = AVAILABLE_MOVIE_DATABASES[databaseId]
-    
+
     if (!database) {
       console.warn(`Database ${databaseId} not found, falling back to default`)
-      return AVAILABLE_MOVIE_DATABASES[this.defaultDatabase] || AVAILABLE_MOVIE_DATABASES['tmdb']
+      const fallbackDatabase =
+        AVAILABLE_MOVIE_DATABASES[this.defaultDatabase] || AVAILABLE_MOVIE_DATABASES['tmdb']
+      if (!fallbackDatabase) {
+        throw new Error(
+          `No valid databases available. Check AVAILABLE_MOVIE_DATABASES configuration.`
+        )
+      }
+      return fallbackDatabase
     }
-    
+
     return database
   }
 
   // Get default database
   getDefaultDatabase(): MovieDatabaseConfig {
-    return AVAILABLE_MOVIE_DATABASES[this.defaultDatabase] || AVAILABLE_MOVIE_DATABASES['tmdb']
+    const database =
+      AVAILABLE_MOVIE_DATABASES[this.defaultDatabase] || AVAILABLE_MOVIE_DATABASES['tmdb']
+    if (!database) {
+      throw new Error(
+        `No valid default database available. Check AVAILABLE_MOVIE_DATABASES configuration.`
+      )
+    }
+    return database
   }
 
   // Get all available databases
@@ -176,13 +186,15 @@ export class MovieDatabaseSelector {
         // Sort by recommendation first, then by data quality
         if (a.recommended && !b.recommended) return -1
         if (!a.recommended && b.recommended) return 1
-        
-        const aScore = (a.dataQuality.metadata + a.dataQuality.freshness + a.dataQuality.coverage) / 3
-        const bScore = (b.dataQuality.metadata + b.dataQuality.freshness + b.dataQuality.coverage) / 3
-        
+
+        const aScore =
+          (a.dataQuality.metadata + a.dataQuality.freshness + a.dataQuality.coverage) / 3
+        const bScore =
+          (b.dataQuality.metadata + b.dataQuality.freshness + b.dataQuality.coverage) / 3
+
         return bScore - aScore
       })
-    
+
     return supportingDatabases[0] || this.getDefaultDatabase()
   }
 
@@ -215,15 +227,21 @@ export function getBestDatabaseForCapability(capability: DatabaseCapability): Mo
 export const databaseSelector = new MovieDatabaseSelector()
 
 // Database status checker
-export async function checkDatabasesHealth(): Promise<{ [key: string]: { status: 'healthy' | 'error' | 'missing-key', message: string } }> {
-  const results: { [key: string]: { status: 'healthy' | 'error' | 'missing-key', message: string } } = {}
-  
+export async function checkDatabasesHealth(): Promise<{
+  [key: string]: { status: 'healthy' | 'error' | 'missing-key'; message: string }
+}> {
+  const results: {
+    [key: string]: { status: 'healthy' | 'error' | 'missing-key'; message: string }
+  } = {}
+
   // Check TMDB
   if (!process.env.TMDB_API_KEY) {
     results.tmdb = { status: 'missing-key', message: 'TMDB_API_KEY not configured' }
   } else {
     try {
-      const response = await fetch(`https://api.themoviedb.org/3/configuration?api_key=${process.env.TMDB_API_KEY}`)
+      const response = await fetch(
+        `https://api.themoviedb.org/3/configuration?api_key=${process.env.TMDB_API_KEY}`
+      )
       if (response.ok) {
         results.tmdb = { status: 'healthy', message: 'TMDB API is accessible' }
       } else {
@@ -233,9 +251,9 @@ export async function checkDatabasesHealth(): Promise<{ [key: string]: { status:
       results.tmdb = { status: 'error', message: `TMDB connection error: ${error}` }
     }
   }
-  
+
   // Local database is always healthy
   results.local = { status: 'healthy', message: 'Local database is always available' }
-  
+
   return results
-} 
+}

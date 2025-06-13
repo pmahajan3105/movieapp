@@ -3,7 +3,10 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { ThemeProvider } from '@/contexts/ThemeContext'
 import { AuthProvider } from '@/contexts/AuthContext'
+import { QueryProvider } from '@/components/providers/QueryProvider'
 import { NavigationHeader } from '@/components/layout/NavigationHeader'
+import { Toaster } from 'react-hot-toast'
+import ErrorBoundary from '@/components/ErrorBoundary'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -18,17 +21,18 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} font-sans antialiased min-h-screen`}>
-        <ThemeProvider defaultTheme="pastel">
-          <AuthProvider>
-            <div className="min-h-screen bg-white">
-              <NavigationHeader />
-              <main>
-                {children}
-              </main>
-            </div>
-          </AuthProvider>
-        </ThemeProvider>
+      <body className={`${inter.variable} min-h-screen font-sans antialiased`}>
+        <ErrorBoundary>
+          <QueryProvider>
+            <ThemeProvider defaultTheme="pastel">
+              <AuthProvider>
+                <NavigationHeader />
+                <main>{children}</main>
+                <Toaster />
+              </AuthProvider>
+            </ThemeProvider>
+          </QueryProvider>
+        </ErrorBoundary>
       </body>
     </html>
   )

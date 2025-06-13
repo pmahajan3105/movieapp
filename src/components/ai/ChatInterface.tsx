@@ -209,7 +209,7 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
         errorMessage.includes('does not support streaming') ||
         errorMessage.includes('streaming')
       ) {
-        console.log('🔄 Streaming not supported, triggering fallback:', errorMessage)
+        // Streaming not supported, falling back to non-streaming
         throw err // Re-throw to trigger fallback
       }
 
@@ -232,7 +232,137 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
   }
 
   const handleSendMessage = async (messageContent: string) => {
-    if (isComplete || isLoading || isStreaming) return
+    if (isLoading || isStreaming) return
+
+    // If preferences are complete and user is asking for recommendations, handle with enhanced system
+    if (
+      isComplete &&
+      (messageContent.toLowerCase().includes('recommend') ||
+        messageContent.toLowerCase().includes('suggest') ||
+        messageContent.toLowerCase().includes('movie') ||
+        messageContent.toLowerCase().includes('film') ||
+        messageContent.toLowerCase().includes('watch') ||
+        messageContent.toLowerCase().includes('find'))
+    ) {
+      setIsLoading(true)
+      setError(null)
+
+      // Add user message to UI immediately
+      const userMessage: ChatMessageType = {
+        id: `user-${Date.now()}`,
+        role: 'user',
+        content: messageContent,
+        timestamp: new Date(),
+      }
+      setMessages(prev => [...prev, userMessage])
+
+      try {
+        const enhancedResponse = await fetch('/api/ai/recommendations', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message: messageContent,
+            conversationContext: `User has set preferences and is asking for specific recommendations`,
+            includeReasons: true,
+            maxRecommendations: 6,
+          }),
+        })
+
+        if (!enhancedResponse.ok) {
+          throw new Error(`Enhanced recommendations failed: ${enhancedResponse.status}`)
+        }
+
+        const enhancedData = await enhancedResponse.json()
+
+        if (enhancedData.success && enhancedData.recommendations?.length > 0) {
+          const recommendationsMessage: ChatMessageType = {
+            id: `recommendations-${Date.now()}`,
+            role: 'assistant',
+            content: `🎬 **Here are some great movies for you:**
+
+${enhancedData.recommendations
+  .slice(0, 6)
+  .map(
+    (
+      movie: {
+        title: string
+        year: number
+        rating: number
+        genres?: string[]
+        reason?: string
+        summary?: string
+      },
+      index: number
+    ) => `
+**${index + 1}. ${movie.title}** (${movie.year})
+⭐ ${movie.rating}/10 | 🎭 ${movie.genres?.join(', ') || 'Multiple genres'}
+📝 ${movie.reason || movie.summary || 'Perfect match for you!'}
+`
+  )
+  .join('\n')}
+
+${enhancedData.intelligence_summary ? `\n**🧠 Insight:** ${enhancedData.intelligence_summary}` : ''}
+
+Want more recommendations? Just ask! I can suggest movies by genre, mood, or any specific criteria you have in mind. 🍿`,
+            timestamp: new Date(),
+          }
+
+          setMessages(prev => [...prev, recommendationsMessage])
+
+          // Trigger real-time learning update
+          try {
+            await fetch('/api/ai/recommendations', {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                action: 'conversation_interaction',
+                data: {
+                  message: messageContent,
+                  recommendations_provided: enhancedData.recommendations.length,
+                  timestamp: new Date().toISOString(),
+                },
+              }),
+            })
+          } catch (learningError) {
+            console.warn('⚠️ Real-time learning update failed:', learningError)
+          }
+        } else {
+          // Fallback if no recommendations
+          const fallbackMessage: ChatMessageType = {
+            id: `fallback-${Date.now()}`,
+            role: 'assistant',
+            content:
+              "I'm having trouble finding specific recommendations right now. Please try asking differently or visit the Recommendations tab for your personalized movie suggestions!",
+            timestamp: new Date(),
+          }
+          setMessages(prev => [...prev, fallbackMessage])
+        }
+      } catch (error) {
+        console.error('❌ Enhanced conversation error:', error)
+
+        const errorMessage: ChatMessageType = {
+          id: `error-${Date.now()}`,
+          role: 'assistant',
+          content:
+            'I encountered an issue getting recommendations. Please try again or visit the Recommendations tab for your personalized suggestions.',
+          timestamp: new Date(),
+        }
+        setMessages(prev => [...prev, errorMessage])
+      } finally {
+        setIsLoading(false)
+      }
+      return
+    }
+
+    // Prevent non-recommendation messages after completion
+    if (isComplete) {
+      console.log('Chat completed, ignoring non-recommendation message')
+      return
+    }
 
     setIsLoading(true)
     setError(null)
@@ -250,8 +380,8 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
     try {
       // Try streaming first, fallback to non-streaming if it fails
       await handleStreamingResponse(messageContent)
-    } catch (streamingError) {
-      console.log('🔄 Streaming failed, falling back to non-streaming:', streamingError)
+    } catch {
+      // Streaming failed, falling back to non-streaming
 
       try {
         // Fallback to non-streaming API call
@@ -307,6 +437,110 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
             timestamp: new Date(),
           }
           setMessages(prev => [...prev, completionMessage])
+
+          // Generate enhanced recommendations immediately after preferences are extracted
+          try {
+            console.log('🎬 Generating enhanced recommendations...')
+            setIsLoading(true)
+
+            const enhancedResponse = await fetch('/api/ai/recommendations', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                message: 'Generate personalized movie recommendations based on my preferences',
+                conversationContext: `User just set their preferences: ${JSON.stringify(data.preferences)}`,
+                includeReasons: true,
+                maxRecommendations: 8,
+              }),
+            })
+
+            if (!enhancedResponse.ok) {
+              throw new Error(`Enhanced recommendations failed: ${enhancedResponse.status}`)
+            }
+
+            const enhancedData = await enhancedResponse.json()
+            console.log(
+              '✅ Enhanced recommendations received:',
+              enhancedData.recommendations?.length
+            )
+
+            if (enhancedData.success && enhancedData.recommendations?.length > 0) {
+              // Add enhanced recommendations message to chat
+              const recommendationsMessage: ChatMessageType = {
+                id: `recommendations-${Date.now()}`,
+                role: 'assistant',
+                content: `🎯 **Your Personalized Movie Recommendations**
+
+Based on your preferences, here are movies perfectly tailored for you:
+
+${enhancedData.recommendations
+  .slice(0, 6)
+  .map(
+    (
+      movie: {
+        title: string
+        year: number
+        rating: number
+        genres?: string[]
+        reason?: string
+        summary?: string
+      },
+      index: number
+    ) => `
+**${index + 1}. ${movie.title}** (${movie.year})
+⭐ ${movie.rating}/10 | 🎭 ${movie.genres?.join(', ') || 'Multiple genres'}
+📝 ${movie.reason || movie.summary || 'Great match for your taste!'}
+`
+  )
+  .join('\n')}
+
+${enhancedData.intelligence_summary ? `\n**🧠 Your Movie Intelligence:**\n${enhancedData.intelligence_summary}` : ''}
+
+These recommendations are based on advanced behavioral analysis of your viewing patterns and preferences. The more you interact with the app (rate movies, add to watchlist), the smarter these recommendations become! 🚀`,
+                timestamp: new Date(),
+              }
+
+              setMessages(prev => [...prev, recommendationsMessage])
+
+              // Also trigger any real-time learning updates
+              if (enhancedData.recommendations.length > 0) {
+                try {
+                  await fetch('/api/ai/recommendations', {
+                    method: 'PATCH',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                      action: 'preferences_set',
+                      data: {
+                        preferences: data.preferences,
+                        timestamp: new Date().toISOString(),
+                      },
+                    }),
+                  })
+                  console.log('✅ Real-time learning updated for preference setting')
+                } catch (learningError) {
+                  console.warn('⚠️ Real-time learning update failed:', learningError)
+                }
+              }
+            }
+          } catch (enhancedError) {
+            console.error('❌ Enhanced recommendations error:', enhancedError)
+
+            // Add fallback message if enhanced recommendations fail
+            const fallbackMessage: ChatMessageType = {
+              id: `fallback-${Date.now()}`,
+              role: 'assistant',
+              content:
+                "I've saved your preferences! Visit the Recommendations tab to see your personalized movie suggestions, or continue chatting to get specific recommendations.",
+              timestamp: new Date(),
+            }
+            setMessages(prev => [...prev, fallbackMessage])
+          } finally {
+            setIsLoading(false)
+          }
         }
 
         setRetryCount(0) // Reset retry count on success
@@ -373,30 +607,30 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
   }, [])
 
   return (
-    <div className="flex h-full flex-col bg-base-100" style={{ contain: 'layout style' }}>
+    <div className="bg-base-100 flex h-full flex-col" style={{ contain: 'layout style' }}>
       {/* Enhanced Header */}
-      <div className="flex-shrink-0 border-b border-base-300 bg-base-200 px-6 py-4">
+      <div className="border-base-300 bg-base-200 flex-shrink-0 border-b px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20">
-              <span className="text-lg text-primary">🎬</span>
+            <div className="bg-primary/20 flex h-10 w-10 items-center justify-center rounded-full">
+              <span className="text-primary text-lg">🎬</span>
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-base-content">CineAI Assistant</h2>
-              <p className="flex items-center gap-1 text-sm text-base-content/70">
+              <h2 className="text-base-content text-lg font-semibold">CineAI Assistant</h2>
+              <p className="text-base-content/70 flex items-center gap-1 text-sm">
                 {isComplete ? (
                   <>
                     <CheckCircle className="h-3 w-3 text-green-500" />
-                    Preferences gathered! Ready for recommendations.
+                    Ready! Ask for personalized recommendations.
                   </>
                 ) : isLoading || isStreaming ? (
                   <>
-                    <span className="inline-block h-3 w-3 animate-pulse rounded-full bg-primary" />
+                    <span className="bg-primary inline-block h-3 w-3 animate-pulse rounded-full" />
                     {isStreaming ? 'Streaming response...' : 'Thinking...'}
                   </>
                 ) : (
                   <>
-                    <Sparkles className="h-3 w-3 text-primary" />
+                    <Sparkles className="text-primary h-3 w-3" />
                     Learning your movie preferences...
                   </>
                 )}
@@ -522,7 +756,7 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps) {
         disabled={isLoading || isStreaming}
         placeholder={
           isComplete
-            ? 'Preferences gathered! Check out your recommendations above.'
+            ? 'Ask for more recommendations! Try "suggest comedy movies" or "recommend action films"...'
             : isLoading || isStreaming
               ? 'AI is responding...'
               : 'Tell me about your movie preferences...'

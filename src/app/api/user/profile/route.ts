@@ -26,7 +26,7 @@ export async function GET() {
 
     const { data: userProfile, error } = await supabase
       .from('user_profiles')
-      .select('id, email, preferences, onboarding_completed, created_at, updated_at')
+      .select('id, email, full_name, preferences, onboarding_completed, created_at, updated_at')
       .eq('id', userId)
       .single()
 
@@ -35,10 +35,7 @@ export async function GET() {
     }
 
     if (!userProfile) {
-      return NextResponse.json(
-        { error: 'User profile not found', success: false },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'User profile not found', success: false }, { status: 404 })
     }
 
     return NextResponse.json({
@@ -46,18 +43,18 @@ export async function GET() {
       profile: {
         id: userProfile.id,
         email: userProfile.email,
+        full_name: userProfile.full_name,
         onboardingCompleted: userProfile.onboarding_completed,
         createdAt: userProfile.created_at,
         updatedAt: userProfile.updated_at,
       },
     })
-
   } catch (error) {
     console.error('❌ Error fetching user profile:', error)
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to fetch user profile',
-        success: false 
+        success: false,
       },
       { status: 500 }
     )
@@ -83,34 +80,35 @@ export async function PUT(request: NextRequest) {
     const { data, error } = await supabase
       .from('user_profiles')
       .update({
+        full_name: body.fullName,
         updated_at: new Date().toISOString(),
-        // Note: We can't update fullName directly as it's not in the current schema
-        // This would require a database migration to add a full_name column
       })
       .eq('id', userId)
       .select()
       .single()
 
     if (error) {
+      console.error('❌ Supabase error updating profile:', error)
       throw error
     }
+
+    console.log('✅ Profile updated successfully:', { userId, fullName: body.fullName })
 
     return NextResponse.json({
       success: true,
       profile: data,
       message: 'Profile updated successfully',
     })
-
   } catch (error) {
     console.error('❌ Error updating user profile:', error)
-    
+
     if (error instanceof Error && error.message === 'Authentication required') {
       return NextResponse.json(
         { error: 'Authentication required', success: false },
         { status: 401 }
       )
     }
-    
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         {
@@ -123,11 +121,11 @@ export async function PUT(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to update profile',
-        success: false 
+        success: false,
       },
       { status: 500 }
     )
   }
-} 
+}
