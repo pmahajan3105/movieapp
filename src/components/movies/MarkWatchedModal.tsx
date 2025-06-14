@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useCallback } from 'react'
 import { Star, Calendar, CheckCircle, X } from 'lucide-react'
 import type { Movie } from '@/types'
 
@@ -35,12 +35,12 @@ export function MarkWatchedModal({
     }
   }
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     // Reset form
     setRating(0)
     setNotes('')
     onClose()
-  }
+  }, [onClose])
 
   // Handle escape key
   React.useEffect(() => {

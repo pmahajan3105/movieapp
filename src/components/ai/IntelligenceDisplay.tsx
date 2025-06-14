@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { analyzeCompleteUserBehavior, type UserBehaviorProfile } from '@/lib/ai/behavioral-analysis'
 // import { movieMemoryService } from '@/lib/mem0/client' // Disabled - package removed
 import { useAuth } from '@/contexts/AuthContext'
@@ -33,13 +33,7 @@ export function IntelligenceDisplay({ className = '', onClose }: IntelligenceDis
     'overview'
   )
 
-  useEffect(() => {
-    if (user?.id) {
-      loadIntelligenceData()
-    }
-  }, [user?.id])
-
-  const loadIntelligenceData = async () => {
+  const loadIntelligenceData = useCallback(async () => {
     if (!user?.id) return
 
     try {
@@ -60,7 +54,13 @@ export function IntelligenceDisplay({ className = '', onClose }: IntelligenceDis
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [user?.id])
+
+  useEffect(() => {
+    if (user?.id) {
+      loadIntelligenceData()
+    }
+  }, [user?.id, loadIntelligenceData])
 
   const handleRefresh = () => {
     loadIntelligenceData()

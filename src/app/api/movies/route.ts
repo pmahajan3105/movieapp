@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/client'
 import { getDatabaseForTask, getBestDatabaseForCapability } from '@/lib/movie-databases/config'
 import { getMoviesByPreferences, getPopularMovies } from '@/lib/services/movieService'
-// import { movieMemoryService } from '@/lib/mem0/client' // Disabled - package removed
+import { smartRecommenderV2 } from '@/lib/ai/smart-recommender-v2'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Movie } from '@/types'
 
 async function handleLegacyRequest(request: NextRequest, supabase: SupabaseClient) {
   const { searchParams } = new URL(request.url)
@@ -52,18 +51,13 @@ export async function GET(request: NextRequest) {
     const realTime = searchParams.get('realtime') === 'true'
     const databaseId = searchParams.get('database')
     const query = searchParams.get('query') || ''
+    const mood = searchParams.get('mood') || ''
+    const genres = searchParams.get('genres')?.split(',').filter(Boolean) || []
     const limit = Math.max(1, parseInt(searchParams.get('limit') || '12'))
     const page = Math.max(1, parseInt(searchParams.get('page') || '1'))
 
     if (smartMode) {
-      return await handleSmartRecommendations(
-        supabase,
-        limit,
-        page,
-        (page - 1) * limit,
-        realTime,
-        databaseId || undefined
-      )
+      return await handleSmartRecommendations(supabase, limit, page, query, mood, genres)
     }
 
     if (realTime || databaseId) {
@@ -136,149 +130,17 @@ async function handleRealTimeMovies(
   }
 }
 
-interface PreferenceMatch {
-  keyword: string
-  memory: string
-  confidence: number
-}
-
-interface UserContext {
-  memories: Array<{ text: string }>
-  preferences: {
-    favorite_genres: PreferenceMatch[]
-    avoid_preferences: PreferenceMatch[]
-    favorite_directors: PreferenceMatch[]
-    favorite_movies: PreferenceMatch[]
-  }
-}
-
-function convertToUserContext(
-  context: {
-    memories: Array<{ text?: string; memory?: string }>
-    preferences: Record<string, unknown>
-  } | null
-): UserContext {
-  if (!context) {
-    return {
-      memories: [],
-      preferences: {
-        favorite_genres: [],
-        avoid_preferences: [],
-        favorite_directors: [],
-        favorite_movies: [],
-      },
-    }
-  }
-
-  const convertedPreferences: any = {
-    favorite_genres: [],
-    avoid_preferences: [],
-    favorite_directors: [],
-    favorite_movies: [],
-  }
-
-  for (const key in context.preferences) {
-    if (Object.prototype.hasOwnProperty.call(context.preferences, key)) {
-      const value = context.preferences[key] as any
-      if (Array.isArray(value)) {
-        convertedPreferences[key] = value.map(item => ({
-          keyword: item,
-          memory: `User preference for ${key}: ${item}`,
-          confidence: 0.9,
-        }))
-      }
-    }
-  }
-
-  return {
-    memories: (context.memories || []).map(m => ({ text: m.text || m.memory || '' })),
-    preferences: convertedPreferences,
-  }
-}
-
-function validateAIRecommendationCriteria(
-  movie: Movie,
-  userContext: UserContext,
-  userProfile?: any
-): { isValid: boolean; matchedCriteria: string[]; score: number } {
-  let score = 0
-  const matchedCriteria: string[] = []
-
-  if (!movie.genre || movie.genre.length === 0) {
-    return { isValid: false, matchedCriteria: ['Missing genre'], score: 0 }
-  }
-
-  const userPreferences = userProfile?.preferences || {}
-  const preferredGenres = new Set(userPreferences.preferred_genres || [])
-  const avoidGenres = new Set(userPreferences.avoid_genres || [])
-
-  // Rule 1: Must not be in avoided genres
-  if (movie.genre.some(g => avoidGenres.has(g))) {
-    return { isValid: false, matchedCriteria: ['In avoided genres'], score: 0 }
-  }
-
-  // Rule 2: Must be in preferred genres (if any exist)
-  if (preferredGenres.size > 0 && !movie.genre.some(g => preferredGenres.has(g))) {
-    return { isValid: false, matchedCriteria: ['Not in preferred genres'], score: 0 }
-  } else if (preferredGenres.size > 0) {
-    score += 2
-    matchedCriteria.push('Matches preferred genres')
-  }
-
-  // Rule 3: Rating check
-  if (
-    movie.rating &&
-    userPreferences.ratingRange?.min &&
-    movie.rating < userPreferences.ratingRange.min
-  ) {
-    return { isValid: false, matchedCriteria: ['Below minimum rating'], score: 0 }
-  } else if (movie.rating) {
-    score += movie.rating / 5 // Normalize rating to a score of 0-2
-    matchedCriteria.push('High rating')
-  }
-
-  // Rule 4: Year check
-  if (movie.year) {
-    if (userPreferences.yearRange?.min && movie.year < userPreferences.yearRange.min) {
-      return { isValid: false, matchedCriteria: ['Too old'], score: 0 }
-    }
-    if (userPreferences.yearRange?.max && movie.year > userPreferences.yearRange.max) {
-      return { isValid: false, matchedCriteria: ['Too new'], score: 0 }
-    }
-    matchedCriteria.push('Within year range')
-  }
-
-  // Semantic check with user context (simple keyword matching for now)
-  const plot = movie.plot?.toLowerCase() || ''
-  userContext.preferences.favorite_genres.forEach((pref: PreferenceMatch) => {
-    if (movie.genre?.some(g => g.toLowerCase().includes(pref.keyword.toLowerCase()))) {
-      score += pref.confidence
-      matchedCriteria.push(`Semantic match: ${pref.keyword}`)
-    }
-  })
-  userContext.memories.forEach((mem: { text: string }) => {
-    if (plot.includes(mem.text.toLowerCase())) {
-      score += 0.5
-      matchedCriteria.push(`Context match: ${mem.text}`)
-    }
-  })
-
-  return { isValid: true, matchedCriteria, score: parseFloat(score.toFixed(2)) }
-}
-
 /**
- * Smart Recommendations Handler
- * - Fetches initial candidates from a database (real-time or local).
- * - Gets user's interaction history and preferences from user profile.
- * - Filters, re-ranks, and augments movies based on AI-driven criteria.
+ * Smart Recommendations Handler V2 - Vector-Enhanced AI Recommendations
+ * Uses semantic embeddings and the new SmartRecommenderV2 for intelligent movie discovery
  */
 async function handleSmartRecommendations(
   supabase: SupabaseClient,
   limit: number,
   page: number,
-  offset: number,
-  realTime: boolean = false,
-  databaseId?: string
+  query: string,
+  mood: string,
+  genres: string[]
 ) {
   const {
     data: { user },
@@ -286,7 +148,7 @@ async function handleSmartRecommendations(
 
   if (!user) {
     // Fallback to popular movies for logged-out users
-    const result = await getPopularMovies({ supabase, limit, page, offset })
+    const result = await getPopularMovies({ supabase, limit, page, offset: (page - 1) * limit })
     return NextResponse.json({
       success: true,
       data: result.data,
@@ -298,80 +160,73 @@ async function handleSmartRecommendations(
         totalPages: Math.ceil(result.total / result.limit),
       },
       source: 'local-popular',
-      mem0Enhanced: false,
+      vectorEnhanced: false,
     })
   }
 
-  console.log('🧠 Handling smart recommendations for user:', user.id)
+  console.log('🧠 Handling vector-enhanced smart recommendations for user:', user.id)
 
   try {
-    // 1. Fetch movie candidates (from real-time DB or local cache)
-    const candidateLimit = limit * 3 // Fetch more candidates to allow for filtering
-    let movieCandidates: Movie[] = []
-
-    if (realTime) {
-      const realTimeResult = await handleRealTimeMovies(candidateLimit, page, '', databaseId)
-      const body = await realTimeResult.json()
-      if (body.success) {
-        movieCandidates = body.data
-      }
-    } else {
-      const localResult = await getPopularMovies({ supabase, limit: candidateLimit, page, offset })
-      if (localResult.success) {
-        movieCandidates = localResult.data
-      }
-    }
-
-    if (movieCandidates.length === 0) {
-      return NextResponse.json({ success: true, data: [], pagination: { hasMore: false } })
-    }
-
-    // 2. Get user context (mem0 disabled - using fallback)
-    const mem0ContextData = { memories: [], preferences: {} }
-
-    // Also get user profile for explicit preferences
+    // Get user profile for preferences
     const { data: userProfile } = await supabase
       .from('user_profiles')
       .select('*')
       .eq('id', user.id)
       .single()
 
-    const userContext = convertToUserContext({
-      memories: mem0ContextData?.memories || [],
-      preferences: userProfile?.preferences || {},
+    // Extract preferred genres from user profile
+    const userPreferredGenres = userProfile?.preferences?.preferred_genres || []
+    const finalGenres = genres.length > 0 ? genres : userPreferredGenres
+
+    // Use SmartRecommenderV2 for vector-enhanced recommendations
+    const smartResult = await smartRecommenderV2.getSmartRecommendations({
+      userId: user.id,
+      userQuery: query || undefined,
+      preferredGenres: finalGenres,
+      mood: mood || undefined,
+      limit,
+      semanticThreshold: 0.7,
+      diversityFactor: 0.3,
     })
 
-    console.log('🤖 User Context:', JSON.stringify(userContext, null, 2))
-
-    // 3. Filter and re-rank candidates
-    const validatedMovies = movieCandidates
-      .map(movie => {
-        const validation = validateAIRecommendationCriteria(movie, userContext, userProfile)
-        return { ...movie, ...validation }
+    // Save user interaction for future recommendations
+    if (query) {
+      await smartRecommenderV2.saveUserInteraction(user.id, 'search-query', 'search', {
+        source: 'recommendation',
+        query,
+        mood,
+        genres: finalGenres,
+        timestamp: new Date().toISOString(),
       })
-      .filter(movie => movie.isValid)
-      .sort((a, b) => b.score - a.score)
-
-    const finalMovies = validatedMovies.slice(0, limit)
-    const totalCount = validatedMovies.length
+    }
 
     return NextResponse.json({
       success: true,
-      data: finalMovies,
-      total: totalCount,
+      data: smartResult.movies,
+      total: smartResult.movies.length,
       pagination: {
         currentPage: page,
         limit,
-        hasMore: totalCount > limit,
-        totalPages: Math.ceil(totalCount / limit),
+        hasMore: smartResult.movies.length >= limit,
+        totalPages: Math.ceil(smartResult.movies.length / limit),
       },
-      source: 'smart-recommender',
-      mem0Enhanced: false,
+      source: 'smart-recommender-v2',
+      vectorEnhanced: true,
+      recommendations: smartResult.recommendations,
+      insights: smartResult.insights,
     })
   } catch (error) {
-    console.error('❌ Smart recommendations error:', error)
+    console.error('❌ Smart recommendations V2 error:', error)
+
     // Fallback to standard preference-based recommendations on error
-    const result = await getMoviesByPreferences({ supabase, userId: user.id, limit, page, offset })
+    const result = await getMoviesByPreferences({
+      supabase,
+      userId: user.id,
+      limit,
+      page,
+      offset: (page - 1) * limit,
+    })
+
     if (result) {
       return NextResponse.json({
         success: true,
@@ -384,10 +239,29 @@ async function handleSmartRecommendations(
           totalPages: Math.ceil(result.total / result.limit),
         },
         source: 'local-preferences-fallback',
-        mem0Enhanced: false,
+        vectorEnhanced: false,
       })
     }
-    // Final fallback to popular
-    return NextResponse.json(await getPopularMovies({ supabase, limit, page, offset }))
+
+    // Final fallback to popular movies
+    const popularResult = await getPopularMovies({
+      supabase,
+      limit,
+      page,
+      offset: (page - 1) * limit,
+    })
+    return NextResponse.json({
+      success: true,
+      data: popularResult.data,
+      total: popularResult.total,
+      pagination: {
+        currentPage: popularResult.page,
+        limit: popularResult.limit,
+        hasMore: popularResult.hasMore,
+        totalPages: Math.ceil(popularResult.total / popularResult.limit),
+      },
+      source: 'popular-fallback',
+      vectorEnhanced: false,
+    })
   }
 }

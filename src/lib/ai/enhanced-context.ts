@@ -8,6 +8,48 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
+// Type definitions for data structures
+type UserProfile = {
+  favorite_movies: string[]
+  preferred_genres: string[]
+  preferred_decades: string[]
+  preferred_languages: string[]
+  streaming_services: string[]
+  content_preferences: string[]
+}
+
+type WatchedMovie = {
+  movie: Movie
+  rating?: number
+  watched_at: string
+  notes?: string
+  context: string
+}
+
+type WatchlistMovie = {
+  movie: Movie
+  added_at: string
+}
+
+type RecentActivity = {
+  last_watched: Movie[]
+  recently_added: Movie[]
+  recent_ratings: Array<{ movie: Movie; rating: number; date: string }>
+}
+
+type Mem0Memories = {
+  preferences: string[]
+  behavioral_patterns: string[]
+  contextual_insights: string[]
+  evolution_timeline: string[]
+}
+
+type ConversationMessage = {
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: string
+}
+
 export interface EnhancedRecommendationContext {
   user_profile: {
     basic_info: {
@@ -401,7 +443,10 @@ async function getAllWatchlistMovies(userId: string) {
 
 // Helper functions for formatting context
 
-function extractRecentActivity(watchedMovies: any[], watchlistMovies: any[]) {
+function extractRecentActivity(
+  watchedMovies: WatchedMovie[],
+  watchlistMovies: WatchlistMovie[]
+): RecentActivity {
   const oneWeekAgo = new Date()
   oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
 
@@ -416,7 +461,7 @@ function extractRecentActivity(watchedMovies: any[], watchlistMovies: any[]) {
     .slice(0, 5)
     .map(w => ({
       movie: w.movie,
-      rating: w.rating,
+      rating: w.rating!,
       date: w.watched_at,
     }))
 
@@ -428,10 +473,10 @@ function extractRecentActivity(watchedMovies: any[], watchlistMovies: any[]) {
 }
 
 function generateIntelligenceSummary(
-  userProfile: any,
+  userProfile: UserProfile,
   behavioralProfile: UserBehaviorProfile,
-  memories: any,
-  watchedMovies: any[]
+  memories: Mem0Memories,
+  watchedMovies: WatchedMovie[]
 ) {
   const tasteProfile = `**TASTE PROFILE**: User has ${behavioralProfile.rating_patterns.total_ratings} ratings with ${behavioralProfile.rating_patterns.average_rating}/5 average. Taste consistency: ${behavioralProfile.intelligence_insights.taste_consistency_score} (${behavioralProfile.intelligence_insights.taste_consistency_score > 0.7 ? 'predictable' : 'diverse'}). Quality threshold: ${behavioralProfile.intelligence_insights.quality_threshold}/5.`
 
@@ -550,7 +595,7 @@ function formatIntelligenceInsights(
   return lines.join('\n')
 }
 
-function formatWatchedMovies(movies: any[]): string {
+function formatWatchedMovies(movies: WatchedMovie[]): string {
   return movies
     .slice(0, 50)
     .map(
@@ -560,17 +605,17 @@ function formatWatchedMovies(movies: any[]): string {
     .join('\n')
 }
 
-function formatWatchlistMovies(movies: any[]): string {
+function formatWatchlistMovies(movies: WatchlistMovie[]): string {
   return movies
     .slice(0, 30)
     .map(
       w =>
-        `- **${w.movie.title}** (${w.movie.year}) [${w.status}] - ${w.movie.genre?.join(', ') || 'Unknown'}`
+        `- **${w.movie.title}** (${w.movie.year}) [Watchlist] - ${w.movie.genre?.join(', ') || 'Unknown'}`
     )
     .join('\n')
 }
 
-function formatRecentActivity(activity: any): string {
+function formatRecentActivity(activity: RecentActivity): string {
   const lines = []
 
   if (activity.last_watched.length > 0) {
@@ -587,14 +632,14 @@ function formatRecentActivity(activity: any): string {
 
   if (activity.recent_ratings.length > 0) {
     lines.push(
-      `**RECENT RATINGS**: ${activity.recent_ratings.map((r: any) => `${r.movie.title} (${r.rating}★)`).join(', ')}`
+      `**RECENT RATINGS**: ${activity.recent_ratings.map(r => `${r.movie.title} (${r.rating}★)`).join(', ')}`
     )
   }
 
   return lines.join('\n')
 }
 
-function extractConversationInsights(messages: any[]): string[] {
+function extractConversationInsights(messages: ConversationMessage[]): string[] {
   const insights = []
 
   // Simple pattern extraction - could be enhanced with NLP

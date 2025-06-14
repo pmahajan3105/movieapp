@@ -27,8 +27,8 @@ export async function GET(request: NextRequest) {
 
   try {
     console.log('🔄 Creating server client for code exchange...')
-    
-    // Create Supabase server client with same configuration as API route
+
+    // Create Supabase server client with PKCE support (matching OTP request config)
     const cookieStore = await cookies()
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -48,17 +48,24 @@ export async function GET(request: NextRequest) {
             }
           },
         },
+        auth: {
+          // Ensure PKCE flow is used (matching OTP request)
+          flowType: 'pkce',
+        },
       }
     )
 
     console.log('🔄 Exchanging code for session...')
-    
+
     // Exchange the code for a session
     const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
 
     console.log('🔐 Exchange result:')
     console.log('- Data:', data ? { user: data.user?.email, session: !!data.session } : 'NULL')
-    console.log('- Error:', exchangeError ? { message: exchangeError.message, name: exchangeError.name } : 'NONE')
+    console.log(
+      '- Error:',
+      exchangeError ? { message: exchangeError.message, name: exchangeError.name } : 'NONE'
+    )
 
     if (exchangeError) {
       console.error('❌ Code exchange failed:', exchangeError)
@@ -102,11 +109,10 @@ export async function GET(request: NextRequest) {
     // Successful authentication - redirect to dashboard
     console.log('🎉 Redirecting to dashboard')
     return NextResponse.redirect(new URL('/dashboard', requestUrl.origin))
-
   } catch (error) {
     console.error('💥 Server callback exception:', error)
     const errorUrl = new URL('/auth/login', requestUrl.origin)
     errorUrl.searchParams.set('error', 'An unexpected error occurred. Please try again.')
     return NextResponse.redirect(errorUrl)
   }
-} 
+}

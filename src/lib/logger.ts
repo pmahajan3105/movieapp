@@ -1,7 +1,20 @@
 import { isDevelopment, isProduction } from './env'
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error'
-type LogContext = Record<string, any>
+
+// Define acceptable types for log context values
+type LogContextValue =
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+  | Error
+  | Date
+  | LogContextValue[]
+  | { [key: string]: LogContextValue }
+
+type LogContext = Record<string, LogContextValue>
 
 class Logger {
   private formatMessage(level: LogLevel, message: string, context?: LogContext): string {

@@ -335,16 +335,21 @@ export default function UnifiedMoviesPage() {
             )}
 
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-              {displayedMovies.map((movie: any, index: number) => (
-                <OptimizedMovieCard
-                  key={`${showingRecommendations ? 'ai' : 'movie'}-${movie.id}-${index}`}
-                  movie={movie}
-                  aiExplanation={movie.aiExplanation}
-                  onMovieClick={setSelectedMovie}
-                  onAddToWatchlist={toggleWatchlist}
-                  isInWatchlist={watchlistIds.has(movie.id)}
-                />
-              ))}
+              {displayedMovies.map(
+                (
+                  movie: Movie & { aiExplanation?: string | RecommendationExplanation },
+                  index: number
+                ) => (
+                  <OptimizedMovieCard
+                    key={`${showingRecommendations ? 'ai' : 'movie'}-${movie.id}-${index}`}
+                    movie={movie}
+                    aiExplanation={movie.aiExplanation}
+                    onMovieClick={setSelectedMovie}
+                    onAddToWatchlist={toggleWatchlist}
+                    isInWatchlist={watchlistIds.has(movie.id)}
+                  />
+                )
+              )}
             </div>
 
             {/* Load More Button (only for regular movies) */}

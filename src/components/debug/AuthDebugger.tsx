@@ -1,17 +1,40 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CheckCircle, AlertCircle, Key } from 'lucide-react'
 
+interface AuthCheckResult {
+  timestamp: string
+  userFromContext: {
+    id?: string
+    email?: string
+    exists: boolean
+  }
+  apiResponse?: {
+    status: number
+    ok: boolean
+    success?: boolean
+    error?: string
+    headers: Record<string, string>
+  }
+  cookies?: string
+  localStorage?: {
+    hasSupabaseAuth: boolean
+    keys: string[]
+  }
+  error?: string
+  message?: string
+}
+
 export function AuthDebugger() {
   const { user, loading } = useAuth()
-  const [authCheck, setAuthCheck] = useState<Record<string, any> | null>(null)
+  const [authCheck, setAuthCheck] = useState<AuthCheckResult | null>(null)
   const [isChecking, setIsChecking] = useState(false)
 
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
     setIsChecking(true)
     try {
       // Test the watchlist endpoint
@@ -58,14 +81,14 @@ export function AuthDebugger() {
     } finally {
       setIsChecking(false)
     }
-  }
+  }, [user])
 
   useEffect(() => {
     // Auto-check on mount
     if (!loading) {
       checkAuth()
     }
-  }, [loading, user])
+  }, [loading, user, checkAuth])
 
   if (loading) {
     return (

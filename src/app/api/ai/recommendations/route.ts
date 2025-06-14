@@ -7,9 +7,37 @@ import {
 } from '@/lib/ai/enhanced-context'
 // import { addMemories } from '@mem0/vercel-ai-provider' // Package removed
 
+// Types for memory function parameters
+type MemoryMessage = {
+  role: string
+  content: Array<{
+    type: string
+    text: string
+  }>
+}
+
+type MemoryOptions = {
+  user_id?: string
+  metadata?: {
+    session_id?: string
+    category?: string
+    confidence?: number
+    source?: string
+    timestamp?: number
+    movie_id?: string
+    action_type?: string
+    rating_value?: number
+  }
+}
+
 // Temporary placeholder for memory functionality
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const addMemories = async (...args: any[]) => {
+
+const addMemories = async (
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  messages: MemoryMessage[],
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  options?: MemoryOptions
+): Promise<{ success: boolean }> => {
   // Memory functionality disabled - package removed
   return { success: true }
 }

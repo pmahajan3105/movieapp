@@ -5,6 +5,8 @@ import { Grid, List, ChevronLeft, ChevronRight, Star, Calendar, Clock } from 'lu
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { MovieGridSkeleton } from '@/components/movies/MovieCardSkeleton'
+import { motion } from 'framer-motion'
 import type { Movie } from '@/types'
 import Image from 'next/image'
 
@@ -119,7 +121,7 @@ function SearchMovieCard({ movie, onMovieClick, variant = 'card' }: SearchMovieC
           </div>
         )}
         {movie.rating && (
-          <div className="absolute right-2 top-2 rounded bg-black/70 px-2 py-1 text-xs text-white">
+          <div className="absolute top-2 right-2 rounded bg-black/70 px-2 py-1 text-xs text-white">
             ⭐ {movie.rating}
           </div>
         )}
@@ -202,20 +204,14 @@ export function SearchResults({
   if (loading) {
     return (
       <div className={`space-y-4 ${className}`}>
-        {/* Loading skeleton */}
+        {/* Loading skeleton header */}
         <div className="flex items-center justify-between">
           <div className="h-6 w-32 animate-pulse rounded bg-gray-200" />
           <div className="h-8 w-24 animate-pulse rounded bg-gray-200" />
         </div>
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {[...Array(8)].map((_, i) => (
-            <div key={i} className="space-y-3">
-              <div className="aspect-[2/3] animate-pulse rounded-lg bg-gray-200" />
-              <div className="h-4 animate-pulse rounded bg-gray-200" />
-              <div className="h-3 w-16 animate-pulse rounded bg-gray-200" />
-            </div>
-          ))}
-        </div>
+
+        {/* Enhanced skeleton using our MovieGridSkeleton */}
+        <MovieGridSkeleton count={pageSize || 12} />
       </div>
     )
   }
@@ -290,13 +286,23 @@ export function SearchResults({
             : 'space-y-4'
         }
       >
-        {movies.map(movie => (
-          <SearchMovieCard
+        {movies.map((movie, index) => (
+          <motion.div
             key={movie.id}
-            movie={movie}
-            onMovieClick={onMovieClick}
-            variant={viewMode === 'list' ? 'list' : 'card'}
-          />
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{
+              duration: 0.3,
+              delay: index * 0.05, // Staggered animation
+              ease: 'easeOut',
+            }}
+          >
+            <SearchMovieCard
+              movie={movie}
+              onMovieClick={onMovieClick}
+              variant={viewMode === 'list' ? 'list' : 'card'}
+            />
+          </motion.div>
         ))}
       </div>
 

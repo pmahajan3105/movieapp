@@ -1,21 +1,15 @@
 import { cn } from '@/lib/utils'
 
-interface SkeletonProps {
-  className?: string
-  children?: React.ReactNode
-}
-
-export function Skeleton({
-  className,
-  children,
-  ...props
-}: SkeletonProps & React.HTMLAttributes<HTMLDivElement>) {
+function Skeleton({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn('skeleton', className)} {...props}>
-      {children}
-    </div>
+    <div
+      className={cn('animate-pulse rounded-md bg-gray-200 dark:bg-gray-700', className)}
+      {...props}
+    />
   )
 }
+
+export { Skeleton }
 
 // Movie card skeleton for loading states
 export function MovieCardSkeleton() {

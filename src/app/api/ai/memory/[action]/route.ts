@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server'
 
+// Types for memory functionality (for when re-enabled)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type MemoryAddArgs = [string, { user_id: string }]
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type MemorySearchArgs = [string, { user_id: string; limit?: number }]
+
 // Memory functionality temporarily disabled due to package removal
 export async function POST() {
   return NextResponse.json(
@@ -29,17 +35,17 @@ import { requireAuth } from '@/lib/auth-server'
 
 // Temporary placeholders for memory functionality
 const createMem0 = () => ({
-  add: (...args: any[]) => {
+  add: (...args: MemoryAddArgs) => {
     console.log('Memory functionality disabled - package removed', args)
     return { success: true }
   },
-  search: (...args: any[]) => {
+  search: (...args: MemorySearchArgs) => {
     console.log('Memory functionality disabled - package removed', args)
     return { memories: [] }
   }
 })
 
-const addMemories = async (...args: any[]) => {
+const addMemories = async (...args: MemoryAddArgs[]) => {
   console.log('Memory functionality disabled - package removed', args)
   return { success: true }
 }

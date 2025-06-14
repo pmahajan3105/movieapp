@@ -1,11 +1,44 @@
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/contexts/AuthContext'
 
+// Define user preference types
+interface UserPreferences {
+  // Genre preferences
+  preferredGenres?: string[]
+  dislikedGenres?: string[]
+
+  // Movie characteristics
+  preferredRatings?: string[] // e.g., ['PG', 'PG-13', 'R']
+  preferredYearRange?: {
+    min?: number
+    max?: number
+  }
+
+  // Content preferences
+  includeAdultContent?: boolean
+  preferredLanguages?: string[]
+
+  // Watch preferences
+  maxRuntime?: number
+  minRuntime?: number
+
+  // Recommendation settings
+  diversityLevel?: 'low' | 'medium' | 'high'
+  explorationLevel?: 'safe' | 'balanced' | 'adventurous'
+
+  // UI preferences
+  gridViewMode?: 'compact' | 'comfortable' | 'spacious'
+  autoplayTrailers?: boolean
+
+  // Extensible for custom preferences
+  [key: string]: string | number | boolean | string[] | object | undefined
+}
+
 interface UserProfile {
   id: string
   email: string
   full_name?: string
-  preferences?: Record<string, any>
+  preferences?: UserPreferences
   onboarding_completed: boolean
   created_at: string
   updated_at: string
