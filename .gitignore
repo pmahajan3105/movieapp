@@ -53,3 +53,4 @@ test-*.js
 # temporary files
 *.tmp
 *.temp
+.env
