@@ -52,21 +52,22 @@ export function MovieDetailsModal({
 
   // Handle genres - check if it's array or string
   const genres = Array.isArray(movie.genre) ? movie.genre : movie.genre ? [movie.genre] : []
-  const actors = movie.actors || []
+  // Handle cast/actors - check both field names for compatibility
+  const actors = movie.actors || (movie as any).cast || []
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto bg-white border border-gray-200 shadow-xl">
-        <DialogHeader className="bg-gradient-to-r from-blue-50 to-purple-50 -m-6 mb-6 p-6 border-b border-gray-200">
+      <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto border border-gray-200 bg-white shadow-xl">
+        <DialogHeader className="-m-6 mb-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-purple-50 p-6">
           <DialogTitle className="text-2xl font-bold text-gray-900">
             {movie.title} ({movie.year})
           </DialogTitle>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-3 bg-white p-1">
+        <div className="grid grid-cols-1 gap-6 bg-white p-1 md:grid-cols-3">
           {/* Movie Poster */}
           <div className="md:col-span-1">
-            <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg shadow-lg border border-gray-200">
+            <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg border border-gray-200 shadow-lg">
               {movie.poster_url ? (
                 <Image
                   src={movie.poster_url}
@@ -77,7 +78,7 @@ export function MovieDetailsModal({
                 />
               ) : (
                 <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
-                  <span className="text-gray-500 font-medium">No poster available</span>
+                  <span className="font-medium text-gray-500">No poster available</span>
                 </div>
               )}
             </div>
@@ -108,9 +109,9 @@ export function MovieDetailsModal({
           </div>
 
           {/* Movie Details */}
-          <div className="md:col-span-2 bg-white">
+          <div className="bg-white md:col-span-2">
             {/* Movie Metadata */}
-            <div className="mb-6 flex flex-wrap items-center gap-4 text-sm text-gray-600 bg-gray-50 p-4 rounded-lg border border-gray-100">
+            <div className="mb-6 flex flex-wrap items-center gap-4 rounded-lg border border-gray-100 bg-gray-50 p-4 text-sm text-gray-600">
               {movie.year && (
                 <div className="flex items-center gap-1">
                   <Calendar className="h-4 w-4 text-blue-500" />
@@ -133,11 +134,17 @@ export function MovieDetailsModal({
 
             {/* Genres */}
             {genres.length > 0 && (
-              <div className="mb-6 bg-white p-4 rounded-lg border border-gray-100">
-                <h3 className="mb-3 text-sm font-semibold text-gray-900 uppercase tracking-wide">Genres</h3>
+              <div className="mb-6 rounded-lg border border-gray-100 bg-white p-4">
+                <h3 className="mb-3 text-sm font-semibold tracking-wide text-gray-900 uppercase">
+                  Genres
+                </h3>
                 <div className="flex flex-wrap gap-2">
                   {genres.map(genre => (
-                    <Badge key={genre} variant="outline" className="bg-blue-100 text-blue-800 border border-blue-200">
+                    <Badge
+                      key={genre}
+                      variant="outline"
+                      className="border border-blue-200 bg-blue-100 text-blue-800"
+                    >
                       {genre}
                     </Badge>
                   ))}
@@ -147,17 +154,23 @@ export function MovieDetailsModal({
 
             {/* Plot */}
             {movie.plot && (
-              <div className="mb-6 bg-white p-4 rounded-lg border border-gray-100">
-                <h3 className="mb-3 text-sm font-semibold text-gray-900 uppercase tracking-wide">Plot</h3>
-                <p className="text-sm leading-relaxed text-gray-700 bg-gray-50 p-3 rounded border border-gray-100">{movie.plot}</p>
+              <div className="mb-6 rounded-lg border border-gray-100 bg-white p-4">
+                <h3 className="mb-3 text-sm font-semibold tracking-wide text-gray-900 uppercase">
+                  Plot
+                </h3>
+                <p className="rounded border border-gray-100 bg-gray-50 p-3 text-sm leading-relaxed text-gray-700">
+                  {movie.plot}
+                </p>
               </div>
             )}
 
             {/* Director */}
             {movie.director && movie.director.length > 0 && (
-              <div className="mb-6 bg-white p-4 rounded-lg border border-gray-100">
-                <h3 className="mb-3 text-sm font-semibold text-gray-900 uppercase tracking-wide">Director</h3>
-                <p className="text-sm text-gray-700 font-medium">
+              <div className="mb-6 rounded-lg border border-gray-100 bg-white p-4">
+                <h3 className="mb-3 text-sm font-semibold tracking-wide text-gray-900 uppercase">
+                  Director
+                </h3>
+                <p className="text-sm font-medium text-gray-700">
                   {Array.isArray(movie.director) ? movie.director.join(', ') : movie.director}
                 </p>
               </div>
@@ -165,24 +178,30 @@ export function MovieDetailsModal({
 
             {/* Cast */}
             {actors.length > 0 && (
-              <div className="mb-6 bg-white p-4 rounded-lg border border-gray-100">
-                <h3 className="mb-3 text-sm font-semibold text-gray-900 uppercase tracking-wide">Cast</h3>
+              <div className="mb-6 rounded-lg border border-gray-100 bg-white p-4">
+                <h3 className="mb-3 text-sm font-semibold tracking-wide text-gray-900 uppercase">
+                  Cast
+                </h3>
                 <p className="text-sm text-gray-700">{actors.slice(0, 5).join(', ')}</p>
               </div>
             )}
 
             {/* Movie IDs */}
-            <div className="flex flex-wrap gap-4 bg-gray-50 p-4 rounded-lg border border-gray-100">
+            <div className="flex flex-wrap gap-4 rounded-lg border border-gray-100 bg-gray-50 p-4">
               {movie.imdb_id && (
-                <div className="bg-white p-3 rounded border border-gray-200">
-                  <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide">IMDb ID</h4>
-                  <p className="text-sm text-gray-900 font-mono">{movie.imdb_id}</p>
+                <div className="rounded border border-gray-200 bg-white p-3">
+                  <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+                    IMDb ID
+                  </h4>
+                  <p className="font-mono text-sm text-gray-900">{movie.imdb_id}</p>
                 </div>
               )}
               {movie.tmdb_id && (
-                <div className="bg-white p-3 rounded border border-gray-200">
-                  <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide">TMDB ID</h4>
-                  <p className="text-sm text-gray-900 font-mono">{movie.tmdb_id}</p>
+                <div className="rounded border border-gray-200 bg-white p-3">
+                  <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+                    TMDB ID
+                  </h4>
+                  <p className="font-mono text-sm text-gray-900">{movie.tmdb_id}</p>
                 </div>
               )}
             </div>

@@ -9,6 +9,28 @@ import { getSupabaseUrl, getSupabaseServiceRoleKey } from '@/lib/env'
 import { embeddingService } from '@/lib/ai/embedding-service'
 import type { Movie } from '@/types'
 
+// Request throttling to prevent infinite loops
+const requestCounts = new Map<string, { count: number; resetTime: number }>()
+const MAX_REQUESTS_PER_MINUTE = 10
+const THROTTLE_WINDOW = 60000 // 1 minute
+
+function checkRateLimit(clientId: string): boolean {
+  const now = Date.now()
+  const clientData = requestCounts.get(clientId)
+
+  if (!clientData || now > clientData.resetTime) {
+    requestCounts.set(clientId, { count: 1, resetTime: now + THROTTLE_WINDOW })
+    return true
+  }
+
+  if (clientData.count >= MAX_REQUESTS_PER_MINUTE) {
+    return false
+  }
+
+  clientData.count++
+  return true
+}
+
 // Enhanced movie type with semantic search data
 interface SemanticMovie extends Movie {
   semanticSimilarity: number
@@ -18,6 +40,15 @@ interface SemanticMovie extends Movie {
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting check
+    const clientId = request.headers.get('x-forwarded-for') || 'unknown'
+    if (!checkRateLimit(clientId)) {
+      return NextResponse.json(
+        { success: false, error: 'Too many requests. Please wait before trying again.' },
+        { status: 429 }
+      )
+    }
+
     const {
       userId,
       query,
@@ -193,27 +224,56 @@ function generateReason(movie: Movie, similarity: number): string {
 }
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const userId = searchParams.get('userId')
-  const query = searchParams.get('query')
-  const genres = searchParams.get('genres')
-  const mood = searchParams.get('mood')
-  const limit = parseInt(searchParams.get('limit') || '10')
+  try {
+    // Rate limiting check
+    const clientId = request.headers.get('x-forwarded-for') || 'unknown'
+    if (!checkRateLimit(clientId)) {
+      return NextResponse.json(
+        { success: false, error: 'Too many requests. Please wait before trying again.' },
+        { status: 429 }
+      )
+    }
 
-  if (!userId) {
-    return NextResponse.json({ success: false, error: 'User ID is required' }, { status: 400 })
+    const { searchParams } = new URL(request.url)
+    const userId = searchParams.get('userId')
+
+    if (!userId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'User ID is required for semantic recommendations',
+        },
+        { status: 400 }
+      )
+    }
+
+    const query = searchParams.get('query')
+    const genres = searchParams.get('genres')
+    const mood = searchParams.get('mood')
+    const limit = parseInt(searchParams.get('limit') || '10')
+
+    // Convert to POST format and call the main handler
+    const mockRequest = {
+      json: async () => ({
+        userId,
+        query,
+        preferredGenres: genres ? genres.split(',') : undefined,
+        mood,
+        limit,
+      }),
+      headers: request.headers, // Pass through headers for rate limiting
+    } as NextRequest
+
+    return POST(mockRequest)
+  } catch (error) {
+    console.error('❌ GET semantic recommendations error:', error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Failed to process GET request',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      },
+      { status: 500 }
+    )
   }
-
-  // Convert to POST format and call the main handler
-  const mockRequest = {
-    json: async () => ({
-      userId,
-      query,
-      preferredGenres: genres ? genres.split(',') : undefined,
-      mood,
-      limit,
-    }),
-  } as NextRequest
-
-  return POST(mockRequest)
 }

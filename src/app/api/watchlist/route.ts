@@ -93,18 +93,35 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { movie_id, notes } = body
+    let { movie_id, notes } = body
 
     if (!movie_id) {
       return NextResponse.json({ success: false, error: 'Movie ID is required' }, { status: 400 })
     }
 
     // First, try to find the movie in our local database
-    const { data: movieExists, error: movieError } = await supabase
-      .from('movies')
-      .select('id, title')
-      .eq('id', movie_id)
-      .single()
+    // For TMDB movies, check both by ID and by metadata
+    let movieQuery = supabase.from('movies').select('id, title')
+
+    if (movie_id.startsWith('tmdb_')) {
+      // For TMDB movies, also check if we already have this movie by tmdb_id
+      const tmdbId = parseInt(movie_id.replace('tmdb_', ''))
+      movieQuery = movieQuery.or(`id.eq.${movie_id},tmdb_id.eq.${tmdbId}`)
+    } else {
+      movieQuery = movieQuery.eq('id', movie_id)
+    }
+
+    const { data: movieExists, error: movieError } = await movieQuery.single()
+
+    // If we found the movie by tmdb_id, update movie_id to use the UUID
+    if (movieExists && movie_id.startsWith('tmdb_')) {
+      movie_id = movieExists.id
+      console.log('✅ Found existing TMDB movie by tmdb_id:', {
+        originalId: body.movie_id,
+        foundId: movie_id,
+        title: movieExists.title,
+      })
+    }
 
     // If movie doesn't exist locally and it's a TMDB ID, try to fetch from TMDB and insert
     if ((movieError || !movieExists) && movie_id.startsWith('tmdb_')) {
@@ -121,22 +138,21 @@ export async function POST(request: NextRequest) {
           const tmdbMovie = await tmdbResponse.json()
 
           // Extract director from credits
-          const director =
-            tmdbMovie.credits?.crew?.find(
-              (member: { job: string; name: string }) => member.job === 'Director'
-            )?.name || null
+          const directors =
+            tmdbMovie.credits?.crew
+              ?.filter((member: { job: string; name: string }) => member.job === 'Director')
+              ?.map((director: { name: string }) => director.name) || []
 
-          // Extract main cast (top 10 actors)
-          const cast =
-            tmdbMovie.credits?.cast?.slice(0, 10).map((actor: { name: string }) => actor.name) || []
+          // Extract genres
+          const genres = tmdbMovie.genres?.map((g: { name: string }) => g.name) || []
 
           const newMovie = {
-            id: movie_id, // Use the full tmdb_xxx format as our ID
+            // Generate a proper UUID for the movie
             title: tmdbMovie.title,
             year: tmdbMovie.release_date ? new Date(tmdbMovie.release_date).getFullYear() : null,
-            genre: tmdbMovie.genres?.map((g: { name: string }) => g.name).join(', ') || null,
-            director: director,
-            cast: cast.length > 0 ? cast : null,
+            genre: genres,
+            director: directors,
+            // Remove cast field to avoid schema issues
             plot: tmdbMovie.overview || null,
             poster_url: tmdbMovie.poster_path
               ? `https://image.tmdb.org/t/p/w500${tmdbMovie.poster_path}`
@@ -145,12 +161,27 @@ export async function POST(request: NextRequest) {
             runtime: tmdbMovie.runtime || null,
             imdb_id: tmdbMovie.imdb_id || null,
             tmdb_id: parseInt(tmdbId),
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
+            metadata: {
+              tmdb_original_id: movie_id, // Store the original tmdb_xxx format for reference
+              tmdb_data: {
+                popularity: tmdbMovie.popularity,
+                vote_count: tmdbMovie.vote_count,
+                adult: tmdbMovie.adult,
+                backdrop_path: tmdbMovie.backdrop_path,
+                original_language: tmdbMovie.original_language,
+                original_title: tmdbMovie.original_title,
+              },
+            },
           }
 
-          // Insert movie into our database
-          const { error: insertError } = await supabase
+          // Insert movie into our database and get the generated UUID
+          console.log('🎬 Attempting to insert TMDB movie:', {
+            title: newMovie.title,
+            tmdb_id: newMovie.tmdb_id,
+            fields: Object.keys(newMovie),
+          })
+
+          const { data: insertedMovie, error: insertError } = await supabase
             .from('movies')
             .insert(newMovie)
             .select('id, title')
@@ -158,6 +189,8 @@ export async function POST(request: NextRequest) {
 
           if (insertError) {
             console.error('❌ Failed to insert movie from TMDB:', insertError.message)
+            console.error('❌ Insert error details:', insertError)
+            console.error('❌ Movie data being inserted:', JSON.stringify(newMovie, null, 2))
             return NextResponse.json(
               {
                 success: false,
@@ -166,6 +199,14 @@ export async function POST(request: NextRequest) {
               { status: 500 }
             )
           }
+
+          // Update movie_id to use the generated UUID instead of the tmdb_xxx format
+          movie_id = insertedMovie.id
+          console.log('✅ Successfully inserted TMDB movie:', {
+            originalId: body.movie_id,
+            newId: movie_id,
+            title: insertedMovie.title,
+          })
         } else {
           console.error('❌ Error fetching from TMDB:', tmdbResponse.status)
           return NextResponse.json(

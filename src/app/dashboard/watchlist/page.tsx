@@ -4,9 +4,6 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { MovieDetailsModal } from '@/components/movies/MovieDetailsModal'
 import { MarkWatchedModal } from '@/components/movies/MarkWatchedModal'
-import { WatchlistStats } from '@/components/watchlist/WatchlistStats'
-import { WatchlistFilters } from '@/components/watchlist/WatchlistFilters'
-import { WatchlistEmptyState } from '@/components/watchlist/WatchlistEmptyState'
 import { WatchlistCard } from '@/components/watchlist/WatchlistCard'
 import { useWatchlistPage } from '@/hooks/useWatchlistPage'
 import type { Movie } from '@/types'
@@ -16,8 +13,7 @@ export default function WatchlistPage() {
   const {
     state,
     dispatch,
-    sortedItems,
-    counts,
+    unwatchedItems, // Only get unwatched items
     loadWatchlist,
     handleRemoveFromWatchlist,
     handleMarkWatched,
@@ -88,31 +84,13 @@ export default function WatchlistPage() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="mb-2 text-3xl font-bold text-gray-900">My Watchlist 🎬</h1>
-          <p className="text-gray-600">Movies you&apos;ve saved to watch later</p>
+          <p className="text-gray-600">Movies you want to watch ({unwatchedItems.length} movies)</p>
         </div>
 
-        {/* Stats */}
-        <WatchlistStats
-          totalCount={counts.total}
-          watchedCount={counts.watched}
-          unwatchedCount={counts.unwatched}
-        />
-
-        {/* Filters and Controls */}
-        <WatchlistFilters
-          filter={state.filter}
-          sortBy={state.sortBy}
-          totalCount={counts.total}
-          watchedCount={counts.watched}
-          unwatchedCount={counts.unwatched}
-          onFilterChange={filter => dispatch({ type: 'SET_FILTER', payload: filter })}
-          onSortChange={sort => dispatch({ type: 'SET_SORT', payload: sort })}
-        />
-
         {/* Movies Grid or Empty State */}
-        {sortedItems.length > 0 ? (
+        {unwatchedItems.length > 0 ? (
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {sortedItems.map(item => (
+            {unwatchedItems.map(item => (
               <WatchlistCard
                 key={item.id}
                 item={item}
@@ -125,7 +103,21 @@ export default function WatchlistPage() {
             ))}
           </div>
         ) : (
-          <WatchlistEmptyState filter={state.filter} />
+          <div className="py-12 text-center">
+            <div className="mx-auto mb-4 h-24 w-24 text-gray-400">
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1}
+                  d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2h4a1 1 0 110 2h-1v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6H3a1 1 0 110-2h4zM9 6v11a1 1 0 102 0V6a1 1 0 10-2 0zm4 0v11a1 1 0 102 0V6a1 1 0 10-2 0z"
+                />
+              </svg>
+            </div>
+            <h3 className="mb-2 text-lg font-medium text-gray-900">No movies in your watchlist</h3>
+            <p className="mb-6 text-gray-600">Start adding movies you want to watch!</p>
+            <Button onClick={() => router.push('/dashboard/movies')}>Discover Movies</Button>
+          </div>
         )}
 
         {/* Movie Details Modal */}

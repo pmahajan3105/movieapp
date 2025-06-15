@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query'
 import type { EnhancedRecommendation } from '@/types'
 
 const fetchAIRecommendations = async (userId: string): Promise<EnhancedRecommendation[]> => {
+  console.log('🔍 Fetching AI recommendations for user:', userId)
+
   const response = await fetch('/api/ai/recommendations', {
     method: 'POST',
     headers: {
@@ -16,12 +18,18 @@ const fetchAIRecommendations = async (userId: string): Promise<EnhancedRecommend
     }),
   })
 
+  console.log('📡 AI recommendations response status:', response.status)
+
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+    console.error('❌ AI recommendations error:', errorData)
     throw new Error(errorData.error || 'Failed to fetch AI recommendations')
   }
 
   const data = await response.json()
+  console.log('✅ AI recommendations data:', data)
+
+  // The API returns { recommendations: [...] } structure
   return data.recommendations || []
 }
 

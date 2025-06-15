@@ -2,7 +2,7 @@
 
 import React from 'react'
 import Image from 'next/image'
-import { Heart, Plus, Star, ThumbsUp, ThumbsDown } from 'lucide-react'
+import { Heart, Bookmark, Star, ThumbsUp, ThumbsDown } from 'lucide-react'
 import { MovieGridCardProps } from '@/types'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -67,7 +67,7 @@ export const MovieGridCard: React.FC<MovieGridCardProps> = ({
           title="Add to Watchlist"
           aria-label={`Add ${movie.title} to watchlist`}
         >
-          <Plus className="h-4 w-4" />
+          <Bookmark className="h-4 w-4" />
         </Button>
       </div>
     </div>
@@ -100,7 +100,7 @@ export const MovieGridCard: React.FC<MovieGridCardProps> = ({
 
         {/* User Rating Indicator */}
         {userRating && (
-          <div className="absolute right-2 top-2 z-10">
+          <div className="absolute top-2 right-2 z-10">
             {userRating.interested ? (
               <div className="rounded-full bg-green-500 p-1 text-white">
                 <Heart className="h-3 w-3 fill-current" />
@@ -115,7 +115,7 @@ export const MovieGridCard: React.FC<MovieGridCardProps> = ({
 
         {/* Movie Rating (IMDb rating) */}
         {movie.rating && (
-          <div className="absolute left-2 top-2 flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-xs text-white">
+          <div className="absolute top-2 left-2 flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-xs text-white">
             <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
             {movie.rating.toFixed(1)}
           </div>

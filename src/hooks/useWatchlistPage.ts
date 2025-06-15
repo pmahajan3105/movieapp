@@ -33,7 +33,7 @@ const initialState: WatchlistPageState = {
   items: [],
   isLoading: true,
   error: null,
-  filter: 'all',
+  filter: 'unwatched', // Default to showing only unwatched movies
   sortBy: 'added_at',
   selectedMovie: null,
   movieToMarkWatched: null,
@@ -185,7 +185,10 @@ export function useWatchlistPage() {
 
         dispatch({ type: 'SET_MARKING_WATCHED', payload: false })
         dispatch({ type: 'SET_MARK_WATCHED_MOVIE', payload: { movie: null, watchlistId: null } })
-        dispatch({ type: 'SET_FILTER', payload: 'watched' })
+
+        // Keep the current filter instead of switching to 'watched'
+        // This way if user is viewing 'unwatched', the movie disappears from view
+        // If they want to see watched movies, they can switch the filter manually
         showSuccess('Movie marked as watched successfully')
       } else {
         const errorData = await response.json()
@@ -246,6 +249,7 @@ export function useWatchlistPage() {
     state,
     dispatch,
     sortedItems: getSortedItems(),
+    unwatchedItems: state.items.filter(item => !item.watched), // Only unwatched movies
     counts,
 
     // Actions

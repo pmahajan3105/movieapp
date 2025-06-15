@@ -2,20 +2,25 @@
 
 import React, { useState } from 'react'
 import Image from 'next/image'
-import { 
-  Star, 
-  Clock, 
-  Calendar, 
-  Play, 
-  Plus, 
-  Check, 
-  ChevronDown, 
-  ChevronUp, 
+import {
+  Star,
+  Clock,
+  Calendar,
+  Play,
+  Bookmark,
+  BookmarkCheck,
+  ChevronDown,
+  ChevronUp,
   Target,
   Sparkles,
   ThumbsUp,
+  ThumbsDown,
   Award,
-  Info
+  Brain,
+  Heart,
+  Zap,
+  Users,
+  TrendingUp,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -26,8 +31,10 @@ interface RecommendationCardProps {
   recommendation: EnhancedRecommendation
   onMovieClick: (movie: EnhancedRecommendation['movie']) => void
   onAddToWatchlist: (movieId: string) => void
+  onFeedback?: (movieId: string, feedback: 'like' | 'dislike', reason?: string) => void
   isInWatchlist: boolean
   showExplanation?: boolean
+  showFeedbackButtons?: boolean
   className?: string
 }
 
@@ -35,41 +42,102 @@ export function RecommendationCard({
   recommendation,
   onMovieClick,
   onAddToWatchlist,
+  onFeedback,
   isInWatchlist,
   showExplanation = true,
-  className = ''
+  showFeedbackButtons = true,
+  className = '',
 }: RecommendationCardProps) {
   const [showDetailedExplanation, setShowDetailedExplanation] = useState(false)
+  const [feedbackGiven, setFeedbackGiven] = useState<'like' | 'dislike' | null>(null)
   const { movie, reason, confidence, explanation } = recommendation
 
   const getConfidenceColor = (conf: number) => {
-    if (conf >= 0.8) return 'text-green-600 bg-green-100'
-    if (conf >= 0.6) return 'text-blue-600 bg-blue-100'
-    return 'text-yellow-600 bg-yellow-100'
+    if (conf >= 0.9) return 'text-emerald-700 bg-emerald-100 border-emerald-200'
+    if (conf >= 0.8) return 'text-green-700 bg-green-100 border-green-200'
+    if (conf >= 0.7) return 'text-blue-700 bg-blue-100 border-blue-200'
+    if (conf >= 0.6) return 'text-yellow-700 bg-yellow-100 border-yellow-200'
+    return 'text-orange-700 bg-orange-100 border-orange-200'
   }
 
   const getConfidenceText = (conf: number) => {
-    if (conf >= 0.9) return 'Perfect Match'
-    if (conf >= 0.8) return 'Excellent Match'
-    if (conf >= 0.7) return 'Great Match'
-    if (conf >= 0.6) return 'Good Match'
+    if (conf >= 0.95) return 'Perfect Match'
+    if (conf >= 0.9) return 'Excellent Match'
+    if (conf >= 0.8) return 'Great Match'
+    if (conf >= 0.7) return 'Good Match'
+    if (conf >= 0.6) return 'Decent Match'
     return 'Possible Match'
   }
 
+  const handleFeedback = async (feedback: 'like' | 'dislike') => {
+    if (feedbackGiven || !onFeedback) return
+
+    setFeedbackGiven(feedback)
+
+    // Call the feedback handler
+    onFeedback(movie.id, feedback, reason)
+
+    // Save interaction via API
+    try {
+      await fetch('/api/user/interactions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          movieId: movie.id,
+          interactionType: feedback === 'like' ? 'like' : 'dislike',
+          context: {
+            source: 'recommendation-feedback',
+            reason,
+            confidence,
+            timestamp: new Date().toISOString(),
+          },
+        }),
+      })
+    } catch (error) {
+      console.warn('Failed to save feedback interaction:', error)
+    }
+  }
+
+  const getReasonIcon = (reasonText: string) => {
+    const lowerReason = reasonText.toLowerCase()
+    if (
+      lowerReason.includes('semantic') ||
+      lowerReason.includes('ai') ||
+      lowerReason.includes('similar')
+    ) {
+      return <Brain className="h-4 w-4 text-purple-600" />
+    }
+    if (lowerReason.includes('genre') || lowerReason.includes('category')) {
+      return <Heart className="h-4 w-4 text-pink-600" />
+    }
+    if (lowerReason.includes('mood') || lowerReason.includes('feeling')) {
+      return <Zap className="h-4 w-4 text-yellow-600" />
+    }
+    if (lowerReason.includes('popular') || lowerReason.includes('trending')) {
+      return <TrendingUp className="h-4 w-4 text-green-600" />
+    }
+    if (lowerReason.includes('user') || lowerReason.includes('people')) {
+      return <Users className="h-4 w-4 text-blue-600" />
+    }
+    return <Sparkles className="h-4 w-4 text-indigo-600" />
+  }
+
   return (
-    <Card className={`group overflow-hidden transition-all hover:shadow-lg border border-gray-200 ${className}`}>
+    <Card
+      className={`group overflow-hidden border border-gray-200 transition-all hover:shadow-lg ${className}`}
+    >
       <div className="relative">
         {/* Position Badge */}
-        <div className="absolute left-2 top-2 z-10">
-          <div className="badge badge-primary text-primary-content font-bold text-xs">
+        <div className="absolute top-2 left-2 z-10">
+          <div className="badge badge-primary text-primary-content text-xs font-bold">
             #{recommendation.position}
           </div>
         </div>
 
         {/* Confidence Badge */}
-        <div className="absolute right-2 top-2 z-10">
-          <div className={`badge text-xs font-medium ${getConfidenceColor(confidence)}`}>
-            <Target className="h-3 w-3 mr-1" />
+        <div className="absolute top-2 right-2 z-10">
+          <div className={`badge border text-xs font-medium ${getConfidenceColor(confidence)}`}>
+            <Target className="mr-1 h-3 w-3" />
             {Math.round(confidence * 100)}%
           </div>
         </div>
@@ -98,8 +166,8 @@ export function RecommendationCard({
 
         {/* Movie Rating */}
         {movie.rating && (
-          <div className="absolute bottom-2 right-2 rounded bg-black/70 px-2 py-1 text-xs text-white backdrop-blur-sm">
-            <Star className="h-3 w-3 inline mr-1 fill-yellow-400 text-yellow-400" />
+          <div className="absolute right-2 bottom-2 rounded bg-black/70 px-2 py-1 text-xs text-white backdrop-blur-sm">
+            <Star className="mr-1 inline h-3 w-3 fill-yellow-400 text-yellow-400" />
             {movie.rating.toFixed(1)}
           </div>
         )}
@@ -108,7 +176,7 @@ export function RecommendationCard({
       <CardContent className="p-4">
         {/* Movie Title & Year */}
         <h3
-          className="mb-2 line-clamp-2 cursor-pointer text-lg font-semibold transition-colors hover:text-primary"
+          className="hover:text-primary mb-2 line-clamp-2 cursor-pointer text-lg font-semibold transition-colors"
           onClick={() => onMovieClick(movie)}
         >
           {movie.title}
@@ -130,7 +198,7 @@ export function RecommendationCard({
               </div>
             )}
           </div>
-          <div className={`text-xs px-2 py-1 rounded ${getConfidenceColor(confidence)}`}>
+          <div className={`rounded border px-2 py-1 text-xs ${getConfidenceColor(confidence)}`}>
             {getConfidenceText(confidence)}
           </div>
         </div>
@@ -139,7 +207,7 @@ export function RecommendationCard({
         {movie.genre && movie.genre.length > 0 && (
           <div className="mb-3 flex flex-wrap gap-1">
             {movie.genre.slice(0, 3).map(g => (
-              <Badge key={g} variant="outline" className="text-xs bg-gray-100">
+              <Badge key={g} variant="outline" className="bg-gray-50 text-xs">
                 {g}
               </Badge>
             ))}
@@ -153,144 +221,190 @@ export function RecommendationCard({
 
         {/* Primary Recommendation Reason */}
         {showExplanation && (
-          <div className="mb-4 rounded-lg bg-blue-50 p-3 border border-blue-200">
+          <div className="mb-4 rounded-lg border border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 p-3">
             <div className="flex items-start gap-2">
-              <Sparkles className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+              {getReasonIcon(reason)}
               <div className="flex-1">
-                <p className="text-sm text-blue-800 font-medium mb-1">Why we recommend this:</p>
+                <p className="mb-1 text-sm font-medium text-blue-800">Why we recommend this:</p>
                 <p className="text-sm text-blue-700">{reason}</p>
+
+                {/* Confidence Explanation */}
+                <div className="mt-2 flex items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    <Target className="h-3 w-3 text-blue-600" />
+                    <span className="text-xs font-medium text-blue-600">
+                      {Math.round(confidence * 100)}% confidence
+                    </span>
+                  </div>
+                  {confidence >= 0.8 && (
+                    <Badge className="border-green-200 bg-green-100 text-xs text-green-800">
+                      <Award className="mr-1 h-2 w-2" />
+                      High Quality
+                    </Badge>
+                  )}
+                </div>
               </div>
+
+              {/* Toggle Detailed Explanation */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowDetailedExplanation(!showDetailedExplanation)}
+                className="h-auto p-1"
+              >
+                {showDetailedExplanation ? (
+                  <ChevronUp className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+              </Button>
             </div>
           </div>
-        )}
-
-        {/* Preference Matches */}
-        {showExplanation && explanation?.preferenceMatches && (
-          <div className="mb-3">
-            <div className="flex flex-wrap gap-1">
-              {explanation.preferenceMatches.genres?.map(genre => (
-                <Badge key={genre} className="text-xs bg-green-100 text-green-800">
-                  <ThumbsUp className="h-2 w-2 mr-1" />
-                  {genre}
-                </Badge>
-              ))}
-              {explanation.preferenceMatches.directors?.map(director => (
-                <Badge key={director} className="text-xs bg-purple-100 text-purple-800">
-                  🎬 {director}
-                </Badge>
-              ))}
-              {explanation.preferenceMatches.themes?.map(theme => (
-                <Badge key={theme} className="text-xs bg-orange-100 text-orange-800">
-                  ✨ {theme}
-                </Badge>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Quality Signals */}
-        {showExplanation && explanation?.qualitySignals && (
-          <div className="mb-3 flex items-center gap-2 text-xs text-gray-600">
-            {explanation.qualitySignals.rating && (
-              <div className="flex items-center gap-1">
-                <Award className="h-3 w-3 text-yellow-500" />
-                <span>Highly Rated</span>
-              </div>
-            )}
-            {explanation.qualitySignals.awards && explanation.qualitySignals.awards.length > 0 && (
-              <div className="flex items-center gap-1">
-                <Award className="h-3 w-3 text-amber-500" />
-                <span>Award Winner</span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Detailed Explanation Toggle */}
-        {showExplanation && (explanation?.contextMatch || explanation?.considerations) && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="mb-3 w-full text-xs"
-            onClick={() => setShowDetailedExplanation(!showDetailedExplanation)}
-          >
-            <Info className="h-3 w-3 mr-1" />
-            {showDetailedExplanation ? 'Hide Details' : 'Show Why'} 
-            {showDetailedExplanation ? (
-              <ChevronUp className="h-3 w-3 ml-1" />
-            ) : (
-              <ChevronDown className="h-3 w-3 ml-1" />
-            )}
-          </Button>
         )}
 
         {/* Detailed Explanation */}
-        {showExplanation && showDetailedExplanation && (
-          <div className="mb-4 space-y-2 rounded-lg bg-gray-50 p-3 border border-gray-200">
-            {explanation?.contextMatch && (
-              <div>
-                <h4 className="text-xs font-semibold text-gray-700 mb-1">Perfect For You:</h4>
-                <ul className="text-xs text-gray-600 space-y-1">
-                  {explanation.contextMatch.runtime && <li>• {explanation.contextMatch.runtime}</li>}
-                  {explanation.contextMatch.year && <li>• {explanation.contextMatch.year}</li>}
-                  {explanation.contextMatch.availability && <li>• {explanation.contextMatch.availability}</li>}
-                  {explanation.contextMatch.mood && <li>• {explanation.contextMatch.mood}</li>}
-                </ul>
-              </div>
-            )}
-
-            {explanation?.similarToLiked && explanation.similarToLiked.length > 0 && (
-              <div>
-                <h4 className="text-xs font-semibold text-gray-700 mb-1">Similar to movies you loved:</h4>
-                <p className="text-xs text-gray-600">{explanation.similarToLiked.join(', ')}</p>
-              </div>
-            )}
-
-            {explanation?.considerations && explanation.considerations.length > 0 && (
-              <div>
-                <h4 className="text-xs font-semibold text-amber-700 mb-1">Keep in mind:</h4>
-                <ul className="text-xs text-amber-600 space-y-1">
-                  {explanation.considerations.map((consideration, index) => (
-                    <li key={index}>⚠️ {consideration}</li>
+        {showExplanation && showDetailedExplanation && explanation && (
+          <div className="mb-4 space-y-3">
+            {/* Preference Matches */}
+            {explanation.preferenceMatches && (
+              <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+                <h4 className="mb-2 flex items-center gap-1 text-sm font-medium text-green-800">
+                  <Heart className="h-3 w-3" />
+                  Matches Your Preferences
+                </h4>
+                <div className="flex flex-wrap gap-1">
+                  {explanation.preferenceMatches.genres?.map(genre => (
+                    <Badge
+                      key={genre}
+                      className="border-green-300 bg-green-100 text-xs text-green-800"
+                    >
+                      <ThumbsUp className="mr-1 h-2 w-2" />
+                      {genre}
+                    </Badge>
                   ))}
-                </ul>
+                  {explanation.preferenceMatches.directors?.map(director => (
+                    <Badge
+                      key={director}
+                      className="border-purple-300 bg-purple-100 text-xs text-purple-800"
+                    >
+                      🎬 {director}
+                    </Badge>
+                  ))}
+                  {explanation.preferenceMatches.themes?.map(theme => (
+                    <Badge
+                      key={theme}
+                      className="border-orange-300 bg-orange-100 text-xs text-orange-800"
+                    >
+                      ✨ {theme}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Quality Signals */}
+            {explanation.qualitySignals && (
+              <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3">
+                <h4 className="mb-2 flex items-center gap-1 text-sm font-medium text-yellow-800">
+                  <Award className="h-3 w-3" />
+                  Quality Indicators
+                </h4>
+                <div className="flex items-center gap-2 text-xs text-yellow-700">
+                  {explanation.qualitySignals.rating && (
+                    <div className="flex items-center gap-1">
+                      <Star className="h-3 w-3 text-yellow-500" />
+                      <span>Highly Rated ({movie.rating?.toFixed(1)})</span>
+                    </div>
+                  )}
+                  {explanation.qualitySignals.awards &&
+                    explanation.qualitySignals.awards.length > 0 && (
+                      <div className="flex items-center gap-1">
+                        <Award className="h-3 w-3 text-yellow-500" />
+                        <span>Award Winner</span>
+                      </div>
+                    )}
+                </div>
+              </div>
+            )}
+
+            {/* AI Semantic Match */}
+            {confidence > 0.8 && (
+              <div className="rounded-lg border border-purple-200 bg-purple-50 p-3">
+                <h4 className="mb-2 flex items-center gap-1 text-sm font-medium text-purple-800">
+                  <Brain className="h-3 w-3" />
+                  AI Semantic Match
+                </h4>
+                <p className="text-xs text-purple-700">
+                  Our AI found strong thematic similarities with your preferences (
+                  {Math.round(confidence * 100)}% confidence)
+                </p>
               </div>
             )}
           </div>
         )}
 
         {/* Action Buttons */}
-        <div className="flex gap-2">
+        <div className="flex items-center justify-between gap-2">
+          {/* Watchlist Button */}
           <Button
+            variant={isInWatchlist ? 'default' : 'outline'}
             size="sm"
-            className="flex-1"
-            onClick={() => onMovieClick(movie)}
-          >
-            <Play className="h-4 w-4 mr-1" />
-            Details
-          </Button>
-          
-          <Button
-            size="sm"
-            variant={isInWatchlist ? "secondary" : "outline"}
             onClick={() => onAddToWatchlist(movie.id)}
-            disabled={isInWatchlist}
             className="flex-1"
           >
             {isInWatchlist ? (
               <>
-                <Check className="h-4 w-4 mr-1" />
-                Added
+                <BookmarkCheck className="mr-1 h-4 w-4" />
+                In Watchlist
               </>
             ) : (
               <>
-                <Plus className="h-4 w-4 mr-1" />
-                Watchlist
+                <Bookmark className="mr-1 h-4 w-4" />
+                Add to Watchlist
               </>
             )}
           </Button>
+
+          {/* Feedback Buttons */}
+          {showFeedbackButtons && onFeedback && (
+            <div className="flex gap-1">
+              <Button
+                variant={feedbackGiven === 'like' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => handleFeedback('like')}
+                disabled={feedbackGiven !== null}
+                className={`p-2 ${feedbackGiven === 'like' ? 'bg-green-600 hover:bg-green-700' : ''}`}
+                title="More like this"
+              >
+                <ThumbsUp className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={feedbackGiven === 'dislike' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => handleFeedback('dislike')}
+                disabled={feedbackGiven !== null}
+                className={`p-2 ${feedbackGiven === 'dislike' ? 'bg-red-600 hover:bg-red-700' : ''}`}
+                title="Less like this"
+              >
+                <ThumbsDown className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </div>
+
+        {/* Feedback Confirmation */}
+        {feedbackGiven && (
+          <div
+            className={`mt-2 rounded p-2 text-center text-xs ${
+              feedbackGiven === 'like' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+            }`}
+          >
+            {feedbackGiven === 'like'
+              ? "👍 Thanks! We'll show you more movies like this."
+              : "👎 Got it! We'll adjust your recommendations."}
+          </div>
+        )}
       </CardContent>
     </Card>
   )
-} 
+}

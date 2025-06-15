@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@/lib/supabase/client'
 import { z } from 'zod'
-import { getAuthenticatedUserId, requireAuth } from '@/lib/auth-server'
 
 const profileUpdateSchema = z.object({
   fullName: z.string().optional(),
@@ -10,71 +9,64 @@ const profileUpdateSchema = z.object({
 // GET - Get user profile information
 export async function GET() {
   try {
-    // Get authenticated user
-    const userId = await getAuthenticatedUserId()
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'Authentication required', success: false },
-        { status: 401 }
-      )
+    const supabase = await createServerClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+    console.log('🔍 Checking profile for user:', {
+      userId: user.id,
+      email: user.email,
+      userMetadata: user.user_metadata,
+    })
 
     const { data: userProfile, error } = await supabase
       .from('user_profiles')
-      .select('id, email, full_name, preferences, onboarding_completed, created_at, updated_at')
-      .eq('id', userId)
+      .select('*')
+      .eq('id', user.id)
       .single()
 
-    if (error && error.code !== 'PGRST116') {
-      throw error
-    }
-
-    if (!userProfile) {
-      return NextResponse.json({ error: 'User profile not found', success: false }, { status: 404 })
-    }
+    console.log('👤 Profile query result:', {
+      found: !!userProfile,
+      profile: userProfile,
+      error: error?.message,
+    })
 
     return NextResponse.json({
       success: true,
-      profile: {
-        id: userProfile.id,
-        email: userProfile.email,
-        full_name: userProfile.full_name,
-        onboardingCompleted: userProfile.onboarding_completed,
-        createdAt: userProfile.created_at,
-        updatedAt: userProfile.updated_at,
+      user: {
+        id: user.id,
+        email: user.email,
+        metadata: user.user_metadata,
       },
+      profile: userProfile,
+      hasProfile: !!userProfile,
+      error: error?.message,
     })
   } catch (error) {
     console.error('❌ Error fetching user profile:', error)
-    return NextResponse.json(
-      {
-        error: 'Failed to fetch user profile',
-        success: false,
-      },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to fetch profile' }, { status: 500 })
   }
 }
 
 // PUT - Update user profile information
 export async function PUT(request: NextRequest) {
   try {
-    // Get authenticated user
-    const user = await requireAuth()
-    const userId = user.id
+    const supabase = await createServerClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
 
     const body = await request.json()
     profileUpdateSchema.parse(body) // Validate input format
-
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
 
     // Update user profile
     const { data, error } = await supabase
@@ -83,7 +75,7 @@ export async function PUT(request: NextRequest) {
         full_name: body.fullName,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', userId)
+      .eq('id', user.id)
       .select()
       .single()
 
@@ -92,7 +84,7 @@ export async function PUT(request: NextRequest) {
       throw error
     }
 
-    console.log('✅ Profile updated successfully:', { userId, fullName: body.fullName })
+    console.log('✅ Profile updated successfully:', { userId: user.id, fullName: body.fullName })
 
     return NextResponse.json({
       success: true,
@@ -124,6 +116,84 @@ export async function PUT(request: NextRequest) {
       {
         error: 'Failed to update profile',
         success: false,
+      },
+      { status: 500 }
+    )
+  }
+}
+
+export async function POST() {
+  try {
+    const supabase = await createServerClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
+    console.log('🔧 Creating/fixing profile for user:', {
+      userId: user.id,
+      email: user.email,
+      userMetadata: user.user_metadata,
+    })
+
+    // Try to create or update the profile
+    const profileData = {
+      id: user.id,
+      email: user.email || `user-${user.id}@temp.com`,
+      full_name:
+        user.user_metadata?.full_name ||
+        user.user_metadata?.name ||
+        user.email?.split('@')[0] ||
+        'User',
+      onboarding_completed: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+
+    console.log('📋 Profile data to upsert:', profileData)
+
+    const { data: profile, error } = await supabase
+      .from('user_profiles')
+      .upsert(profileData, {
+        onConflict: 'id',
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('❌ Error creating/updating profile:', {
+        error,
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      })
+      return NextResponse.json(
+        {
+          success: false,
+          error: error.message,
+          details: error,
+        },
+        { status: 500 }
+      )
+    }
+
+    console.log('✅ Successfully created/updated profile:', profile)
+
+    return NextResponse.json({
+      success: true,
+      message: 'Profile created/updated successfully',
+      profile,
+    })
+  } catch (error) {
+    console.error('❌ Error in profile creation:', error)
+    return NextResponse.json(
+      {
+        error: 'Failed to create profile',
+        details: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }
     )

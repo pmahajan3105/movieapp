@@ -384,108 +384,104 @@ async function convertToEnhancedRecommendations(
 ): Promise<unknown[]> {
   const enhancedRecommendations = []
 
-  for (const [index, aiRec] of aiRecommendations.entries()) {
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🔄 Converting AI recommendations to enhanced format:', aiRecommendations.length)
+  }
+
+  // First, try to find AI-recommended movies in our database
+  for (const aiRec of aiRecommendations) {
     try {
-      // Try to find the movie in our database
+      // Try multiple search strategies to find the movie
       let movie = null
 
-      // First try by TMDB ID if provided
-      if (aiRec.tmdb_id) {
-        const { data: tmdbMovie } = await supabase
+      // Strategy 1: Search by title and year
+      if (aiRec.title && aiRec.year) {
+        const { data } = await supabase
           .from('movies')
           .select('*')
-          .eq('tmdb_id', aiRec.tmdb_id)
-          .single()
-
-        if (tmdbMovie) {
-          movie = tmdbMovie
-        }
-      }
-
-      // If not found, try by title and year
-      if (!movie && aiRec.title && aiRec.year) {
-        const { data: titleMovies } = await supabase
-          .from('movies')
-          .select('*')
-          .ilike('title', aiRec.title)
+          .ilike('title', `%${aiRec.title}%`)
           .eq('year', aiRec.year)
           .limit(1)
-
-        if (titleMovies && titleMovies.length > 0) {
-          movie = titleMovies[0]
-        }
+          .single()
+        movie = data
       }
 
-      // If still not found, try just by title (fuzzy match)
+      // Strategy 2: Search by title only if year search failed
       if (!movie && aiRec.title) {
-        const { data: fuzzyMovies } = await supabase
+        const { data } = await supabase
           .from('movies')
           .select('*')
           .ilike('title', `%${aiRec.title}%`)
           .limit(1)
+          .single()
+        movie = data
+      }
 
-        if (fuzzyMovies && fuzzyMovies.length > 0) {
-          movie = fuzzyMovies[0]
+      if (movie) {
+        enhancedRecommendations.push({
+          id: movie.id,
+          title: movie.title,
+          year: movie.year,
+          genre: movie.genre,
+          director: movie.director,
+          plot: movie.plot,
+          poster_url: movie.poster_url,
+          rating: movie.rating,
+          runtime: movie.runtime,
+          reasoning: aiRec.reasoning || 'AI recommended based on your preferences',
+          confidence_score: aiRec.confidence_score || 0.8,
+          source: 'ai_matched_local',
+        })
+      } else {
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`⚠️ Movie not found in database: ${aiRec.title} (${aiRec.year})`)
         }
       }
-
-      // If we couldn't find the movie in database, create a mock movie object
-      if (!movie) {
-        console.warn(`⚠️ Movie not found in database: ${aiRec.title} (${aiRec.year})`)
-        movie = {
-          id: `ai_generated_${index}`,
-          title: aiRec.title || 'Unknown Title',
-          year: aiRec.year || undefined,
-          genre: aiRec.genre || [],
-          director: aiRec.director || [],
-          plot: aiRec.plot || '',
-          poster_url: undefined,
-          rating: undefined,
-          runtime: undefined,
-          tmdb_id: aiRec.tmdb_id || undefined,
-        }
-      }
-
-      // Create the enhanced recommendation
-      const enhancedRec = {
-        movie,
-        reason: aiRec.reasoning || 'AI recommended based on your preferences',
-        confidence: aiRec.confidence_score || 0.5,
-        position: index + 1,
-        explanation: {
-          primaryReasons: [aiRec.reasoning || 'AI recommended based on your preferences'],
-          preferenceMatches: {
-            genres:
-              aiRec.behavioral_match?.filter((match: string) => match.includes('genre')) || [],
-            directors:
-              aiRec.behavioral_match?.filter((match: string) => match.includes('director')) || [],
-            themes:
-              aiRec.behavioral_match?.filter((match: string) => match.includes('theme')) || [],
-          },
-          qualitySignals: {
-            rating: movie.rating,
-            userRatings: undefined,
-            awards: [],
-          },
-          contextMatch: {
-            runtime: movie.runtime ? `${movie.runtime} minutes` : undefined,
-            year: movie.year ? `Released in ${movie.year}` : undefined,
-          },
-          considerations: [],
-          similarToLiked: [],
-        },
-        source: 'ai' as const,
-      }
-
-      enhancedRecommendations.push(enhancedRec)
     } catch (error) {
-      console.error(`❌ Error converting recommendation ${index}:`, error)
-      // Continue with next recommendation rather than failing completely
+      console.error('Error finding movie in database:', error)
     }
   }
 
-  console.log(
-    `✅ Successfully converted ${enhancedRecommendations.length}/${aiRecommendations.length} recommendations`
-  )
+  // If we don't have enough recommendations, fill with popular local movies
+  if (enhancedRecommendations.length < 6) {
+    const needed = 12 - enhancedRecommendations.length
+
+    try {
+      const { data: popularMovies } = await supabase
+        .from('movies')
+        .select('*')
+        .not('id', 'in', `(${enhancedRecommendations.map(r => `'${r.id}'`).join(',') || "''"})`)
+        .order('rating', { ascending: false })
+        .limit(needed)
+
+      if (popularMovies) {
+        for (const movie of popularMovies) {
+          enhancedRecommendations.push({
+            id: movie.id,
+            title: movie.title,
+            year: movie.year,
+            genre: movie.genre,
+            director: movie.director,
+            plot: movie.plot,
+            poster_url: movie.poster_url,
+            rating: movie.rating,
+            runtime: movie.runtime,
+            reasoning: 'Popular choice based on ratings',
+            confidence_score: 0.6,
+            source: 'local_popular_fallback',
+          })
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching popular movies fallback:', error)
+    }
+  }
+
+  if (process.env.NODE_ENV === 'development') {
+    console.log(
+      `✅ Successfully converted ${enhancedRecommendations.length}/${aiRecommendations.length} recommendations`
+    )
+  }
+
   return enhancedRecommendations
 }

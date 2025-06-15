@@ -1,67 +1,62 @@
 'use client'
 
-import React, { useState, useMemo, memo } from 'react'
-import { useAuth } from '@/contexts/AuthContext'
-import { Film, Zap, ChevronDown, Brain, Sparkles, Target, RefreshCw } from 'lucide-react'
-import { MovieDetailsModal } from '@/components/movies/MovieDetailsModal'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import type { Movie, RecommendationExplanation } from '@/types'
-import Image from 'next/image'
+import { useState, useEffect, useCallback } from 'react'
+import { useInfiniteQuery } from '@tanstack/react-query'
+import { useAuth } from '@/hooks/useAuth'
 import { useMoviesWatchlist } from '@/hooks/useMoviesWatchlist'
-import { useMovies } from '@/hooks/useMovies'
-import { useAIRecommendations } from '@/hooks/useAIRecommendations'
-import { useQueryClient } from '@tanstack/react-query'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Brain, RefreshCw, Loader2, Bookmark, BookmarkCheck } from 'lucide-react'
+import Image from 'next/image'
+import PreferencesSetup from '@/components/PreferencesSetup'
+import { MovieDetailsModal } from '@/components/movies/MovieDetailsModal'
+import type { Movie } from '@/types'
 
-// Optimized Movie Card with AI Explanation
-const OptimizedMovieCard = memo(
-  ({
-    movie,
-    aiExplanation,
-    onMovieClick,
-    onAddToWatchlist,
-    isInWatchlist,
-  }: {
-    movie: Movie
-    aiExplanation?: string | RecommendationExplanation
-    onMovieClick: (movie: Movie) => void
-    onAddToWatchlist: (movieId: string) => void
-    isInWatchlist: boolean
-  }) => {
-    const handleImageError = React.useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
-      e.currentTarget.src = '/placeholder-movie.jpg'
-    }, [])
+// Movie Card Component
+const MovieCard = ({
+  movie,
+  onAddToWatchlist,
+  onMovieClick,
+  isInWatchlist,
+}: {
+  movie: Movie & { reasoning?: string }
+  onAddToWatchlist: (movieId: string) => void
+  onMovieClick: (movie: Movie) => void
+  isInWatchlist: boolean
+}) => {
+  return (
+    <Card className="group h-full overflow-hidden transition-all duration-200 hover:shadow-lg">
+      <div className="relative aspect-[2/3] overflow-hidden">
+        <Image
+          src={
+            movie.poster_url ||
+            `data:image/svg+xml;base64,${btoa(`
+            <svg width="300" height="450" xmlns="http://www.w3.org/2000/svg">
+              <rect width="100%" height="100%" fill="#f3f4f6"/>
+              <text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="#9ca3af" font-family="Arial, sans-serif" font-size="16">
+                ${movie.title}
+              </text>
+            </svg>
+          `)}`
+          }
+          alt={movie.title}
+          fill
+          className="object-cover transition-transform duration-200 group-hover:scale-105"
+          sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, (max-width: 1024px) 33vw, (max-width: 1280px) 25vw, 16vw"
+        />
 
-    return (
-      <Card className="group hover:border-primary/30 relative h-full overflow-hidden border transition-all duration-300 hover:scale-[1.02] hover:shadow-lg">
-        <div className="aspect-[2/3] overflow-hidden">
-          <Image
-            src={movie.poster_url || '/placeholder-movie.jpg'}
-            alt={movie.title}
-            width={300}
-            height={450}
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-            onError={handleImageError}
-            loading="lazy"
-          />
-        </div>
-
-        <CardContent className="p-4">
-          <div className="mb-2 flex items-center justify-between">
-            <Badge variant="outline" className="text-xs">
-              {movie.year || 'N/A'}
-            </Badge>
-            {movie.rating && (
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-yellow-500">★</span>
-                <span className="text-xs text-gray-600">{movie.rating.toFixed(1)}</span>
-              </div>
-            )}
+        {movie.rating && (
+          <div className="absolute top-2 right-2 rounded-full bg-black/70 px-2 py-1 text-xs font-medium text-white">
+            ⭐ {movie.rating}
           </div>
+        )}
+      </div>
 
+      <CardContent className="flex h-full flex-col justify-between p-4">
+        <div>
           <h3
-            className="hover:text-primary mb-2 line-clamp-2 cursor-pointer text-sm font-semibold"
+            className="hover:text-primary mb-2 line-clamp-2 cursor-pointer text-sm font-semibold transition-colors"
             onClick={() => onMovieClick(movie)}
           >
             {movie.title}
@@ -82,335 +77,383 @@ const OptimizedMovieCard = memo(
             </div>
           )}
 
-          {aiExplanation && (
+          {movie.reasoning && (
             <div className="from-primary/10 to-secondary/10 border-primary/20 mb-3 rounded-lg border bg-gradient-to-r p-3">
               <div className="mb-1 flex items-center gap-1">
                 <Brain className="text-primary h-3 w-3" />
                 <span className="text-primary text-xs font-medium">Why recommended:</span>
               </div>
-              {typeof aiExplanation === 'string' ? (
-                <p className="line-clamp-3 text-xs text-gray-700">{aiExplanation}</p>
-              ) : (
-                <div className="space-y-1">
-                  {aiExplanation.primaryReasons && aiExplanation.primaryReasons.length > 0 && (
-                    <p className="line-clamp-2 text-xs text-gray-700">
-                      <span className="font-medium">Main reasons:</span>{' '}
-                      {aiExplanation.primaryReasons.join(', ')}
-                    </p>
-                  )}
-                  {aiExplanation.preferenceMatches && (
-                    <div className="text-xs text-gray-600">
-                      {aiExplanation.preferenceMatches.genres &&
-                        aiExplanation.preferenceMatches.genres.length > 0 && (
-                          <p className="line-clamp-1">
-                            <span className="font-medium">Matches genres:</span>{' '}
-                            {aiExplanation.preferenceMatches.genres.join(', ')}
-                          </p>
-                        )}
-                      {aiExplanation.preferenceMatches.directors &&
-                        aiExplanation.preferenceMatches.directors.length > 0 && (
-                          <p className="line-clamp-1">
-                            <span className="font-medium">Matches directors:</span>{' '}
-                            {aiExplanation.preferenceMatches.directors.join(', ')}
-                          </p>
-                        )}
-                    </div>
-                  )}
-                  {aiExplanation.contextMatch && (
-                    <div className="text-xs text-gray-600">
-                      {aiExplanation.contextMatch.mood && (
-                        <p className="line-clamp-1">
-                          <span className="font-medium">Mood:</span>{' '}
-                          {aiExplanation.contextMatch.mood}
-                        </p>
-                      )}
-                      {aiExplanation.contextMatch.runtime && (
-                        <p className="line-clamp-1">
-                          <span className="font-medium">Runtime:</span>{' '}
-                          {aiExplanation.contextMatch.runtime}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
+              <p className="line-clamp-3 text-xs text-gray-700">{movie.reasoning}</p>
             </div>
           )}
+        </div>
 
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onMovieClick(movie)}
-              className="flex-1 text-xs"
-            >
-              View Details
-            </Button>
-            <Button
-              variant={isInWatchlist ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => onAddToWatchlist(movie.id)}
-              className="text-xs"
-            >
-              <Sparkles className="h-3 w-3" />
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
-)
-OptimizedMovieCard.displayName = 'OptimizedMovieCard'
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 text-xs"
+            onClick={() => onMovieClick(movie)}
+          >
+            View Details
+          </Button>
+          <Button
+            variant={isInWatchlist ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => onAddToWatchlist(movie.id)}
+            className="text-xs"
+          >
+            {isInWatchlist ? (
+              <BookmarkCheck className="h-3 w-3" />
+            ) : (
+              <Bookmark className="h-3 w-3" />
+            )}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
 
 // Main Page Component
-export default function UnifiedMoviesPage() {
+export default function SmartMoviesPage() {
   const { user, loading: authLoading } = useAuth()
-  const queryClient = useQueryClient()
-
-  const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null)
-  const [showingRecommendations, setShowingRecommendations] = useState(false)
-
-  // Use our custom hooks
   const { watchlistIds, toggleWatchlist } = useMoviesWatchlist()
 
+  const [showingRecommendations, setShowingRecommendations] = useState(false)
+  const [showPreferencesSetup, setShowPreferencesSetup] = useState(false)
+  const [hasPreferences, setHasPreferences] = useState(false)
+  const [savingPreferences, setSavingPreferences] = useState(false)
+  const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null)
+
+  // Infinite scroll query
   const {
-    data: moviesData,
+    data,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-    isLoading: moviesLoading,
-    isRefetching: isRefetchingMovies,
-  } = useMovies(user?.id)
+    isLoading,
+    refetch,
+    isError,
+    error,
+  } = useInfiniteQuery({
+    queryKey: ['movies-infinite-realtime', showingRecommendations],
+    queryFn: async ({ pageParam = 1 }) => {
+      const params = new URLSearchParams({
+        limit: '6',
+        page: pageParam.toString(),
+        realtime: 'true',
+        database: 'tmdb',
+        ...(showingRecommendations && { smart: 'true' }),
+      })
 
-  const {
-    data: aiRecommendations,
-    isLoading: recsLoading,
-    isRefetching: isRefetchingRecs,
-  } = useAIRecommendations(user?.id, { enabled: showingRecommendations })
+      const response = await fetch(`/api/movies?${params}`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch movies')
+      }
+      const data = await response.json()
 
-  // Derived state
-  const movies = useMemo(() => moviesData?.pages.flatMap(page => page.data) ?? [], [moviesData])
-  const userHasPreferences = useMemo(
-    () => moviesData?.pages[0]?.mem0Enhanced ?? false,
-    [moviesData]
-  )
+      // Transform TMDB response to match expected format
+      return {
+        data: data.movies || data.data || [],
+        total: data.total || 10000,
+        pagination: {
+          currentPage: data.page || pageParam,
+          limit: parseInt(params.get('limit') || '6'),
+          hasMore: (data.page || pageParam) < (data.totalPages || 500),
+          totalPages: data.totalPages || 500,
+        },
+        source: data.source || 'tmdb-realtime',
+      }
+    },
+    getNextPageParam: lastPage => {
+      const { pagination } = lastPage
+      return pagination.hasMore ? pagination.currentPage + 1 : undefined
+    },
+    staleTime: 1000 * 60 * 2, // 2 minutes for real-time data
+    initialPageParam: 1,
+  })
 
-  const handleRefresh = () => {
-    queryClient.invalidateQueries({ queryKey: ['movies', user?.id] })
-    queryClient.invalidateQueries({ queryKey: ['aiRecommendations', user?.id] })
-    queryClient.invalidateQueries({ queryKey: ['movies-watchlist'] })
+  // Flatten all pages into a single array
+  const movies = data?.pages.flatMap(page => page.data) || []
+  const totalMovies = data?.pages[0]?.total || 0
+
+  // Infinite scroll handler
+  const handleScroll = useCallback(() => {
+    if (
+      window.innerHeight + document.documentElement.scrollTop >=
+        document.documentElement.offsetHeight - 1000 && // Load when 1000px from bottom
+      hasNextPage &&
+      !isFetchingNextPage
+    ) {
+      fetchNextPage()
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
+
+  // Set up scroll listener
+  useEffect(() => {
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [handleScroll])
+
+  // Reset when switching modes
+  useEffect(() => {
+    refetch()
+  }, [showingRecommendations, refetch])
+
+  const handleAddToWatchlist = async (movieId: string) => {
+    await toggleWatchlist(movieId)
   }
 
-  // Loading states
-  const isRefreshing = isRefetchingMovies || isRefetchingRecs
-  const isLoading =
-    authLoading ||
-    (showingRecommendations
-      ? recsLoading && !aiRecommendations
-      : moviesLoading && movies.length === 0)
+  const handleMovieClick = (movie: Movie) => {
+    setSelectedMovie(movie)
+  }
+
+  const handleCloseModal = () => {
+    setSelectedMovie(null)
+  }
+
+  const handleRefresh = () => {
+    refetch()
+  }
+
+  const toggleRecommendations = async () => {
+    if (!showingRecommendations) {
+      // Check if user has preferences before enabling AI recommendations
+      try {
+        const response = await fetch('/api/user/preferences')
+        const data = await response.json()
+
+        if (data.hasPreferences) {
+          setHasPreferences(true)
+          setShowingRecommendations(true)
+        } else {
+          setShowPreferencesSetup(true)
+        }
+      } catch (error) {
+        console.error('Error checking preferences:', error)
+        setShowingRecommendations(true) // Fallback to default preferences
+      }
+    } else {
+      setShowingRecommendations(false)
+    }
+  }
+
+  const handleSavePreferences = async (preferences: any) => {
+    setSavingPreferences(true)
+    try {
+      const response = await fetch('/api/user/preferences', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(preferences),
+      })
+
+      if (response.ok) {
+        setHasPreferences(true)
+        setShowPreferencesSetup(false)
+        setShowingRecommendations(true)
+      } else {
+        console.error('Failed to save preferences')
+      }
+    } catch (error) {
+      console.error('Error saving preferences:', error)
+    } finally {
+      setSavingPreferences(false)
+    }
+  }
+
+  const handleSkipPreferences = () => {
+    setShowPreferencesSetup(false)
+    setShowingRecommendations(true) // Use default preferences
+  }
 
   if (authLoading) {
     return (
-      <div className="bg-base-100 flex min-h-screen flex-col justify-center py-12">
-        <div className="text-center">
-          <div className="loading loading-spinner loading-lg text-primary mb-4"></div>
-          <p className="text-base-content/70">Loading your personalized movies...</p>
-        </div>
+      <div className="flex h-64 items-center justify-center">
+        <div className="border-primary h-8 w-8 animate-spin rounded-full border-4 border-t-transparent"></div>
       </div>
     )
   }
 
-  const displayedMovies = showingRecommendations
-    ? (aiRecommendations || []).map(r => ({ ...r.movie, aiExplanation: r.explanation }))
-    : movies
+  if (!user) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <p className="text-gray-500">Please log in to view movies.</p>
+      </div>
+    )
+  }
+
+  if (isError) {
+    return (
+      <div className="flex h-64 flex-col items-center justify-center">
+        <div className="mb-4 text-6xl text-red-300">⚠️</div>
+        <h3 className="mb-2 text-xl font-semibold text-gray-700">Something went wrong</h3>
+        <p className="mb-4 text-gray-500">{error?.message || 'Failed to load movies'}</p>
+        <Button onClick={handleRefresh}>Try Again</Button>
+      </div>
+    )
+  }
+
+  // Show preferences setup if needed
+  if (showPreferencesSetup) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <PreferencesSetup
+          onSave={handleSavePreferences}
+          onSkip={handleSkipPreferences}
+          isLoading={savingPreferences}
+        />
+      </div>
+    )
+  }
 
   return (
-    <div className="bg-base-100 min-h-screen">
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <h1 className="text-base-content flex items-center gap-2 text-3xl font-bold">
-                <Film className="text-primary h-8 w-8" />
-                Smart Movies
-                {showingRecommendations && (
-                  <Badge className="from-primary to-secondary bg-gradient-to-r text-white">
-                    <Brain className="mr-1 h-3 w-3" />
-                    AI Powered
-                  </Badge>
-                )}
-              </h1>
-              <p className="text-base-content/70 mt-1">
-                {showingRecommendations
-                  ? 'Personalized recommendations with detailed explanations'
-                  : 'Discover movies tailored to your preferences'}
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button
-                variant={showingRecommendations ? 'default' : 'outline'}
-                onClick={() => setShowingRecommendations(prev => !prev)}
-                disabled={recsLoading}
-                className="flex items-center gap-2"
-              >
-                {recsLoading ? (
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                ) : (
-                  <>
-                    {showingRecommendations ? (
-                      <Target className="h-4 w-4" />
-                    ) : (
-                      <Sparkles className="h-4 w-4" />
-                    )}
-                    {showingRecommendations ? 'AI Picks' : 'Get AI Recommendations'}
-                  </>
-                )}
-              </Button>
-
-              <Button
-                variant="outline"
-                onClick={handleRefresh}
-                disabled={isRefreshing}
-                className="flex items-center gap-2"
-              >
-                <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                Refresh
-              </Button>
-            </div>
-          </div>
-
-          {/* Status Info */}
-          {(displayedMovies.length > 0 || !isLoading) && (
-            <div className="text-base-content/70 flex items-center justify-between text-sm">
-              <span>
-                {showingRecommendations
-                  ? `Showing ${aiRecommendations?.length || 0} AI recommendations`
-                  : `Showing ${movies.length} movies`}
+    <div className="container mx-auto px-4 py-8">
+      {/* Header */}
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">
+            {showingRecommendations ? 'AI Smart Recommendations' : 'Real-time Movie Discovery'}
+          </h1>
+          <p className="text-gray-600">
+            {showingRecommendations
+              ? '🧠 AI-powered recommendations from TMDB based on your preferences'
+              : '🌐 Fresh movies from TMDB database • Unlimited scroll'}
+          </p>
+          <div className="mt-2 flex items-center gap-2">
+            <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800 dark:bg-green-900 dark:text-green-200">
+              🔴 Live TMDB Data
+            </span>
+            {showingRecommendations && (
+              <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                🤖 AI Enhanced {hasPreferences ? '(Personalized)' : '(Default)'}
               </span>
-              {userHasPreferences && !showingRecommendations && (
-                <Badge variant="outline" className="text-xs">
-                  <Brain className="mr-1 h-3 w-3" />
-                  Personalized
-                </Badge>
-              )}
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
-        {/* Movies Grid */}
-        {isLoading ? (
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-            {Array.from({ length: 12 }).map((_, i) => (
-              <Card key={`loading-skeleton-${i}`} className="h-96 animate-pulse">
-                <div className="aspect-[2/3] bg-gray-200"></div>
-                <CardContent className="p-4">
-                  <div className="mb-2 h-4 rounded bg-gray-200"></div>
-                  <div className="h-3 w-2/3 rounded bg-gray-200"></div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : displayedMovies && displayedMovies.length > 0 ? (
-          <>
-            {/* AI Recommendations Introduction */}
-            {showingRecommendations && (
-              <Card className="from-primary/10 to-secondary/10 border-primary/20 mb-8 bg-gradient-to-r">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Sparkles className="text-primary h-5 w-5" />
-                    Why These Recommendations?
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-base-content/80">
-                    Each recommendation below includes detailed explanations showing why it matches
-                    your taste. Look for <strong>preference matches</strong>,{' '}
-                    <strong>quality signals</strong>, and
-                    <strong>contextual fit</strong> to understand our AI&apos;s reasoning.
-                  </p>
-                </CardContent>
-              </Card>
+        <div className="flex gap-2">
+          <Button
+            variant={showingRecommendations ? 'default' : 'outline'}
+            onClick={toggleRecommendations}
+            disabled={isLoading}
+            className="flex items-center gap-2"
+          >
+            {isLoading ? (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            ) : (
+              <Brain className="h-4 w-4" />
             )}
+            {showingRecommendations ? 'Show All Movies' : 'Get AI Recommendations'}
+          </Button>
 
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-              {displayedMovies.map(
-                (
-                  movie: Movie & { aiExplanation?: string | RecommendationExplanation },
-                  index: number
-                ) => (
-                  <OptimizedMovieCard
-                    key={`${showingRecommendations ? 'ai' : 'movie'}-${movie.id}-${index}`}
-                    movie={movie}
-                    aiExplanation={movie.aiExplanation}
-                    onMovieClick={setSelectedMovie}
-                    onAddToWatchlist={toggleWatchlist}
-                    isInWatchlist={watchlistIds.has(movie.id)}
-                  />
-                )
-              )}
-            </div>
+          <Button variant="outline" onClick={handleRefresh} disabled={isLoading}>
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
+      </div>
 
-            {/* Load More Button (only for regular movies) */}
-            {!showingRecommendations && hasNextPage && (
-              <div className="mt-12 flex justify-center">
-                <Button
-                  variant="outline"
-                  onClick={() => fetchNextPage()}
-                  disabled={isFetchingNextPage}
-                  className="flex items-center gap-2"
-                >
-                  {isFetchingNextPage ? (
-                    <div className="border-primary h-4 w-4 animate-spin rounded-full border-2 border-t-transparent" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4" />
-                  )}
-                  Load More Movies
-                </Button>
-              </div>
-            )}
-          </>
-        ) : (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <Zap className="mx-auto mb-4 h-12 w-12 text-gray-400" />
-              <h3 className="text-base-content mb-2 text-lg font-medium">
-                {showingRecommendations ? 'No AI recommendations yet' : 'No movies found'}
-              </h3>
-              <p className="text-base-content/70 mb-4">
-                {showingRecommendations
-                  ? 'Chat with CineAI to build your preferences and get personalized recommendations!'
-                  : userHasPreferences
-                    ? 'No movies match your preferences. Try chatting with CineAI to discover new tastes!'
-                    : 'Check back later for more movie recommendations!'}
-              </p>
-              <div className="flex justify-center gap-2">
-                <Button onClick={handleRefresh}>Refresh</Button>
-                <Button variant="outline" onClick={() => (window.location.href = '/dashboard')}>
-                  Chat with CineAI
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+      {/* Movies Count */}
+      <div className="mb-6 flex items-center justify-between">
+        <span className="text-sm text-gray-600">
+          Showing {movies.length} of {totalMovies.toLocaleString()} movies • Scroll for more
+          {showingRecommendations && ' (AI Enhanced)'}
+        </span>
 
-        {/* Movie Details Modal */}
-        {selectedMovie && (
-          <MovieDetailsModal
-            movie={selectedMovie}
-            open={!!selectedMovie}
-            onClose={() => setSelectedMovie(null)}
-            onAddToWatchlist={async (movieId: string) => {
-              toggleWatchlist(movieId)
-            }}
-            onRemoveFromWatchlist={async (movieId: string) => {
-              toggleWatchlist(movieId)
-            }}
-            isInWatchlist={watchlistIds.has(selectedMovie.id)}
-          />
+        {hasNextPage && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fetchNextPage()}
+            disabled={isFetchingNextPage}
+            className="flex items-center gap-2"
+          >
+            {isFetchingNextPage ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Load More'}
+          </Button>
         )}
       </div>
+
+      {/* Movies Grid */}
+      {isLoading && movies.length === 0 ? (
+        <div className="flex h-64 items-center justify-center">
+          <div className="border-primary h-8 w-8 animate-spin rounded-full border-4 border-t-transparent"></div>
+        </div>
+      ) : movies.length === 0 ? (
+        <div className="flex h-64 flex-col items-center justify-center">
+          <div className="mb-4 text-6xl text-gray-300">⚡</div>
+          <h3 className="mb-2 text-xl font-semibold text-gray-700">No movies found</h3>
+          <p className="mb-4 text-gray-500">Check back later for more movie recommendations!</p>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleRefresh}>
+              Refresh
+            </Button>
+            <Button onClick={() => setShowingRecommendations(false)}>Chat with CineAI</Button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+            {movies.map((movie: Movie & { reasoning?: string }, index) => (
+              <MovieCard
+                key={`${movie.id}-${index}`} // Include index to handle duplicates across pages
+                movie={movie}
+                onAddToWatchlist={handleAddToWatchlist}
+                onMovieClick={handleMovieClick}
+                isInWatchlist={watchlistIds.has(movie.id)}
+              />
+            ))}
+          </div>
+
+          {/* Loading indicator for infinite scroll */}
+          {isFetchingNextPage && (
+            <div className="mt-8 flex justify-center">
+              <div className="flex items-center gap-2 text-gray-600">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                <span>Loading more movies...</span>
+              </div>
+            </div>
+          )}
+
+          {/* End of results indicator */}
+          {!hasNextPage && movies.length > 0 && (
+            <div className="mt-8 text-center">
+              <p className="text-gray-500">
+                🎬 You&apos;ve explored {totalMovies.toLocaleString()} movies from TMDB!
+                {showingRecommendations ? (
+                  <Button
+                    variant="link"
+                    onClick={() => setShowingRecommendations(false)}
+                    className="ml-2"
+                  >
+                    Browse trending movies
+                  </Button>
+                ) : (
+                  <Button
+                    variant="link"
+                    onClick={() => setShowingRecommendations(true)}
+                    className="ml-2"
+                  >
+                    Get AI recommendations
+                  </Button>
+                )}
+              </p>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Movie Details Modal */}
+      {selectedMovie && (
+        <MovieDetailsModal
+          movie={selectedMovie}
+          open={!!selectedMovie}
+          onClose={handleCloseModal}
+          onAddToWatchlist={handleAddToWatchlist}
+          onRemoveFromWatchlist={handleAddToWatchlist}
+          isInWatchlist={watchlistIds.has(selectedMovie.id)}
+        />
+      )}
     </div>
   )
 }

@@ -1,11 +1,12 @@
-// Core Movie Type (simplified - no cast)
+// Core Movie Type
 export interface Movie {
   id: string
   title: string
   year?: number
   genre?: string[]
   director?: string[]
-  actors?: string[]
+  actors?: string[] // Legacy field name
+  cast?: string[] // Database field name
   plot?: string
   poster_url?: string
   backdrop_url?: string

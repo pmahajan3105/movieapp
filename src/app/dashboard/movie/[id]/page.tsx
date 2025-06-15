@@ -122,10 +122,10 @@ export default function MovieDetailPage() {
 
   // Remove from watchlist
   const handleRemoveFromWatchlist = async () => {
-    if (!watchlistItem) return
+    if (!watchlistItem || !movie) return
 
     try {
-      const response = await fetch(`/api/watchlist?id=${watchlistItem.id}`, {
+      const response = await fetch(`/api/watchlist?movie_id=${movie.id}`, {
         method: 'DELETE',
       })
 
@@ -154,7 +154,7 @@ export default function MovieDetailPage() {
 
     try {
       const response = await fetch('/api/watchlist', {
-        method: 'PUT',
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },

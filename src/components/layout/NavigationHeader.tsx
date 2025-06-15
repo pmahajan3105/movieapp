@@ -4,7 +4,18 @@ import React, { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { Film, LogOut, Sparkles, Menu, X, User, List, ChevronDown, CheckCircle } from 'lucide-react'
+import {
+  Film,
+  LogOut,
+  Sparkles,
+  Menu,
+  X,
+  User,
+  List,
+  ChevronDown,
+  CheckCircle,
+  Settings,
+} from 'lucide-react'
 import { SearchInterface } from '@/components/search/SearchInterface'
 
 export function NavigationHeader() {
@@ -114,6 +125,12 @@ export function NavigationHeader() {
       href: '/dashboard/watched',
       icon: CheckCircle,
       current: pathname.startsWith('/dashboard/watched'),
+    },
+    {
+      name: 'Preferences',
+      href: '/dashboard/settings',
+      icon: Settings,
+      current: pathname.startsWith('/dashboard/settings'),
     },
   ]
 

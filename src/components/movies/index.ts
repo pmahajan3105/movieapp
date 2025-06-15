@@ -1,8 +1,9 @@
-// Export only the components we're still using
-// Removed: MovieSpotlight, CategoryRow (part of old spotlight system)
-
-// If you have other movie components, export them here
-// For now, we're using inline components in the dashboard
-
+// Export movie components
 export { MovieGridCard } from './MovieGridCard'
 export { QuickRateCard } from './QuickRateCard'
+export { RecommendationCard } from './RecommendationCard'
+export { EnhancedRecommendationGrid } from './EnhancedRecommendationGrid'
+export { MovieDetailsModal } from './MovieDetailsModal'
+export { MarkWatchedModal } from './MarkWatchedModal'
+export { MovieCardSkeleton } from './MovieCardSkeleton'
+export { CategoryRow } from './CategoryRow'
