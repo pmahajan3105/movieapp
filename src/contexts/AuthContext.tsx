@@ -1,19 +1,9 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { createBrowserClient } from '@supabase/ssr'
 import { User } from '@supabase/supabase-js'
-import type { Database } from '@/lib/supabase/types'
-
-interface UserProfile {
-  id: string
-  email: string
-  full_name?: string
-  preferences?: any
-  onboarding_completed?: boolean
-  created_at?: string
-  updated_at?: string
-}
+import { createTypedBrowserClient } from '@/lib/typed-supabase'
+import type { UserProfile } from '@/lib/typed-supabase'
 
 interface AuthUser extends User {
   onboarding_completed?: boolean
@@ -23,8 +13,10 @@ interface AuthUser extends User {
 interface AuthContextType {
   user: AuthUser | null
   loading: boolean
+  isSessionValid: boolean
   signOut: () => Promise<void>
   reloadProfile: () => Promise<void>
+  refreshUser: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -37,10 +29,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  const supabase =
-    supabaseUrl && supabaseAnonKey
-      ? createBrowserClient<Database>(supabaseUrl, supabaseAnonKey)
-      : null
+  const supabase = supabaseUrl && supabaseAnonKey ? createTypedBrowserClient() : null
 
   const loadUserProfile = async (authUser: User): Promise<AuthUser> => {
     if (!supabase) return authUser as AuthUser
@@ -59,7 +48,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return {
         ...authUser,
         profile: userProfile || undefined,
-        onboarding_completed: userProfile?.onboarding_completed,
+        onboarding_completed: userProfile?.onboarding_completed || false,
       }
     } catch (error) {
       console.error('❌ Error loading user profile:', error)
@@ -158,8 +147,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value = {
     user,
     loading,
+    isSessionValid: !!user && !loading,
     signOut,
     reloadProfile,
+    refreshUser: reloadProfile, // Alias for reloadProfile
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
