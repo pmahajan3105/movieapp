@@ -1,19 +1,21 @@
 'use client'
 
 import React, { useState, useCallback, useEffect, Suspense } from 'react'
-import { useAuth } from '@/contexts/AuthContext'
 import { useSearchParams } from 'next/navigation'
 import { FilterPanel } from '@/components/search/FilterPanel'
 import { FilterChips } from '@/components/search/FilterChips'
 import { SearchResults } from '@/components/search/SearchResults'
 import { MovieDetailsModal } from '@/components/movies/MovieDetailsModal'
+import { AuthStatus } from '@/components/auth/AuthStatus'
+import { AuthGuard } from '@/components/auth/AuthGuard'
+import { useMoviesWatchlist } from '@/hooks/useMoviesWatchlist'
 import type { Movie } from '@/types'
 import type { SearchFilters, SearchResponse } from '@/types/search'
 import { toast } from 'react-hot-toast'
 
 function SearchPageContent() {
-  const { user } = useAuth()
   const searchParams = useSearchParams()
+  const { addToWatchlist, isInWatchlist } = useMoviesWatchlist()
 
   const [filters, setFilters] = useState<SearchFilters>({
     query: searchParams.get('q') || '',
@@ -47,13 +49,36 @@ function SearchPageContent() {
 
       console.log('🔍 Performing search with filters:', searchFilters)
 
-      const response = await fetch(`/api/movies/search?${params}`)
-      const data: SearchResponse = await response.json()
+      // Use TMDB for search instead of OMDB to ensure consistent movie ID format
+      const response = await fetch(
+        `/api/movies?realtime=true&database=tmdb&query=${encodeURIComponent(searchFilters.query || '')}&limit=${searchFilters.limit || 20}&page=${Math.floor((searchFilters.offset || 0) / (searchFilters.limit || 20)) + 1}`
+      )
+      const data = await response.json()
 
-      if (data.success && data.data) {
-        setSearchResults(data.data)
-        console.log(`🔍 Search successful: ${data.data.movies.length} movies found`)
+      console.log('🔍 Search API response:', data)
+
+      if (data.movies && Array.isArray(data.movies)) {
+        // Transform TMDB response to match SearchResponse format
+        const searchResponse = {
+          movies: data.movies,
+          totalCount: data.total || data.movies.length,
+          facets: {
+            genres: [],
+            years: [],
+            directors: [],
+            ratingRanges: [],
+          },
+          searchMeta: {
+            query: searchFilters.query || '',
+            appliedFilters: searchFilters as Record<string, unknown>,
+            resultCount: data.movies.length,
+            executionTime: 0,
+          },
+        }
+        setSearchResults(searchResponse)
+        console.log(`🔍 Search successful: ${data.movies.length} movies found`)
       } else {
+        console.error('🔍 Search failed - unexpected response format:', data)
         toast.error(data.error || 'Search failed')
         setSearchResults(undefined)
       }
@@ -107,33 +132,12 @@ function SearchPageContent() {
     [filters, performSearch]
   )
 
-  // Handle add to watchlist
+  // Use centralized watchlist function
   const handleAddToWatchlist = useCallback(
     async (movieId: string) => {
-      if (!user) {
-        toast.error('Please sign in to add movies to your watchlist')
-        return
-      }
-
-      try {
-        const response = await fetch('/api/watchlist', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ movie_id: movieId }),
-        })
-
-        const data = await response.json()
-        if (data.success) {
-          toast.success('Added to watchlist!')
-        } else {
-          toast.error(data.error || 'Failed to add to watchlist')
-        }
-      } catch (error) {
-        console.error('Watchlist error:', error)
-        toast.error('Failed to add to watchlist')
-      }
+      addToWatchlist(movieId)
     },
-    [user]
+    [addToWatchlist]
   )
 
   // Initial search on mount
@@ -163,16 +167,19 @@ function SearchPageContent() {
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="mb-2 text-3xl font-bold text-gray-900">
-            {currentQuery ? (
-              <>
-                Search Results for{' '}
-                <span className="text-purple-600">&ldquo;{currentQuery}&rdquo;</span>
-              </>
-            ) : (
-              'Search Movies 🔍'
-            )}
-          </h1>
+          <div className="mb-4 flex items-center justify-between">
+            <h1 className="text-3xl font-bold text-gray-900">
+              {currentQuery ? (
+                <>
+                  Search Results for{' '}
+                  <span className="text-purple-600">&ldquo;{currentQuery}&rdquo;</span>
+                </>
+              ) : (
+                'Search Movies 🔍'
+              )}
+            </h1>
+            <AuthStatus />
+          </div>
           {currentQuery && searchResults && (
             <p className="text-gray-600">
               Found {searchResults.totalCount} movies matching your search
@@ -236,7 +243,7 @@ function SearchPageContent() {
           open={!!selectedMovie}
           onClose={() => setSelectedMovie(null)}
           onAddToWatchlist={handleAddToWatchlist}
-          isInWatchlist={false}
+          isInWatchlist={selectedMovie ? isInWatchlist(selectedMovie.id) : false}
         />
       </div>
     </div>
@@ -245,17 +252,19 @@ function SearchPageContent() {
 
 export default function SearchPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-screen items-center justify-center bg-gray-50">
-          <div className="text-center">
-            <div className="mx-auto h-32 w-32 animate-spin rounded-full border-b-2 border-purple-600"></div>
-            <p className="mt-4 text-gray-600">Loading search...</p>
+    <AuthGuard requireAuth={false}>
+      <Suspense
+        fallback={
+          <div className="flex min-h-screen items-center justify-center bg-gray-50">
+            <div className="text-center">
+              <div className="mx-auto h-32 w-32 animate-spin rounded-full border-b-2 border-purple-600"></div>
+              <p className="mt-4 text-gray-600">Loading search...</p>
+            </div>
           </div>
-        </div>
-      }
-    >
-      <SearchPageContent />
-    </Suspense>
+        }
+      >
+        <SearchPageContent />
+      </Suspense>
+    </AuthGuard>
   )
 }

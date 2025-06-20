@@ -24,57 +24,42 @@ export function NavigationHeader() {
   const pathname = usePathname()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isAccountDropdownOpen, setIsAccountDropdownOpen] = useState(false)
-  const [userDisplayName, setUserDisplayName] = useState('')
+  const [mounted, setMounted] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  // Load user's full name from database
+  // Ensure client-side hydration is complete before rendering user-dependent content
   useEffect(() => {
-    const loadUserDisplayName = async () => {
-      if (!user) {
-        setUserDisplayName('')
-        return
-      }
-
-      try {
-        const response = await fetch('/api/user/profile')
-        if (response.ok) {
-          const data = await response.json()
-          if (data.success && data.profile?.full_name) {
-            setUserDisplayName(data.profile.full_name)
-          } else {
-            // Fallback to email username
-            setUserDisplayName(user.email?.split('@')[0] || 'Account')
-          }
-        } else {
-          // Fallback to email username if API fails
-          setUserDisplayName(user.email?.split('@')[0] || 'Account')
-        }
-      } catch (error) {
-        console.error('Error loading user display name:', error)
-        // Fallback to email username
-        setUserDisplayName(user.email?.split('@')[0] || 'Account')
-      }
-    }
-
-    loadUserDisplayName()
-  }, [user])
-
-  // Listen for name updates from account page
-  useEffect(() => {
-    const handleNameUpdate = (event: CustomEvent) => {
-      const { fullName } = event.detail
-      if (fullName) {
-        setUserDisplayName(fullName)
-      }
-    }
-
-    window.addEventListener('userNameUpdated', handleNameUpdate as EventListener)
-    return () => {
-      window.removeEventListener('userNameUpdated', handleNameUpdate as EventListener)
-    }
+    setMounted(true)
   }, [])
 
-  // Close dropdown when clicking outside
+  // Get user display name from the profile data in AuthContext
+  const getUserDisplayName = () => {
+    if (!user) return ''
+
+    // First try to get from profile data
+    if (user.profile?.full_name && user.profile.full_name.trim()) {
+      return user.profile.full_name.trim()
+    }
+
+    // Fallback to email username, but make it more user-friendly
+    if (user.email) {
+      const emailUsername = user.email.split('@')[0]
+      if (emailUsername) {
+        // Capitalize first letter and replace dots/underscores with spaces
+        return emailUsername
+          .replace(/[._]/g, ' ')
+          .split(' ')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ')
+      }
+    }
+
+    return 'Account'
+  }
+
+  const userDisplayName = getUserDisplayName()
+
+  // Handle clicks outside dropdown
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -88,14 +73,15 @@ export function NavigationHeader() {
     }
   }, [])
 
-  // Don't show navigation on auth pages or landing page
-  if (loading || !user || pathname === '/' || pathname.startsWith('/auth')) {
-    return null
-  }
+  // Close mobile menu when route changes
+  useEffect(() => {
+    setIsMobileMenuOpen(false)
+  }, [pathname])
 
   const handleSignOut = async () => {
     try {
       await signOut()
+      router.push('/')
     } catch (error) {
       console.error('Error signing out:', error)
     }
@@ -107,196 +93,168 @@ export function NavigationHeader() {
     setIsMobileMenuOpen(false)
   }
 
-  const navigation = [
-    {
-      name: 'Movies',
-      href: '/dashboard/movies',
-      icon: Film,
-      current: pathname.startsWith('/dashboard/movies'),
-    },
-    {
-      name: 'Watchlist',
-      href: '/dashboard/watchlist',
-      icon: List,
-      current: pathname.startsWith('/dashboard/watchlist'),
-    },
-    {
-      name: 'Watched',
-      href: '/dashboard/watched',
-      icon: CheckCircle,
-      current: pathname.startsWith('/dashboard/watched'),
-    },
-    {
-      name: 'Preferences',
-      href: '/dashboard/settings',
-      icon: Settings,
-      current: pathname.startsWith('/dashboard/settings'),
-    },
+  const navItems = [
+    { label: 'Movies', href: '/dashboard/movies', icon: Film },
+    { label: 'Watchlist', href: '/dashboard/watchlist', icon: List },
+    { label: 'Watched', href: '/dashboard/watched', icon: CheckCircle },
+    { label: 'Settings', href: '/dashboard/settings', icon: Settings },
   ]
 
-  return (
-    <nav className="sticky top-0 z-50 border-b border-gray-200 bg-white shadow-sm">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex h-16 justify-between">
-          {/* Left side */}
-          <div className="flex items-center">
-            {/* Mobile menu button */}
-            <div className="lg:hidden">
-              <button
-                type="button"
-                className="inline-flex items-center justify-center rounded-md p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-500"
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              >
-                {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-              </button>
-            </div>
-
+  // Don't render user-dependent content until mounted to avoid hydration mismatch
+  if (!mounted) {
+    return (
+      <header className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-sm">
+        <div className="container mx-auto px-4">
+          <div className="flex h-14 items-center justify-between">
             {/* Logo */}
-            <Link href="/dashboard" className="ml-4 flex items-center space-x-2 lg:ml-0">
-              <div className="flex items-center space-x-1">
-                <Film className="h-8 w-8 text-blue-600" />
-                <Sparkles className="h-4 w-4 text-purple-500" />
-              </div>
-              <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-xl font-bold text-transparent">
-                CineAI
-              </span>
+            <Link href="/" className="flex items-center space-x-2">
+              <Sparkles className="h-6 w-6 text-purple-600" />
+              <span className="text-xl font-bold text-gray-900">CineAI</span>
             </Link>
-          </div>
 
-          {/* Center - Desktop Search */}
-          <div className="mx-8 hidden max-w-lg flex-1 items-center lg:flex">
-            <SearchInterface
-              onSearch={handleSearch}
-              placeholder="Search movies..."
-              showAutocomplete={true}
-              className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-transparent focus:ring-2 focus:ring-blue-500"
-            />
+            {/* Loading placeholder */}
+            <div className="h-8 w-8 animate-pulse rounded-full bg-gray-200" />
           </div>
+        </div>
+      </header>
+    )
+  }
 
-          {/* Right side */}
+  return (
+    <header className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-sm">
+      <div className="container mx-auto px-4">
+        <div className="flex h-14 items-center justify-between">
+          {/* Logo */}
+          <Link href="/" className="flex items-center space-x-2">
+            <Sparkles className="h-6 w-6 text-purple-600" />
+            <span className="text-xl font-bold text-gray-900">CineAI</span>
+          </Link>
+
+          {/* Desktop Navigation - Center */}
+          <nav className="hidden items-center space-x-8 md:flex">
+            {user &&
+              navItems.map(item => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center space-x-1 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-200 ${
+                    pathname === item.href
+                      ? 'bg-purple-100 text-purple-700'
+                      : 'text-gray-600 hover:bg-purple-50 hover:text-purple-600'
+                  }`}
+                >
+                  <item.icon className="h-4 w-4" />
+                  <span>{item.label}</span>
+                </Link>
+              ))}
+          </nav>
+
+          {/* Search and User Section */}
           <div className="flex items-center space-x-4">
-            {/* Desktop Navigation */}
-            <div className="hidden items-center space-x-4 lg:flex">
-              {navigation.map(item => {
-                const Icon = item.icon
-                return (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    className={`inline-flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                      item.current
-                        ? 'bg-blue-100 text-blue-700'
-                        : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-                    }`}
-                  >
-                    <Icon className="mr-2 h-4 w-4" />
-                    {item.name}
-                  </Link>
-                )
-              })}
+            {/* Search - Hide on mobile */}
+            {user && (
+              <div className="hidden md:block">
+                <SearchInterface onSearch={handleSearch} />
+              </div>
+            )}
 
-              {/* Account Dropdown */}
+            {/* User Section */}
+            {loading ? (
+              <div className="h-8 w-8 animate-pulse rounded-full bg-gray-200" />
+            ) : user ? (
               <div className="relative" ref={dropdownRef}>
                 <button
                   onClick={() => setIsAccountDropdownOpen(!isAccountDropdownOpen)}
-                  className="flex items-center space-x-2 rounded-md px-3 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                  className="flex items-center space-x-2 rounded-md px-2 py-1 text-sm text-gray-700 hover:text-purple-600 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:outline-none"
                 >
-                  <User className="h-4 w-4" />
-                  <span className="hidden sm:inline">{userDisplayName || 'Account'}</span>
-                  <ChevronDown className="h-3 w-3" />
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-100">
+                    <User className="h-4 w-4 text-purple-600" />
+                  </div>
+                  <span className="hidden font-medium sm:block">{userDisplayName}</span>
+                  <ChevronDown className="h-4 w-4" />
                 </button>
 
                 {isAccountDropdownOpen && (
-                  <div className="ring-opacity-5 absolute right-0 z-50 mt-2 w-48 rounded-md bg-white ring-1 shadow-lg ring-black">
-                    <div className="py-1">
-                      <Link
-                        href="/dashboard/account"
-                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        onClick={() => setIsAccountDropdownOpen(false)}
-                      >
-                        <User className="mr-2 h-4 w-4" />
-                        Account Settings
-                      </Link>
-                      <button
-                        onClick={() => {
-                          setIsAccountDropdownOpen(false)
-                          handleSignOut()
-                        }}
-                        className="flex w-full items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                      >
-                        <LogOut className="mr-2 h-4 w-4" />
-                        Sign Out
-                      </button>
+                  <div className="absolute right-0 z-50 mt-2 w-48 rounded-md border bg-white py-1 shadow-lg">
+                    <div className="border-b px-4 py-2 text-sm text-gray-700">
+                      <div className="truncate font-medium">{userDisplayName}</div>
+                      <div className="truncate text-xs text-gray-500">{user.email}</div>
                     </div>
+                    <Link
+                      href="/dashboard/account"
+                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      onClick={() => setIsAccountDropdownOpen(false)}
+                    >
+                      <Settings className="mr-2 h-4 w-4" />
+                      Account Settings
+                    </Link>
+                    <button
+                      onClick={handleSignOut}
+                      className="flex w-full items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    >
+                      <LogOut className="mr-2 h-4 w-4" />
+                      Sign Out
+                    </button>
                   </div>
                 )}
               </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Mobile Navigation Menu */}
-      {isMobileMenuOpen && (
-        <div className="border-t border-gray-200 bg-white lg:hidden">
-          {/* Mobile Search */}
-          <div className="border-b border-gray-200 p-4">
-            <SearchInterface
-              onSearch={handleSearch}
-              placeholder="Search movies..."
-              showAutocomplete={false}
-              className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-transparent focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          {/* Mobile Navigation Links */}
-          <div className="p-2">
-            {navigation.map(item => {
-              const Icon = item.icon
-              return (
+            ) : (
+              <div className="flex items-center space-x-2">
                 <Link
-                  key={item.name}
-                  href={item.href}
-                  className={`mb-2 flex w-full items-center rounded-md px-3 py-2 text-sm font-medium ${
-                    item.current
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-                  }`}
-                  onClick={() => setIsMobileMenuOpen(false)}
+                  href="/auth/login"
+                  className="rounded-md px-3 py-2 text-sm font-medium text-gray-600 hover:text-purple-600"
                 >
-                  <Icon className="mr-2 h-4 w-4" />
-                  {item.name}
+                  Sign In
                 </Link>
-              )
-            })}
-
-            {/* Mobile Account Links */}
-            <div className="mt-2 border-t border-gray-200 pt-2">
-              <div className="px-3 py-2 text-sm text-gray-500">
-                Signed in as: <span className="font-medium">{userDisplayName || 'Account'}</span>
+                <Link
+                  href="/auth/register"
+                  className="rounded-md bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700"
+                >
+                  Sign Up
+                </Link>
               </div>
-              <Link
-                href="/dashboard/account"
-                className="mb-2 flex w-full items-center rounded-md px-3 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                <User className="mr-2 h-4 w-4" />
-                Account Settings
-              </Link>
+            )}
+
+            {/* Mobile Menu Button */}
+            {user && (
               <button
-                onClick={() => {
-                  setIsMobileMenuOpen(false)
-                  handleSignOut()
-                }}
-                className="flex w-full items-center rounded-md px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 hover:text-red-700"
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="rounded-md p-2 text-gray-600 hover:bg-purple-50 hover:text-purple-600 md:hidden"
               >
-                <LogOut className="mr-2 h-4 w-4" />
-                Sign Out
+                {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
               </button>
-            </div>
+            )}
           </div>
         </div>
-      )}
-    </nav>
+
+        {/* Mobile Menu */}
+        {user && isMobileMenuOpen && (
+          <div className="border-t bg-white py-4 md:hidden">
+            {/* Mobile Search */}
+            <div className="mb-4 px-4">
+              <SearchInterface onSearch={handleSearch} />
+            </div>
+
+            {/* Mobile Navigation */}
+            <nav className="space-y-2 px-4">
+              {navItems.map(item => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center space-x-3 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-200 ${
+                    pathname === item.href
+                      ? 'bg-purple-100 text-purple-700'
+                      : 'text-gray-600 hover:bg-purple-50 hover:text-purple-600'
+                  }`}
+                >
+                  <item.icon className="h-4 w-4" />
+                  <span>{item.label}</span>
+                </Link>
+              ))}
+            </nav>
+          </div>
+        )}
+      </div>
+    </header>
   )
 }

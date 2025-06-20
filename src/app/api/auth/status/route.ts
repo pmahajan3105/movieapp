@@ -1,43 +1,74 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@/lib/supabase/client'
 
 export async function GET() {
   try {
-    // Use the service role for server-side auth checking
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+    const supabase = await createServerClient()
 
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return NextResponse.json({
-        connected: false,
-        error: 'Missing Supabase configuration',
-      })
-    }
+    // Get current user and session
+    const [
+      {
+        data: { user },
+        error: userError,
+      },
+      {
+        data: { session },
+        error: sessionError,
+      },
+    ] = await Promise.all([supabase.auth.getUser(), supabase.auth.getSession()])
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
-    // Test if we can connect to Supabase
-    const { error } = await supabase.from('movies').select('count').limit(1)
-
-    if (error) {
-      console.error('Supabase connection error:', error)
-      return NextResponse.json({
-        connected: false,
-        error: error.message,
-      })
-    }
+    console.log('🔐 Auth Status Check:', {
+      hasUser: !!user,
+      userId: user?.id,
+      userEmail: user?.email,
+      userError: userError?.message,
+      userErrorCode: userError?.code,
+      hasSession: !!session,
+      sessionError: sessionError?.message,
+      sessionErrorCode: sessionError?.code,
+      sessionExpiresAt: session?.expires_at,
+      sessionRefreshToken: !!session?.refresh_token,
+      sessionAccessToken: !!session?.access_token,
+    })
 
     return NextResponse.json({
-      connected: true,
-      authenticated: false, // This endpoint just tests connection
-      message: 'Supabase connection successful',
+      success: true,
+      data: {
+        authenticated: !!user && !!session,
+        user: user
+          ? {
+              id: user.id,
+              email: user.email,
+              created_at: user.created_at,
+            }
+          : null,
+        session: session
+          ? {
+              expires_at: session.expires_at,
+              has_refresh_token: !!session.refresh_token,
+              has_access_token: !!session.access_token,
+            }
+          : null,
+        errors: {
+          user_error: userError?.message,
+          session_error: sessionError?.message,
+        },
+      },
     })
   } catch (error) {
-    console.error('Auth status error:', error)
+    console.error('❌ Auth status check error:', error)
     return NextResponse.json(
       {
-        connected: false,
-        error: 'Failed to connect to Supabase',
+        success: false,
+        error: 'Failed to check auth status',
+        data: {
+          authenticated: false,
+          user: null,
+          session: null,
+          errors: {
+            system_error: error instanceof Error ? error.message : 'Unknown error',
+          },
+        },
       },
       { status: 500 }
     )

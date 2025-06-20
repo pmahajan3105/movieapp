@@ -28,13 +28,13 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
       sortOrder: (searchParams.get('sortOrder') as SearchFilters['sortOrder']) || 'desc',
     }
 
-    console.log('🔍 OMDB Search request:', filters)
+    console.log('🔍 TMDB Search request:', filters)
 
-    // Check if OMDB API key is configured
-    const apiKey = process.env.OMDB_API_KEY
+    // Check if TMDB API key is configured
+    const apiKey = process.env.TMDB_API_KEY
     if (!apiKey) {
       return NextResponse.json(
-        { success: false, error: 'OMDB API key not configured' },
+        { success: false, error: 'TMDB API key not configured' },
         { status: 500 }
       )
     }
@@ -42,33 +42,33 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
     // Use query for search, or default to popular movies if no query
     const searchTerm = filters.query?.trim() || 'movie'
 
-    // Calculate page for OMDB (OMDB uses 1-based pagination)
-    const page = Math.floor((filters.offset || 0) / 10) + 1
+    // Calculate page for TMDB (TMDB uses 1-based pagination)
+    const page = Math.floor((filters.offset || 0) / 20) + 1
 
-    // Build OMDB API URL
-    let omdbUrl = `http://www.omdbapi.com/?apikey=${apiKey}&s=${encodeURIComponent(searchTerm)}&type=movie&page=${page}`
+    // Build TMDB API URL
+    let tmdbUrl = `https://api.themoviedb.org/3/search/movie?api_key=${apiKey}&query=${encodeURIComponent(searchTerm)}&page=${page}`
 
     // Add year filter if specified
     if (filters.yearRange && filters.yearRange[0] === filters.yearRange[1]) {
-      omdbUrl += `&y=${filters.yearRange[0]}`
+      tmdbUrl += `&year=${filters.yearRange[0]}`
     }
 
-    console.log('🌐 Calling OMDB API:', omdbUrl.replace(apiKey, 'API_KEY'))
+    console.log('🌐 Calling TMDB API:', tmdbUrl.replace(apiKey, 'API_KEY'))
 
-    // Fetch from OMDB API
-    const omdbResponse = await fetch(omdbUrl)
+    // Fetch from TMDB API
+    const tmdbResponse = await fetch(tmdbUrl)
 
-    if (!omdbResponse.ok) {
+    if (!tmdbResponse.ok) {
       return NextResponse.json(
-        { success: false, error: 'Failed to fetch from OMDB' },
+        { success: false, error: 'Failed to fetch from TMDB' },
         { status: 500 }
       )
     }
 
-    const omdbData = await omdbResponse.json()
+    const tmdbData = await tmdbResponse.json()
 
-    // Handle OMDB API errors or no results
-    if (omdbData.Response === 'False') {
+    // Handle TMDB API errors or no results
+    if (!tmdbData.results || tmdbData.results.length === 0) {
       const executionTime = Date.now() - startTime
 
       return NextResponse.json({
@@ -92,67 +92,91 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
       })
     }
 
-    // Transform OMDB data to our format and get detailed info for each movie
-    const moviePromises = (omdbData.Search || []).map(
+    // Transform TMDB data to our format and get detailed info for each movie
+    const moviePromises = (tmdbData.results || []).map(
       async (movie: {
-        imdbID: string
-        Title: string
-        Year: string
-        Poster: string
-        Type: string
+        id: number
+        title: string
+        release_date: string
+        poster_path: string | null
+        overview: string
+        vote_average: number
+        genre_ids: number[]
       }) => {
-        // Get detailed movie info
+        // Get detailed movie info including credits
         try {
           const detailResponse = await fetch(
-            `http://www.omdbapi.com/?apikey=${apiKey}&i=${movie.imdbID}&plot=short`
+            `https://api.themoviedb.org/3/movie/${movie.id}?api_key=${apiKey}&append_to_response=credits`
           )
 
           if (detailResponse.ok) {
             const details = await detailResponse.json()
 
-            if (details.Response !== 'False') {
-              // Apply filters on detailed data
-              const movieYear = parseInt(details.Year)
-              const movieRating = parseFloat(details.imdbRating)
+            // Extract director from credits
+            const directors =
+              details.credits?.crew
+                ?.filter((member: { job: string; name: string }) => member.job === 'Director')
+                ?.map((director: { name: string }) => director.name) || []
 
-              // Year range filter
-              if (filters.yearRange) {
-                if (movieYear < filters.yearRange[0] || movieYear > filters.yearRange[1]) {
-                  return null
-                }
-              }
+            // Extract genres
+            const genres = details.genres?.map((g: { name: string }) => g.name) || []
 
-              // Rating filter
-              if (filters.minRating && movieRating < filters.minRating) {
+            const movieYear = details.release_date
+              ? new Date(details.release_date).getFullYear()
+              : null
+            const movieRating = details.vote_average || 0
+
+            // Apply filters on detailed data
+            // Year range filter
+            if (filters.yearRange && movieYear) {
+              if (movieYear < filters.yearRange[0] || movieYear > filters.yearRange[1]) {
                 return null
               }
-              if (filters.maxRating && movieRating > filters.maxRating) {
+            }
+
+            // Rating filter
+            if (filters.minRating && movieRating < filters.minRating) {
+              return null
+            }
+            if (filters.maxRating && movieRating > filters.maxRating) {
+              return null
+            }
+
+            // Director filter
+            if (filters.directors && filters.directors.length > 0) {
+              const hasMatchingDirector = filters.directors.some(director =>
+                directors.some((d: string) => d.toLowerCase().includes(director.toLowerCase()))
+              )
+              if (!hasMatchingDirector) {
                 return null
               }
+            }
 
-              // Director filter
-              if (filters.directors && filters.directors.length > 0) {
-                const hasMatchingDirector = filters.directors.some(director =>
-                  details.Director?.toLowerCase().includes(director.toLowerCase())
-                )
-                if (!hasMatchingDirector) {
-                  return null
-                }
+            // Genre filter
+            if (filters.genres && filters.genres.length > 0) {
+              const hasMatchingGenre = filters.genres.some(genre =>
+                genres.some((g: string) => g.toLowerCase().includes(genre.toLowerCase()))
+              )
+              if (!hasMatchingGenre) {
+                return null
               }
+            }
 
-              // Transform to our format
-              return {
-                id: details.imdbID,
-                title: details.Title,
-                year: parseInt(details.Year) || null,
-                genre: details.Genre ? details.Genre.split(', ') : [],
-                director: details.Director ? details.Director.split(', ') : [],
-                plot: details.Plot !== 'N/A' ? details.Plot : '',
-                poster_url: details.Poster !== 'N/A' ? details.Poster : null,
-                rating: parseFloat(details.imdbRating) || null,
-                runtime: details.Runtime ? parseInt(details.Runtime.replace(' min', '')) : null,
-                imdb_id: details.imdbID,
-              }
+            // Transform to our format with tmdb_ prefix for consistent ID format
+            return {
+              id: `tmdb_${details.id}`,
+              title: details.title,
+              year: movieYear,
+              genre: genres,
+              director: directors,
+              plot: details.overview || '',
+              poster_url: details.poster_path
+                ? `https://image.tmdb.org/t/p/w500${details.poster_path}`
+                : null,
+              rating: details.vote_average || null,
+              runtime: details.runtime || null,
+              imdb_id: details.imdb_id || null,
+              tmdb_id: details.id,
             }
           }
         } catch (error) {
@@ -160,17 +184,21 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
         }
 
         // Fallback to basic info if detailed fetch fails
+        const movieYear = movie.release_date ? new Date(movie.release_date).getFullYear() : null
         return {
-          id: movie.imdbID,
-          title: movie.Title,
-          year: parseInt(movie.Year) || null,
+          id: `tmdb_${movie.id}`,
+          title: movie.title,
+          year: movieYear,
           genre: [],
           director: [],
-          plot: '',
-          poster_url: movie.Poster !== 'N/A' ? movie.Poster : null,
-          rating: null,
+          plot: movie.overview || '',
+          poster_url: movie.poster_path
+            ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
+            : null,
+          rating: movie.vote_average || null,
           runtime: null,
-          imdb_id: movie.imdbID,
+          imdb_id: null,
+          tmdb_id: movie.id,
         }
       }
     )
@@ -202,66 +230,60 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
         break
       case 'relevance':
       default:
-        // OMDB already returns results by relevance
+        // TMDB returns results in relevance order by default
         break
     }
 
-    // Apply pagination (client-side since we already fetched the page)
-    const startIndex = (filters.offset || 0) % 10
-    const paginatedMovies = sortedMovies.slice(startIndex, startIndex + (filters.limit || 20))
+    // Apply limit and offset
+    const paginatedMovies = sortedMovies.slice(0, filters.limit)
+
+    // Calculate facets for filtering
+    const allGenres = [...new Set(filteredMovies.flatMap(movie => movie.genre))]
+    const allYears = [...new Set(filteredMovies.map(movie => movie.year).filter(Boolean))]
+    const allDirectors = [...new Set(filteredMovies.flatMap(movie => movie.director))]
 
     const executionTime = Date.now() - startTime
-    const totalResults = parseInt(omdbData.totalResults) || sortedMovies.length
 
-    // Generate basic facets from current results
-    const genreCounts: Record<string, number> = {}
-    const yearCounts: Record<number, number> = {}
+    console.log(
+      '🔍 TMDB Search completed:',
+      paginatedMovies.length,
+      'results in',
+      executionTime,
+      'ms'
+    )
 
-    sortedMovies.forEach(movie => {
-      // Count genres
-      movie.genre.forEach((genre: string) => {
-        genreCounts[genre] = (genreCounts[genre] || 0) + 1
-      })
-
-      // Count years by decade
-      if (movie.year) {
-        const decade = Math.floor(movie.year / 10) * 10
-        yearCounts[decade] = (yearCounts[decade] || 0) + 1
-      }
-    })
-
-    const searchResponse: SearchResponse = {
+    return NextResponse.json({
       success: true,
       data: {
         movies: paginatedMovies,
-        totalCount: totalResults,
+        totalCount: tmdbData.total_results || filteredMovies.length,
         facets: {
-          genres: Object.entries(genreCounts)
-            .map(([name, count]) => ({ name, count }))
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 10),
-          years: Object.entries(yearCounts)
-            .map(([year, count]) => ({ year: parseInt(year), count }))
-            .sort((a, b) => b.year - a.year),
-          directors: [], // Could implement if needed
-          ratingRanges: [],
+          genres: allGenres.slice(0, 20), // Limit facets for performance
+          years: allYears.sort((a, b) => b - a).slice(0, 20),
+          directors: allDirectors.slice(0, 20),
+          ratingRanges: [
+            { range: '0-3', count: filteredMovies.filter(m => (m.rating || 0) <= 3).length },
+            {
+              range: '3-6',
+              count: filteredMovies.filter(m => (m.rating || 0) > 3 && (m.rating || 0) <= 6).length,
+            },
+            {
+              range: '6-8',
+              count: filteredMovies.filter(m => (m.rating || 0) > 6 && (m.rating || 0) <= 8).length,
+            },
+            { range: '8-10', count: filteredMovies.filter(m => (m.rating || 0) > 8).length },
+          ],
         },
         searchMeta: {
           query: filters.query || '',
           appliedFilters: filters as Record<string, unknown>,
-          resultCount: sortedMovies.length,
+          resultCount: paginatedMovies.length,
           executionTime,
         },
       },
-    }
-
-    console.log(`🔍 OMDB Search completed: ${paginatedMovies.length} results in ${executionTime}ms`)
-    return NextResponse.json(searchResponse)
+    })
   } catch (error) {
-    console.error('OMDB Search API error:', error)
-    return NextResponse.json(
-      { success: false, error: `Internal server error: ${error}` },
-      { status: 500 }
-    )
+    console.error('❌ Search API error:', error)
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
 }

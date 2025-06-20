@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+
 import { useInfiniteQuery } from '@tanstack/react-query'
-import { useAuth } from '@/hooks/useAuth'
+import { useAuth } from '@/contexts/AuthContext'
 import { useMoviesWatchlist } from '@/hooks/useMoviesWatchlist'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Brain, RefreshCw, Loader2, Bookmark, BookmarkCheck } from 'lucide-react'
+import { RefreshCw, Loader2, Bookmark, BookmarkCheck } from 'lucide-react'
 import Image from 'next/image'
 import PreferencesSetup from '@/components/PreferencesSetup'
 import { MovieDetailsModal } from '@/components/movies/MovieDetailsModal'
@@ -43,7 +44,7 @@ const MovieCard = ({
           alt={movie.title}
           fill
           className="object-cover transition-transform duration-200 group-hover:scale-105"
-          sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, (max-width: 1024px) 33vw, (max-width: 1280px) 25vw, 16vw"
+          sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
         />
 
         {movie.rating && (
@@ -54,7 +55,7 @@ const MovieCard = ({
       </div>
 
       <CardContent className="flex h-full flex-col justify-between p-4">
-        <div>
+        <div className="flex-1">
           <h3
             className="hover:text-primary mb-2 line-clamp-2 cursor-pointer text-sm font-semibold transition-colors"
             onClick={() => onMovieClick(movie)}
@@ -77,18 +78,24 @@ const MovieCard = ({
             </div>
           )}
 
+          {/* Plot/Overview */}
+          {movie.plot && (
+            <div className="mb-3">
+              <p className="line-clamp-3 text-xs leading-relaxed text-gray-600">{movie.plot}</p>
+            </div>
+          )}
+
           {movie.reasoning && (
             <div className="from-primary/10 to-secondary/10 border-primary/20 mb-3 rounded-lg border bg-gradient-to-r p-3">
               <div className="mb-1 flex items-center gap-1">
-                <Brain className="text-primary h-3 w-3" />
-                <span className="text-primary text-xs font-medium">Why recommended:</span>
+                <span className="text-primary text-xs font-medium">🤖 Why recommended:</span>
               </div>
               <p className="line-clamp-3 text-xs text-gray-700">{movie.reasoning}</p>
             </div>
           )}
         </div>
 
-        <div className="flex gap-2">
+        <div className="mt-3 flex gap-2">
           <Button
             variant="outline"
             size="sm"
@@ -119,10 +126,10 @@ const MovieCard = ({
 export default function SmartMoviesPage() {
   const { user, loading: authLoading } = useAuth()
   const { watchlistIds, toggleWatchlist } = useMoviesWatchlist()
-
-  const [showingRecommendations, setShowingRecommendations] = useState(false)
+  // Always show personalized recommendations by default
+  const [showingRecommendations, setShowingRecommendations] = useState(true)
   const [showPreferencesSetup, setShowPreferencesSetup] = useState(false)
-  const [hasPreferences, setHasPreferences] = useState(false)
+  const [hasPreferences, setHasPreferences] = useState(true)
   const [savingPreferences, setSavingPreferences] = useState(false)
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null)
 
@@ -140,7 +147,7 @@ export default function SmartMoviesPage() {
     queryKey: ['movies-infinite-realtime', showingRecommendations],
     queryFn: async ({ pageParam = 1 }) => {
       const params = new URLSearchParams({
-        limit: '6',
+        limit: '16', // 16 movies for 4 rows of 4 movies each
         page: pageParam.toString(),
         realtime: 'true',
         database: 'tmdb',
@@ -149,7 +156,9 @@ export default function SmartMoviesPage() {
 
       const response = await fetch(`/api/movies?${params}`)
       if (!response.ok) {
-        throw new Error('Failed to fetch movies')
+        const errorText = await response.text()
+        console.error('❌ Movie fetch error:', response.status, errorText)
+        throw new Error(`Failed to fetch movies: ${response.status} ${errorText}`)
       }
       const data = await response.json()
 
@@ -159,7 +168,7 @@ export default function SmartMoviesPage() {
         total: data.total || 10000,
         pagination: {
           currentPage: data.page || pageParam,
-          limit: parseInt(params.get('limit') || '6'),
+          limit: parseInt(params.get('limit') || '16'),
           hasMore: (data.page || pageParam) < (data.totalPages || 500),
           totalPages: data.totalPages || 500,
         },
@@ -172,6 +181,8 @@ export default function SmartMoviesPage() {
     },
     staleTime: 1000 * 60 * 2, // 2 minutes for real-time data
     initialPageParam: 1,
+    retry: 3, // Retry failed requests up to 3 times
+    retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
   })
 
   // Flatten all pages into a single array
@@ -182,13 +193,15 @@ export default function SmartMoviesPage() {
   const handleScroll = useCallback(() => {
     if (
       window.innerHeight + document.documentElement.scrollTop >=
-        document.documentElement.offsetHeight - 1000 && // Load when 1000px from bottom
+        document.documentElement.offsetHeight - 800 && // Load when 800px from bottom (reduced threshold)
       hasNextPage &&
-      !isFetchingNextPage
+      !isFetchingNextPage &&
+      !isLoading
     ) {
+      console.log('🔄 Triggering infinite scroll - loading more movies')
       fetchNextPage()
     }
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, isLoading])
 
   // Set up scroll listener
   useEffect(() => {
@@ -215,28 +228,6 @@ export default function SmartMoviesPage() {
 
   const handleRefresh = () => {
     refetch()
-  }
-
-  const toggleRecommendations = async () => {
-    if (!showingRecommendations) {
-      // Check if user has preferences before enabling AI recommendations
-      try {
-        const response = await fetch('/api/user/preferences')
-        const data = await response.json()
-
-        if (data.hasPreferences) {
-          setHasPreferences(true)
-          setShowingRecommendations(true)
-        } else {
-          setShowPreferencesSetup(true)
-        }
-      } catch (error) {
-        console.error('Error checking preferences:', error)
-        setShowingRecommendations(true) // Fallback to default preferences
-      }
-    } else {
-      setShowingRecommendations(false)
-    }
   }
 
   const handleSavePreferences = async (preferences: any) => {
@@ -313,11 +304,11 @@ export default function SmartMoviesPage() {
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">
-            {showingRecommendations ? 'AI Smart Recommendations' : 'Real-time Movie Discovery'}
+            {showingRecommendations ? 'Your Personalized Movies' : 'Real-time Movie Discovery'}
           </h1>
           <p className="text-gray-600">
             {showingRecommendations
-              ? '🧠 AI-powered recommendations from TMDB based on your preferences'
+              ? '🎬 AI-powered personalized recommendations based on your preferences'
               : '🌐 Fresh movies from TMDB database • Unlimited scroll'}
           </p>
           <div className="mt-2 flex items-center gap-2">
@@ -326,27 +317,13 @@ export default function SmartMoviesPage() {
             </span>
             {showingRecommendations && (
               <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                🤖 AI Enhanced {hasPreferences ? '(Personalized)' : '(Default)'}
+                🤖 AI Personalized {hasPreferences ? '(Your Preferences)' : '(Default)'}
               </span>
             )}
           </div>
         </div>
 
         <div className="flex gap-2">
-          <Button
-            variant={showingRecommendations ? 'default' : 'outline'}
-            onClick={toggleRecommendations}
-            disabled={isLoading}
-            className="flex items-center gap-2"
-          >
-            {isLoading ? (
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-            ) : (
-              <Brain className="h-4 w-4" />
-            )}
-            {showingRecommendations ? 'Show All Movies' : 'Get AI Recommendations'}
-          </Button>
-
           <Button variant="outline" onClick={handleRefresh} disabled={isLoading}>
             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
             Refresh
@@ -393,7 +370,7 @@ export default function SmartMoviesPage() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4">
             {movies.map((movie: Movie & { reasoning?: string }, index) => (
               <MovieCard
                 key={`${movie.id}-${index}`} // Include index to handle duplicates across pages

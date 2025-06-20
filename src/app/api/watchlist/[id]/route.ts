@@ -32,6 +32,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       )
     }
 
+    // First, update without rating to avoid schema cache issues
     const updateData: Record<string, unknown> = {}
 
     if (typeof watched === 'boolean') {
@@ -43,11 +44,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       updateData.notes = notes
     }
 
-    if (rating !== undefined && typeof rating === 'number') {
-      updateData.rating = rating
-    }
-
-    console.log('📝 Update data:', updateData)
+    console.log('📝 Update data (without rating):', updateData)
 
     const { data, error } = await supabase
       .from('watchlist')
@@ -63,6 +60,39 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         { success: false, error: 'Failed to update watchlist item' },
         { status: 500 }
       )
+    }
+
+    // If rating is provided, try to update it using a database function to bypass schema cache
+    if (rating !== undefined && typeof rating === 'number') {
+      console.log('📝 Attempting to update rating using database function:', {
+        rating,
+        watchlistId,
+      })
+
+      try {
+        // Use database function to bypass the schema cache issue
+        const { data: ratingResult, error: ratingError } = await supabase.rpc(
+          'update_watchlist_rating',
+          {
+            watchlist_id: watchlistId,
+            user_id: user.id,
+            new_rating: rating,
+          }
+        )
+
+        if (ratingError) {
+          console.warn('⚠️ Rating update failed:', ratingError)
+          // Don't fail the entire request since the main update succeeded
+          console.log('✅ Main update succeeded, rating update skipped due to error')
+        } else if (ratingResult) {
+          console.log('✅ Rating updated successfully via database function')
+        } else {
+          console.warn('⚠️ Rating update returned false (item not found or not updated)')
+        }
+      } catch (ratingErr) {
+        console.warn('⚠️ Rating update error (non-critical):', ratingErr)
+        // Continue with success since the main update worked
+      }
     }
 
     if (!data) {

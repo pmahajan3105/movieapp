@@ -22,7 +22,7 @@ interface ToastMessage {
 }
 
 export default function AccountPage() {
-  const { user } = useAuth()
+  const { user, reloadProfile } = useAuth()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [userName, setUserName] = useState('')
@@ -33,54 +33,43 @@ export default function AccountPage() {
     setToast({ message, type })
   }, [])
 
-  const loadUserProfile = useCallback(async () => {
-    try {
-      // First, try to fetch the full profile from the database
-      const response = await fetch('/api/user/profile')
-      if (response.ok) {
-        const data = await response.json()
-        if (data.success && data.profile) {
-          // Use database data if available
-          setUserName(data.profile.full_name || user?.email?.split('@')[0] || '')
-          setProfileData({
-            email: data.profile.email || user?.email || '',
-            createdAt: data.profile.createdAt || user?.created_at || '',
-            lastSignIn: user?.last_sign_in_at || '',
-          })
-          return
-        }
-      }
+  // Load user data from AuthContext
+  useEffect(() => {
+    if (user) {
+      // Set user name from profile data in AuthContext
+      setUserName(user.profile?.full_name || user.email?.split('@')[0] || '')
 
-      // Fallback to auth data if API call fails
-      setUserName(user?.user_metadata?.full_name || user?.email?.split('@')[0] || '')
+      // Set other profile data
       setProfileData({
-        email: user?.email || '',
-        createdAt: user?.created_at || '',
-        lastSignIn: user?.last_sign_in_at || '',
+        email: user.email || '',
+        createdAt: user.created_at || '',
+        lastSignIn: user.last_sign_in_at || '',
       })
-    } catch (error) {
-      console.error('Error loading profile:', error)
-      // Fallback to auth data on error
-      setUserName(user?.user_metadata?.full_name || user?.email?.split('@')[0] || '')
-      setProfileData({
-        email: user?.email || '',
-        createdAt: user?.created_at || '',
-        lastSignIn: user?.last_sign_in_at || '',
+
+      setLoading(false)
+      console.log('✅ User profile loaded from AuthContext:', {
+        fullName: user.profile?.full_name,
+        email: user.email,
+        hasProfile: !!user.profile,
       })
     }
   }, [user])
 
+  // Auto-hide toast after 3 seconds
   useEffect(() => {
-    if (user) {
-      loadUserProfile().finally(() => {
-        setLoading(false)
-      })
+    if (toast) {
+      const timer = setTimeout(() => {
+        setToast(null)
+      }, 3000)
+
+      return () => clearTimeout(timer)
     }
-  }, [user, loadUserProfile])
+    return undefined
+  }, [toast])
 
   const handleSaveName = async () => {
-    if (!userName.trim()) {
-      showToast('Name cannot be empty', 'error')
+    if (!user || !userName.trim()) {
+      showToast('Please enter a valid name', 'error')
       return
     }
 
@@ -96,55 +85,77 @@ export default function AccountPage() {
         }),
       })
 
-      if (response.ok) {
+      const data = await response.json()
+
+      if (data.success) {
         showToast('Name updated successfully!', 'success')
+
+        // Reload the profile data in AuthContext
+        await reloadProfile()
+
+        console.log('✅ Profile updated and reloaded')
       } else {
-        const error = await response.json()
-        showToast(error.message || 'Failed to update name', 'error')
+        throw new Error(data.error || 'Failed to update name')
       }
     } catch (error) {
-      console.error('Error updating name:', error)
-      showToast('Failed to update name', 'error')
+      console.error('❌ Error updating name:', error)
+      showToast(
+        error instanceof Error ? error.message : 'Failed to update name. Please try again.',
+        'error'
+      )
     } finally {
       setSaving(false)
     }
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString()
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    })
   }
 
   const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleString()
+    return new Date(dateString).toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
   }
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <Skeleton className="mb-2 h-8 w-48" />
-            <Skeleton className="h-4 w-64" />
-          </div>
-          <Skeleton className="h-6 w-6" />
+      <div className="container mx-auto max-w-4xl p-6">
+        <div className="mb-8">
+          <Skeleton className="mb-2 h-8 w-48" />
+          <Skeleton className="h-4 w-96" />
         </div>
 
-        {/* Profile Information Skeleton */}
         <Card>
-          <CardHeader>
-            <Skeleton className="h-6 w-48" />
-            <Skeleton className="h-4 w-80" />
+          <CardHeader className="space-y-4">
+            <Skeleton className="h-6 w-32" />
+            <Skeleton className="h-4 w-64" />
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-6">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-20" />
+                <div className="flex gap-2">
+                  <Skeleton className="h-10 flex-1" />
+                  <Skeleton className="h-10 w-16" />
+                </div>
+              </div>
               <div className="space-y-2">
                 <Skeleton className="h-4 w-24" />
                 <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-3 w-32" />
               </div>
             </div>
+
             <div className="grid grid-cols-1 gap-4 border-t pt-4 md:grid-cols-2">
-              <Skeleton className="h-4 w-36" />
+              <Skeleton className="h-4 w-32" />
               <Skeleton className="h-4 w-32" />
             </div>
           </CardContent>
@@ -154,36 +165,38 @@ export default function AccountPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="container mx-auto max-w-4xl p-6">
       {/* Toast Notification */}
       {toast && (
         <div
           className={cn(
-            'fixed top-4 right-4 z-50 flex items-center gap-2 rounded-lg p-4 shadow-lg transition-all duration-300',
-            toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+            'fixed top-4 right-4 z-50 flex items-center gap-2 rounded-lg px-4 py-3 shadow-lg',
+            toast.type === 'success'
+              ? 'border border-green-200 bg-green-50 text-green-800'
+              : 'border border-red-200 bg-red-50 text-red-800'
           )}
         >
           {toast.type === 'success' ? (
-            <CheckCircle className="h-5 w-5" />
+            <CheckCircle className="h-4 w-4" />
           ) : (
-            <AlertCircle className="h-5 w-5" />
+            <AlertCircle className="h-4 w-4" />
           )}
-          <span>{toast.message}</span>
+          <span className="text-sm font-medium">{toast.message}</span>
           <button onClick={() => setToast(null)} className="ml-2 hover:opacity-70">
             <X className="h-4 w-4" />
           </button>
         </div>
       )}
 
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Account Settings</h1>
-          <p className="text-gray-600">Manage your profile information</p>
-        </div>
-        <Settings className="h-6 w-6 text-gray-400" />
+      {/* Page Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900">Account Settings</h1>
+        <p className="mt-2 text-gray-600">
+          Manage your personal information and account preferences
+        </p>
       </div>
 
-      {/* Profile Information */}
+      {/* Profile Card */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -234,19 +247,23 @@ export default function AccountPage() {
         </CardContent>
       </Card>
 
-      {/* Preferences Link */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="text-center">
-            <Settings className="mx-auto mb-4 h-12 w-12 text-gray-300" />
-            <h3 className="mb-2 text-lg font-semibold text-gray-700">Movie Preferences</h3>
-            <p className="mb-4 text-gray-500">
-              Manage your movie preferences and AI learning settings in the dedicated Preferences
-              section.
-            </p>
-            <Button asChild>
-              <a href="/dashboard/settings">Go to Preferences</a>
-            </Button>
+      {/* Additional Settings Card */}
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5" />
+            Account Actions
+          </CardTitle>
+          <CardDescription>Manage your account and data</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="rounded-lg border border-gray-200 p-4">
+              <h3 className="font-medium text-gray-900">Data & Privacy</h3>
+              <p className="mt-1 text-sm text-gray-600">
+                Your account data is stored securely and used only to provide movie recommendations.
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>

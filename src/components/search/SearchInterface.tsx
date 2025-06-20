@@ -47,13 +47,21 @@ export function SearchInterface({
     timeoutRef.current = setTimeout(async () => {
       setIsLoading(true)
       try {
+        // Use TMDB for autocomplete to ensure consistent movie ID format
         const response = await fetch(
-          `/api/movies/autocomplete?query=${encodeURIComponent(query)}&limit=6`
+          `/api/movies?realtime=true&database=tmdb&query=${encodeURIComponent(query)}&limit=6`
         )
-        const data: AutocompleteResponse = await response.json()
+        const data = await response.json()
 
-        if (data.success && data.data) {
-          setAutocompleteData(data.data)
+        if (data.success && data.movies) {
+          // Transform TMDB response to match AutocompleteResponse format
+          const autocompleteData = {
+            movies: data.movies.slice(0, 6), // Limit to 6 results for autocomplete
+            directors: [], // TMDB doesn't provide directors in search results
+            actors: [], // TMDB doesn't provide actors in search results
+            suggestions: data.movies.slice(0, 3).map((movie: any) => movie.title), // Top 3 titles as suggestions
+          }
+          setAutocompleteData(autocompleteData)
           setShowSuggestions(true)
         }
       } catch (error) {
@@ -82,6 +90,33 @@ export function SearchInterface({
 
   // Handle keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Handle Enter key for search regardless of suggestions
+    if (e.key === 'Enter') {
+      e.preventDefault()
+
+      // If suggestions are showing and an item is selected
+      if (showSuggestions && autocompleteData && selectedIndex >= 0) {
+        if (selectedIndex < autocompleteData.movies.length) {
+          const movie = autocompleteData.movies[selectedIndex]
+          if (movie?.title) {
+            handleSearch(movie.title)
+          }
+        } else {
+          const suggestionIndex = selectedIndex - autocompleteData.movies.length
+          const suggestion = autocompleteData.suggestions[suggestionIndex]
+          if (suggestion) {
+            setQuery(suggestion)
+            handleSearch(suggestion)
+          }
+        }
+      } else {
+        // No suggestions or no selection - just search with current query
+        handleSearch()
+      }
+      return
+    }
+
+    // Handle other keys only when suggestions are showing
     if (!showSuggestions || !autocompleteData) return
 
     const totalItems = autocompleteData.movies.length + autocompleteData.suggestions.length
@@ -94,26 +129,6 @@ export function SearchInterface({
       case 'ArrowUp':
         e.preventDefault()
         setSelectedIndex(prev => (prev > -1 ? prev - 1 : totalItems - 1))
-        break
-      case 'Enter':
-        e.preventDefault()
-        if (selectedIndex >= 0) {
-          if (selectedIndex < autocompleteData.movies.length) {
-            const movie = autocompleteData.movies[selectedIndex]
-            if (movie?.title) {
-              handleSearch(movie.title)
-            }
-          } else {
-            const suggestionIndex = selectedIndex - autocompleteData.movies.length
-            const suggestion = autocompleteData.suggestions[suggestionIndex]
-            if (suggestion) {
-              setQuery(suggestion)
-              handleSearch(suggestion)
-            }
-          }
-        } else {
-          handleSearch()
-        }
         break
       case 'Escape':
         setShowSuggestions(false)

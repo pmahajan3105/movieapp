@@ -5,15 +5,26 @@ import { createBrowserClient } from '@supabase/ssr'
 import { User } from '@supabase/supabase-js'
 import type { Database } from '@/lib/supabase/types'
 
+interface UserProfile {
+  id: string
+  email: string
+  full_name?: string
+  preferences?: any
+  onboarding_completed?: boolean
+  created_at?: string
+  updated_at?: string
+}
+
 interface AuthUser extends User {
   onboarding_completed?: boolean
+  profile?: UserProfile
 }
 
 interface AuthContextType {
   user: AuthUser | null
   loading: boolean
   signOut: () => Promise<void>
-  refreshUser: () => Promise<void>
+  reloadProfile: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -21,8 +32,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [loading, setLoading] = useState(true)
+  const [initialized, setInitialized] = useState(false)
 
-  // Check if Supabase environment variables are available
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
@@ -31,50 +42,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       ? createBrowserClient<Database>(supabaseUrl, supabaseAnonKey)
       : null
 
-  const refreshUser = async () => {
-    if (!supabase) {
-      console.warn('Supabase not configured - skipping user refresh')
-      setUser(null)
-      return
-    }
+  const loadUserProfile = async (authUser: User): Promise<AuthUser> => {
+    if (!supabase) return authUser as AuthUser
 
     try {
-      const {
-        data: { user: authUser },
-        error,
-      } = await supabase.auth.getUser()
+      const { data: userProfile, error } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', authUser.id)
+        .single()
 
-      if (error) {
-        console.error('❌ Error getting user:', error)
-        setUser(null)
-        return
+      if (error && error.code !== 'PGRST116') {
+        console.warn('⚠️ Error loading user profile:', error.message)
       }
 
-      setUser(authUser ? (authUser as AuthUser) : null)
+      return {
+        ...authUser,
+        profile: userProfile || undefined,
+        onboarding_completed: userProfile?.onboarding_completed,
+      }
     } catch (error) {
-      console.error('❌ Error refreshing user:', error)
-      setUser(null)
+      console.error('❌ Error loading user profile:', error)
+      return authUser as AuthUser
+    }
+  }
+
+  const reloadProfile = async () => {
+    if (!user || !supabase) return
+    try {
+      const enrichedUser = await loadUserProfile(user)
+      setUser(enrichedUser)
+      console.log('🔄 Profile reloaded successfully')
+    } catch (error) {
+      console.error('❌ Error reloading profile:', error)
     }
   }
 
   const signOut = async () => {
-    if (!supabase) {
-      console.warn('Supabase not configured - skipping sign out')
-      setUser(null)
-      return
-    }
-
+    if (!supabase) return
     try {
-      setLoading(true)
-      const { error } = await supabase.auth.signOut()
-      if (error) {
-        console.error('Error signing out:', error)
-      }
+      await supabase.auth.signOut()
       setUser(null)
     } catch (error) {
-      console.error('Error signing out:', error)
-    } finally {
-      setLoading(false)
+      console.error('❌ Error signing out:', error)
     }
   }
 
@@ -82,12 +92,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!supabase) {
       console.warn('Supabase not configured - auth will be disabled')
       setLoading(false)
-      setUser(null)
+      setInitialized(true)
       return
     }
 
-    let mounted = true
-
+    // Get initial session
     const initializeAuth = async () => {
       try {
         const {
@@ -95,51 +104,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           error,
         } = await supabase.auth.getSession()
 
-        if (!mounted) return
-
         if (error) {
-          console.error('❌ Session error:', error)
+          console.error('❌ Error getting initial session:', error)
           setUser(null)
+        } else if (session?.user) {
+          console.log('🔄 Initial session found, loading user profile')
+          const enrichedUser = await loadUserProfile(session.user)
+          setUser(enrichedUser)
         } else {
-          setUser(session?.user ? (session.user as AuthUser) : null)
+          console.log('🔄 No initial session found')
+          setUser(null)
         }
       } catch (error) {
-        console.error('❌ Auth initialization error:', error)
-        if (mounted) {
-          setUser(null)
-        }
+        console.error('❌ Error initializing auth:', error)
+        setUser(null)
       } finally {
-        if (mounted) {
-          setLoading(false)
-        }
+        setLoading(false)
+        setInitialized(true)
       }
     }
 
     initializeAuth()
 
+    // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!mounted) return
+      console.log('🔄 Auth state change:', { event, hasSession: !!session })
 
-      if (event === 'SIGNED_IN' && session?.user) {
-        setUser(session.user as AuthUser)
-      } else if (event === 'SIGNED_OUT') {
+      if (!initialized) {
+        // Skip processing during initialization to avoid double-loading
+        return
+      }
+
+      try {
+        if (session?.user) {
+          const enrichedUser = await loadUserProfile(session.user)
+          setUser(enrichedUser)
+        } else {
+          setUser(null)
+        }
+      } catch (error) {
+        console.error('❌ Error handling auth state change:', error)
         setUser(null)
       }
     })
 
     return () => {
-      mounted = false
       subscription.unsubscribe()
     }
-  }, [supabase])
+  }, [supabase, initialized])
 
   const value = {
     user,
     loading,
     signOut,
-    refreshUser,
+    reloadProfile,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

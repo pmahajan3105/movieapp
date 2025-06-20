@@ -35,15 +35,26 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Only protect dashboard routes for now - don't protect watchlist yet
-  if (!user && request.nextUrl.pathname.startsWith('/dashboard')) {
+  // Protect dashboard routes and any routes that require authentication
+  const protectedRoutes = ['/dashboard', '/watchlist', '/profile']
+  const isProtectedRoute = protectedRoutes.some(route => request.nextUrl.pathname.startsWith(route))
+
+  if (!user && isProtectedRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/auth/login'
+    url.searchParams.set('redirectTo', request.nextUrl.pathname)
     return NextResponse.redirect(url)
   }
 
   // Redirect authenticated users away from auth pages
   if (user && request.nextUrl.pathname.startsWith('/auth')) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/dashboard'
+    return NextResponse.redirect(url)
+  }
+
+  // Redirect authenticated users from root page to dashboard
+  if (user && request.nextUrl.pathname === '/') {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)

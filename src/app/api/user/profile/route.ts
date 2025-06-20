@@ -122,6 +122,76 @@ export async function PUT(request: NextRequest) {
   }
 }
 
+// PATCH - Update user profile information (alternative to PUT)
+export async function PATCH(request: NextRequest) {
+  try {
+    const supabase = await createServerClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
+    const body = await request.json()
+
+    console.log('🔄 PATCH request to update profile:', {
+      userId: user.id,
+      updates: body,
+    })
+
+    // Build update object dynamically
+    const updateData: any = {
+      updated_at: new Date().toISOString(),
+    }
+
+    if (body.full_name !== undefined) {
+      updateData.full_name = body.full_name
+    }
+
+    // Update user profile
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .update(updateData)
+      .eq('id', user.id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('❌ Supabase error updating profile:', error)
+      return NextResponse.json(
+        {
+          success: false,
+          error: error.message || 'Failed to update profile',
+        },
+        { status: 500 }
+      )
+    }
+
+    console.log('✅ Profile updated successfully via PATCH:', {
+      userId: user.id,
+      updates: updateData,
+    })
+
+    return NextResponse.json({
+      success: true,
+      profile: data,
+      message: 'Profile updated successfully',
+    })
+  } catch (error) {
+    console.error('❌ Error updating user profile via PATCH:', error)
+
+    return NextResponse.json(
+      {
+        error: 'Failed to update profile',
+        success: false,
+      },
+      { status: 500 }
+    )
+  }
+}
+
 export async function POST() {
   try {
     const supabase = await createServerClient()

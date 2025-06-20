@@ -11,7 +11,20 @@ export async function GET(request: NextRequest) {
       error: authError,
     } = await supabase.auth.getUser()
 
+    console.log('🔐 Watchlist GET - Auth check:', {
+      hasUser: !!user,
+      userId: user?.id,
+      userEmail: user?.email,
+      authError: authError?.message,
+      authErrorCode: authError?.code,
+    })
+
     if (authError || !user) {
+      console.log('❌ Watchlist GET - Authentication failed:', {
+        error: authError?.message,
+        code: authError?.code,
+        hasUser: !!user,
+      })
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -30,6 +43,7 @@ export async function GET(request: NextRequest) {
         watched,
         watched_at,
         notes,
+        rating,
         movies:movie_id (
           id,
           title,
@@ -63,6 +77,11 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    console.log('✅ Watchlist GET successful:', {
+      userId: user.id,
+      itemCount: data?.length || 0,
+    })
+
     return NextResponse.json({
       success: true,
       data: data || [],
@@ -88,137 +107,155 @@ export async function POST(request: NextRequest) {
       error: authError,
     } = await supabase.auth.getUser()
 
+    console.log('🔐 Watchlist POST - Auth check:', {
+      hasUser: !!user,
+      userId: user?.id,
+      userEmail: user?.email,
+      authError: authError?.message,
+      authErrorCode: authError?.code,
+    })
+
     if (authError || !user) {
+      console.log('❌ Watchlist POST - Authentication failed:', {
+        error: authError?.message,
+        code: authError?.code,
+        hasUser: !!user,
+      })
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
     const body = await request.json()
     let { movie_id, notes } = body
 
+    console.log('📝 Watchlist POST - Request details:', {
+      userId: user.id,
+      movieId: movie_id,
+      hasNotes: !!notes,
+    })
+
     if (!movie_id) {
       return NextResponse.json({ success: false, error: 'Movie ID is required' }, { status: 400 })
     }
 
     // First, try to find the movie in our local database
-    // For TMDB movies, check both by ID and by metadata
-    let movieQuery = supabase.from('movies').select('id, title')
+    // Handle different movie ID formats: UUID, tmdb_123456, or imdb_id (tt1234567)
+    let movieQuery = supabase.from('movies').select('id, title, imdb_id, tmdb_id')
 
     if (movie_id.startsWith('tmdb_')) {
-      // For TMDB movies, also check if we already have this movie by tmdb_id
+      // For TMDB movies, check both by ID and by tmdb_id
       const tmdbId = parseInt(movie_id.replace('tmdb_', ''))
       movieQuery = movieQuery.or(`id.eq.${movie_id},tmdb_id.eq.${tmdbId}`)
+    } else if (movie_id.startsWith('tt')) {
+      // For IMDB movies, check by imdb_id or omdb_id
+      movieQuery = movieQuery.or(`imdb_id.eq.${movie_id},omdb_id.eq.${movie_id}`)
     } else {
+      // For UUID or other formats, check by ID
       movieQuery = movieQuery.eq('id', movie_id)
     }
 
     const { data: movieExists, error: movieError } = await movieQuery.single()
 
-    // If we found the movie by tmdb_id, update movie_id to use the UUID
-    if (movieExists && movie_id.startsWith('tmdb_')) {
+    // If we found the movie by external ID, update movie_id to use the UUID
+    if (movieExists) {
+      const originalId = movie_id
       movie_id = movieExists.id
-      console.log('✅ Found existing TMDB movie by tmdb_id:', {
-        originalId: body.movie_id,
+      console.log('✅ Found existing movie by external ID:', {
+        originalId,
         foundId: movie_id,
         title: movieExists.title,
+        imdb_id: movieExists.imdb_id,
+        tmdb_id: movieExists.tmdb_id,
       })
     }
 
-    // If movie doesn't exist locally and it's a TMDB ID, try to fetch from TMDB and insert
-    if ((movieError || !movieExists) && movie_id.startsWith('tmdb_')) {
-      // Extract TMDB ID from the format 'tmdb_123456'
-      const tmdbId = movie_id.replace('tmdb_', '')
-
+    // If movie doesn't exist locally, try to fetch from external APIs and insert
+    if (
+      (movieError || !movieExists) &&
+      (movie_id.startsWith('tmdb_') || movie_id.startsWith('tt'))
+    ) {
       try {
-        // Fetch movie details from TMDB with credits for director and cast
-        const tmdbResponse = await fetch(
-          `https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${process.env.TMDB_API_KEY}&append_to_response=credits`
-        )
+        if (movie_id.startsWith('tmdb_')) {
+          // Extract TMDB ID from the format 'tmdb_123456'
+          const tmdbId = movie_id.replace('tmdb_', '')
 
-        if (tmdbResponse.ok) {
-          const tmdbMovie = await tmdbResponse.json()
-
-          // Extract director from credits
-          const directors =
-            tmdbMovie.credits?.crew
-              ?.filter((member: { job: string; name: string }) => member.job === 'Director')
-              ?.map((director: { name: string }) => director.name) || []
-
-          // Extract genres
-          const genres = tmdbMovie.genres?.map((g: { name: string }) => g.name) || []
-
-          const newMovie = {
-            // Generate a proper UUID for the movie
-            title: tmdbMovie.title,
-            year: tmdbMovie.release_date ? new Date(tmdbMovie.release_date).getFullYear() : null,
-            genre: genres,
-            director: directors,
-            // Remove cast field to avoid schema issues
-            plot: tmdbMovie.overview || null,
-            poster_url: tmdbMovie.poster_path
-              ? `https://image.tmdb.org/t/p/w500${tmdbMovie.poster_path}`
-              : null,
-            rating: tmdbMovie.vote_average || null,
-            runtime: tmdbMovie.runtime || null,
-            imdb_id: tmdbMovie.imdb_id || null,
-            tmdb_id: parseInt(tmdbId),
-            metadata: {
-              tmdb_original_id: movie_id, // Store the original tmdb_xxx format for reference
-              tmdb_data: {
-                popularity: tmdbMovie.popularity,
-                vote_count: tmdbMovie.vote_count,
-                adult: tmdbMovie.adult,
-                backdrop_path: tmdbMovie.backdrop_path,
-                original_language: tmdbMovie.original_language,
-                original_title: tmdbMovie.original_title,
-              },
-            },
-          }
-
-          // Insert movie into our database and get the generated UUID
-          console.log('🎬 Attempting to insert TMDB movie:', {
-            title: newMovie.title,
-            tmdb_id: newMovie.tmdb_id,
-            fields: Object.keys(newMovie),
-          })
-
-          const { data: insertedMovie, error: insertError } = await supabase
-            .from('movies')
-            .insert(newMovie)
-            .select('id, title')
-            .single()
-
-          if (insertError) {
-            console.error('❌ Failed to insert movie from TMDB:', insertError.message)
-            console.error('❌ Insert error details:', insertError)
-            console.error('❌ Movie data being inserted:', JSON.stringify(newMovie, null, 2))
-            return NextResponse.json(
-              {
-                success: false,
-                error: 'Failed to add movie to database',
-              },
-              { status: 500 }
-            )
-          }
-
-          // Update movie_id to use the generated UUID instead of the tmdb_xxx format
-          movie_id = insertedMovie.id
-          console.log('✅ Successfully inserted TMDB movie:', {
-            originalId: body.movie_id,
-            newId: movie_id,
-            title: insertedMovie.title,
-          })
-        } else {
-          console.error('❌ Error fetching from TMDB:', tmdbResponse.status)
-          return NextResponse.json(
-            {
-              success: false,
-              error: 'Movie not found',
-            },
-            { status: 404 }
+          // Fetch movie details from TMDB with credits for director and cast
+          const tmdbResponse = await fetch(
+            `https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${process.env.TMDB_API_KEY}&append_to_response=credits`
           )
+
+          if (tmdbResponse.ok) {
+            const tmdbMovie = await tmdbResponse.json()
+
+            // Extract director from credits
+            const directors =
+              tmdbMovie.credits?.crew
+                ?.filter((member: { job: string; name: string }) => member.job === 'Director')
+                ?.map((director: { name: string }) => director.name) || []
+
+            // Extract genres
+            const genres = tmdbMovie.genres?.map((g: { name: string }) => g.name) || []
+
+            const newMovie = {
+              title: tmdbMovie.title,
+              year: tmdbMovie.release_date ? new Date(tmdbMovie.release_date).getFullYear() : null,
+              genre: genres,
+              director: directors,
+              plot: tmdbMovie.overview || null,
+              poster_url: tmdbMovie.poster_path
+                ? `https://image.tmdb.org/t/p/w500${tmdbMovie.poster_path}`
+                : null,
+              rating: tmdbMovie.vote_average || null,
+              runtime: tmdbMovie.runtime || null,
+              imdb_id: tmdbMovie.imdb_id || null,
+              tmdb_id: parseInt(tmdbId),
+              metadata: {
+                tmdb_original_id: movie_id,
+                tmdb_data: {
+                  popularity: tmdbMovie.popularity,
+                  vote_count: tmdbMovie.vote_count,
+                  adult: tmdbMovie.adult,
+                  backdrop_path: tmdbMovie.backdrop_path,
+                  original_language: tmdbMovie.original_language,
+                  original_title: tmdbMovie.original_title,
+                },
+              },
+            }
+
+            console.log('🎬 Attempting to insert TMDB movie:', {
+              title: newMovie.title,
+              tmdb_id: newMovie.tmdb_id,
+              fields: Object.keys(newMovie),
+            })
+
+            const { data: insertedMovie, error: insertError } = await supabase
+              .from('movies')
+              .insert(newMovie)
+              .select('id, title')
+              .single()
+
+            if (insertError) {
+              console.error('❌ Failed to insert movie from TMDB:', insertError.message)
+              console.error('❌ Insert error details:', insertError)
+              console.error('❌ Movie data being inserted:', JSON.stringify(newMovie, null, 2))
+              return NextResponse.json(
+                {
+                  success: false,
+                  error: 'Failed to add movie to database',
+                },
+                { status: 500 }
+              )
+            }
+
+            movie_id = insertedMovie.id
+            console.log('✅ Successfully inserted TMDB movie:', {
+              originalId: movie_id,
+              newId: insertedMovie.id,
+              title: insertedMovie.title,
+            })
+          }
         }
-      } catch (tmdbError) {
-        console.error('❌ Error fetching from TMDB:', tmdbError)
+      } catch (fetchError) {
+        console.error('❌ Error fetching movie from external API:', fetchError)
         return NextResponse.json(
           {
             success: false,
@@ -229,92 +266,60 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Re-check if movie exists after potential TMDB insertion
-    const { data: movie, error: finalMovieError } = await supabase
-      .from('movies')
-      .select('id, title')
-      .eq('id', movie_id)
-      .single()
-
-    if (finalMovieError || !movie) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Movie not found',
-        },
-        { status: 404 }
-      )
-    }
-
-    // Check if movie is already in watchlist
-    const { data: existingItem, error: checkError } = await supabase
+    // Check if already in watchlist
+    const { data: existing, error: existingError } = await supabase
       .from('watchlist')
       .select('id')
       .eq('user_id', user.id)
       .eq('movie_id', movie_id)
       .single()
 
-    if (checkError && checkError.code !== 'PGRST116') {
-      console.error('❌ Error checking existing watchlist item:', checkError.message)
+    if (existingError && existingError.code !== 'PGRST116') {
+      console.error('❌ Error checking existing watchlist item:', existingError.message)
       return NextResponse.json(
-        {
-          success: false,
-          error: 'Database error',
-        },
+        { success: false, error: 'Error checking watchlist' },
         { status: 500 }
       )
     }
 
-    if (existingItem) {
+    if (existing) {
+      console.log('⚠️ Movie already in watchlist:', {
+        userId: user.id,
+        movieId: movie_id,
+        watchlistId: existing.id,
+      })
       return NextResponse.json(
-        {
-          success: false,
-          error: 'Movie already in watchlist',
-        },
+        { success: false, error: 'Movie already in watchlist' },
         { status: 409 }
       )
     }
 
     // Add to watchlist
-    const { data: newItem, error: insertError } = await supabase
+    const { data: newItem, error } = await supabase
       .from('watchlist')
       .insert({
         user_id: user.id,
         movie_id: movie_id,
         notes: notes || null,
+        watched: false,
         added_at: new Date().toISOString(),
       })
-      .select(
-        `
-        id,
-        added_at,
-        notes,
-        movies:movie_id (
-          id,
-          title,
-          year,
-          genre,
-          director,
-          plot,
-          poster_url,
-          rating,
-          runtime,
-          imdb_id
-        )
-      `
-      )
+      .select()
       .single()
 
-    if (insertError) {
-      console.error('❌ Watchlist add error:', insertError.message)
+    if (error) {
+      console.error('❌ Watchlist insert error:', error.message)
       return NextResponse.json(
-        {
-          success: false,
-          error: 'Failed to add to watchlist',
-        },
+        { success: false, error: 'Failed to add to watchlist' },
         { status: 500 }
       )
     }
+
+    console.log('✅ Successfully added to watchlist:', {
+      userId: user.id,
+      movieId: movie_id,
+      watchlistId: newItem.id,
+    })
 
     return NextResponse.json(
       {
@@ -409,31 +414,13 @@ export async function DELETE(request: NextRequest) {
     } = await supabase.auth.getUser()
 
     if (authError || !user) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('❌ Watchlist DELETE: Authentication failed', { authError: authError?.message })
-      }
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
-    }
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log('✅ Watchlist DELETE: User authenticated', { userId: user.id, email: user.email })
     }
 
     const { searchParams } = new URL(request.url)
     const movieId = searchParams.get('movie_id')
 
-    if (process.env.NODE_ENV === 'development') {
-      console.log('📝 Watchlist DELETE: Request data', {
-        movieId,
-        userId: user.id,
-        searchParams: Object.fromEntries(searchParams),
-      })
-    }
-
     if (!movieId) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('❌ Watchlist DELETE: Missing movie_id')
-      }
       return NextResponse.json({ success: false, error: 'Movie ID is required' }, { status: 400 })
     }
 
@@ -459,19 +446,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     if (!existing) {
-      console.log('⚠️ Movie not in watchlist', {
-        userId: user.id,
-        movieId,
-      })
       return NextResponse.json({ success: false, error: 'Movie not in watchlist' }, { status: 404 })
-    }
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log('🗑️ Removing movie from watchlist...', {
-        watchlistId: existing.id,
-        movieId,
-        userId: user.id,
-      })
     }
 
     const { error } = await supabase
@@ -493,14 +468,6 @@ export async function DELETE(request: NextRequest) {
         { success: false, error: `Failed to remove from watchlist: ${error.message}` },
         { status: 500 }
       )
-    }
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log('✅ Successfully removed from watchlist', {
-        userId: user.id,
-        movieId,
-        watchlistId: existing.id,
-      })
     }
 
     return NextResponse.json({ success: true, message: 'Removed from watchlist' })

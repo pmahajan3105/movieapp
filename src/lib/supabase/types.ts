@@ -5,6 +5,7 @@ export type Database = {
         Row: {
           id: string
           email: string
+          full_name: string | null
           preferences: Record<string, unknown> | null
           onboarding_completed: boolean
           created_at: string
@@ -13,6 +14,7 @@ export type Database = {
         Insert: {
           id?: string
           email: string
+          full_name?: string | null
           preferences?: Record<string, unknown> | null
           onboarding_completed?: boolean
           created_at?: string
@@ -21,6 +23,7 @@ export type Database = {
         Update: {
           id?: string
           email?: string
+          full_name?: string | null
           preferences?: Record<string, unknown> | null
           onboarding_completed?: boolean
           updated_at?: string

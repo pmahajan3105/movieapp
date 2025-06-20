@@ -1,20 +1,20 @@
--- Targeted fix for cast column issue only
+-- Targeted fix for actors column issue only
 -- Migration: 20250127200000_targeted_fix.sql
 
 BEGIN;
 
--- Remove cast column from movies table if it exists (this is the main issue)
+-- Remove actors column from movies table if it exists (this is the main issue)
 DO $$
 BEGIN
     IF EXISTS (
         SELECT column_name 
         FROM information_schema.columns 
-        WHERE table_name='movies' AND column_name='cast'
+        WHERE table_name='movies' AND column_name='actors'
     ) THEN
-        ALTER TABLE movies DROP COLUMN cast;
-        RAISE NOTICE 'Dropped cast column from movies table';
+        ALTER TABLE movies DROP COLUMN actors;
+        RAISE NOTICE 'Dropped actors column from movies table';
     ELSE
-        RAISE NOTICE 'Cast column does not exist, skipping';
+        RAISE NOTICE 'Actors column does not exist, skipping';
     END IF;
 END $$;
 

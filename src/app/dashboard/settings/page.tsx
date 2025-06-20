@@ -368,7 +368,7 @@ export default function SettingsPage() {
                     Start chatting with CineAI about movies you like to build your preference
                     profile!
                   </p>
-                  <Button variant="outline" onClick={() => window.open('/chat', '_blank')}>
+                  <Button variant="outline" onClick={() => (window.location.href = '/dashboard')}>
                     Chat with CineAI
                   </Button>
                 </div>

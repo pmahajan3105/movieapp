@@ -155,43 +155,78 @@ export function useWatchlistPage() {
 
   // Confirm mark as watched
   const handleConfirmMarkWatched = async (rating?: number, notes?: string) => {
-    if (!state.watchlistItemToMarkWatched) return
+    if (!state.watchlistItemToMarkWatched) {
+      console.error('❌ No watchlist item to mark as watched')
+      return
+    }
+
+    console.log('🔄 Starting mark as watched process:', {
+      watchlistId: state.watchlistItemToMarkWatched,
+      rating,
+      notes,
+    })
 
     dispatch({ type: 'SET_MARKING_WATCHED', payload: true })
 
     try {
+      const requestBody = {
+        watched: true,
+        rating,
+        notes,
+      }
+
+      console.log('📤 Sending PATCH request:', {
+        url: `/api/watchlist/${state.watchlistItemToMarkWatched}`,
+        body: requestBody,
+      })
+
       const response = await fetch(`/api/watchlist/${state.watchlistItemToMarkWatched}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          watched: true,
-          rating,
-          notes,
-          watched_at: new Date().toISOString(),
-        }),
+        body: JSON.stringify(requestBody),
+      })
+
+      console.log('📥 Response received:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
       })
 
       if (response.ok) {
-        // Update the local state
-        dispatch({
-          type: 'UPDATE_ITEM',
-          payload: {
-            id: state.watchlistItemToMarkWatched,
-            updates: { watched: true, rating, notes, watched_at: new Date().toISOString() },
-          },
-        })
+        const data = await response.json()
+        if (data.success) {
+          // Update the local state
+          dispatch({
+            type: 'UPDATE_ITEM',
+            payload: {
+              id: state.watchlistItemToMarkWatched,
+              updates: { watched: true, rating, notes, watched_at: new Date().toISOString() },
+            },
+          })
 
-        dispatch({ type: 'SET_MARKING_WATCHED', payload: false })
-        dispatch({ type: 'SET_MARK_WATCHED_MOVIE', payload: { movie: null, watchlistId: null } })
+          dispatch({ type: 'SET_MARKING_WATCHED', payload: false })
+          dispatch({ type: 'SET_MARK_WATCHED_MOVIE', payload: { movie: null, watchlistId: null } })
 
-        // Keep the current filter instead of switching to 'watched'
-        // This way if user is viewing 'unwatched', the movie disappears from view
-        // If they want to see watched movies, they can switch the filter manually
-        showSuccess('Movie marked as watched successfully')
+          // Keep the current filter instead of switching to 'watched'
+          // This way if user is viewing 'unwatched', the movie disappears from view
+          // If they want to see watched movies, they can switch the filter manually
+          showSuccess('Movie marked as watched successfully')
+        } else {
+          console.error('❌ Failed to mark as watched:', data)
+          showError(`Failed to mark movie as watched: ${data.error || 'Unknown error'}`)
+          dispatch({ type: 'SET_MARKING_WATCHED', payload: false })
+          dispatch({ type: 'SET_MARK_WATCHED_MOVIE', payload: { movie: null, watchlistId: null } })
+        }
       } else {
-        const errorData = await response.json()
+        let errorData
+        try {
+          errorData = await response.json()
+        } catch (parseError) {
+          console.error('❌ Failed to parse error response:', parseError)
+          errorData = { error: `HTTP ${response.status}: ${response.statusText}` }
+        }
         console.error('❌ Failed to mark as watched:', errorData)
         showError(`Failed to mark movie as watched: ${errorData.error || 'Unknown error'}`)
         dispatch({ type: 'SET_MARKING_WATCHED', payload: false })

@@ -3,15 +3,15 @@
 
 BEGIN;
 
--- 1. Remove cast column from movies table if it exists (this is causing the error)
+-- 1. Remove actors column from movies table if it exists (this is causing the error)
 DO $$
 BEGIN
     IF EXISTS (
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_name='movies' AND column_name='cast'
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name='movies' AND column_name='actors'
     ) THEN
-        ALTER TABLE movies DROP COLUMN cast;
+        ALTER TABLE movies DROP COLUMN actors;
     END IF;
 END $$;
 

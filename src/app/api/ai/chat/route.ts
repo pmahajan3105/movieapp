@@ -98,51 +98,83 @@ export async function POST(request: NextRequest) {
     let currentSessionId: string
     let chatHistory: ChatMessage[] = []
 
-    if (sessionId) {
-      // Try to get existing session
-      currentSessionId = sessionId
-      const { data: existingSession } = await supabase
-        .from('chat_sessions')
-        .select('messages, preferences_extracted')
-        .eq('id', sessionId)
-        .eq('user_id', user.id)
-        .single()
+    try {
+      if (sessionId) {
+        // Try to get existing session
+        currentSessionId = sessionId
+        const { data: existingSession, error: selectError } = await supabase
+          .from('chat_sessions')
+          .select('messages, preferences_extracted')
+          .eq('id', sessionId)
+          .eq('user_id', user.id)
+          .single()
 
-      if (existingSession) {
-        chatHistory = existingSession.messages || []
-
-        // If preferences already extracted, don't continue chat
-        if (existingSession.preferences_extracted) {
-          return NextResponse.json({
-            success: true,
-            message:
-              "I've already gathered your preferences! You can now explore your personalized movie recommendations.",
-            sessionId: currentSessionId,
-            preferencesExtracted: true,
-          })
+        if (selectError && selectError.code !== 'PGRST116') {
+          // Not a "not found" error - could be table missing
+          console.error('❌ Error accessing chat_sessions table:', selectError)
+          throw new Error('Chat feature temporarily unavailable. Database table not found.')
         }
-      }
-    } else {
-      // Create new session
-      const { data: newSession, error: sessionError } = await supabase
-        .from('chat_sessions')
-        .insert({
-          user_id: user.id,
-          messages: [],
-          preferences_extracted: false,
-        })
-        .select('id')
-        .single()
 
-      if (sessionError) {
-        console.error('Session creation error:', sessionError)
-        return NextResponse.json(
-          { error: `Database error: ${sessionError.message || 'Unknown error'}`, success: false },
-          { status: 500 }
-        )
-      }
+        if (existingSession) {
+          chatHistory = existingSession.messages || []
 
-      currentSessionId = newSession.id
+          // If preferences already extracted, don't continue chat
+          if (existingSession.preferences_extracted) {
+            return NextResponse.json({
+              success: true,
+              message:
+                "I've already gathered your preferences! You can now explore your personalized movie recommendations.",
+              sessionId: currentSessionId,
+              preferencesExtracted: true,
+            })
+          }
+        }
+      } else {
+        // Create new session
+        const { data: newSession, error: sessionError } = await supabase
+          .from('chat_sessions')
+          .insert({
+            user_id: user.id,
+            messages: [],
+            preferences_extracted: false,
+          })
+          .select('id')
+          .single()
+
+        if (sessionError) {
+          console.error('❌ Session creation error:', sessionError)
+
+          // Check if it's a missing table error
+          if (sessionError.code === '42P01') {
+            return NextResponse.json(
+              {
+                error:
+                  'Chat feature temporarily unavailable. Please contact support to enable the chat functionality.',
+                success: false,
+                code: 'MISSING_TABLE',
+              },
+              { status: 503 }
+            )
+          }
+
+          return NextResponse.json(
+            { error: `Database error: ${sessionError.message || 'Unknown error'}`, success: false },
+            { status: 500 }
+          )
+        }
+
+        currentSessionId = newSession.id
+      }
+    } catch (dbError) {
+      console.error('❌ Database error in chat session handling:', dbError)
+      return NextResponse.json(
+        {
+          error: 'Chat feature temporarily unavailable. Please try again later.',
+          success: false,
+          code: 'DATABASE_ERROR',
+        },
+        { status: 503 }
+      )
     }
 
     // Add user message to history

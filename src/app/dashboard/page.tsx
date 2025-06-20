@@ -2,13 +2,58 @@
 
 import React from 'react'
 import Link from 'next/link'
+
 import { useAuth } from '@/contexts/AuthContext'
 import { ChatInterface } from '@/components/ai/ChatInterface'
-import { IntelligenceDisplay } from '@/components/ai/IntelligenceDisplay'
-import { Film, Sparkles, List, Brain, CheckCircle, BarChart3, Zap } from 'lucide-react'
+
+import type { PreferenceData } from '@/types/chat'
+import { Film, Sparkles, List, Brain, CheckCircle, Zap } from 'lucide-react'
 
 export default function DashboardPage() {
-  const { loading } = useAuth()
+  const { user, loading, reloadProfile } = useAuth()
+
+  const handlePreferencesExtracted = async (preferences: PreferenceData) => {
+    console.log('🎯 Preferences confirmed:', preferences)
+
+    if (!user) {
+      console.error('No user found when trying to save preferences')
+      alert('❌ Please log in to save preferences.')
+      return
+    }
+
+    try {
+      console.log('�� Saving preferences via API...')
+
+      const response = await fetch('/api/user/preferences', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ preferences }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        console.error('❌ API error saving preferences:', result)
+        alert(`❌ Failed to save preferences: ${result.details || result.error}. Please try again.`)
+        return
+      }
+
+      console.log('✅ Preferences saved successfully via API:', result)
+
+      // Reload the user profile to get the updated data
+      await reloadProfile()
+
+      alert(
+        '✅ Your preferences have been saved! Check out your personalized movies in the Movies section.'
+      )
+    } catch (error) {
+      console.error('❌ Unexpected error handling preferences:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+      alert(`⚠️ There was an error saving your preferences: ${errorMessage}. Please try again.`)
+    }
+  }
 
   if (loading) {
     return (
@@ -97,29 +142,10 @@ export default function DashboardPage() {
               </p>
             </div>
             <div className="mx-auto max-w-4xl">
-              <ChatInterface />
+              <ChatInterface onPreferencesExtracted={handlePreferencesExtracted} />
             </div>
           </div>
         </div>
-
-        {/* Movie Intelligence Section */}
-        <section>
-          <div className="card bg-base-200 mx-auto max-w-4xl shadow-xl">
-            <div className="card-body">
-              <div className="card-title mb-4 flex items-center justify-center gap-2 text-xl">
-                <BarChart3 className="text-primary h-6 w-6" />
-                Your Movie Intelligence
-                <div className="badge badge-primary badge-sm">AI Insights</div>
-              </div>
-              <p className="text-base-content/70 mb-6 text-center">
-                Behavioral analysis and personalized insights based on your viewing patterns
-              </p>
-              <div className="rounded-lg">
-                <IntelligenceDisplay />
-              </div>
-            </div>
-          </div>
-        </section>
       </div>
     </div>
   )

@@ -3,21 +3,21 @@
 
 BEGIN;
 
--- 1. Remove cast column from movies table (since you don't want it)
+-- 1. Remove actors column from movies table (since you don't want it)
 DO $$
 BEGIN
     IF EXISTS (
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_name='movies' AND column_name='cast'
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name='movies' AND column_name='actors'
     ) THEN
-        ALTER TABLE movies DROP COLUMN cast;
+        ALTER TABLE movies DROP COLUMN actors;
     END IF;
 END $$;
 
 -- 2. Remove other unwanted columns
 ALTER TABLE movies 
-DROP COLUMN IF EXISTS cast,
+    DROP COLUMN IF EXISTS actors,
 DROP COLUMN IF EXISTS backdrop_url;
 
 -- 3. Create a simple test user for development

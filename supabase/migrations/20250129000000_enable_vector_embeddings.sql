@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS movie_embeddings (
   movie_id TEXT NOT NULL UNIQUE,
   title TEXT NOT NULL,
   plot_embedding VECTOR(1536), -- OpenAI/Anthropic embedding dimension
-  metadata_embedding VECTOR(1536), -- For genre, director, cast info
+  metadata_embedding VECTOR(1536), -- For genre, director, actors info
   combined_embedding VECTOR(1536), -- Combined semantic representation
   content_text TEXT, -- Original text used for embedding
   metadata_text TEXT, -- Metadata used for embedding

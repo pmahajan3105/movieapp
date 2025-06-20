@@ -33,7 +33,7 @@ CREATE TABLE movies (
   year INTEGER,
   genre TEXT[] DEFAULT '{}',
   director TEXT[] DEFAULT '{}',
-  cast TEXT[] DEFAULT '{}',
+  actors TEXT[] DEFAULT '{}',
   plot TEXT,
   poster_url TEXT,
   rating DECIMAL(3,1),
