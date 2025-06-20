@@ -1,12 +1,6 @@
 {
   "version": 2,
   "name": "movie-app",
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/next"
-    }
-  ],
   "routes": [
     {
       "src": "/api/(.*)",
