@@ -167,6 +167,48 @@ export type Database = {
           },
         ]
       }
+      recommendation_queue: {
+        Row: {
+          created_at: string | null
+          error_message: string | null
+          expires_at: string | null
+          id: string
+          metadata: Json | null
+          processed_at: string | null
+          query_params: Json
+          request_type: string
+          results: Json | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          error_message?: string | null
+          expires_at?: string | null
+          id?: string
+          metadata?: Json | null
+          processed_at?: string | null
+          query_params?: Json
+          request_type?: string
+          results?: Json | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          error_message?: string | null
+          expires_at?: string | null
+          id?: string
+          metadata?: Json | null
+          processed_at?: string | null
+          query_params?: Json
+          request_type?: string
+          results?: Json | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       recommendations: {
         Row: {
           created_at: string | null
@@ -317,6 +359,10 @@ export type Database = {
       binary_quantize: {
         Args: { '': string } | { '': unknown }
         Returns: unknown
+      }
+      cleanup_expired_recommendations: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
       }
       create_missing_profiles: {
         Args: Record<PropertyKey, never>

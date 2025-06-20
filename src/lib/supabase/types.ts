@@ -12,8 +12,8 @@ export type WatchlistItem = Database['public']['Tables']['watchlist']['Row']
 export type Rating = Database['public']['Tables']['ratings']['Row']
 export type Recommendation = Database['public']['Tables']['recommendations']['Row']
 
-// Manual type definition for recommendation_queue (until types are regenerated)
-export interface RecommendationQueue {
+// Note: recommendation_queue table will be added when migration is applied to production
+export type RecommendationQueue = {
   id: string
   user_id: string
   status: 'pending' | 'processing' | 'completed' | 'failed'
