@@ -12,6 +12,21 @@ export type WatchlistItem = Database['public']['Tables']['watchlist']['Row']
 export type Rating = Database['public']['Tables']['ratings']['Row']
 export type Recommendation = Database['public']['Tables']['recommendations']['Row']
 
+// Manual type definition for recommendation_queue (until types are regenerated)
+export interface RecommendationQueue {
+  id: string
+  user_id: string
+  status: 'pending' | 'processing' | 'completed' | 'failed'
+  request_type: 'standard' | 'mood' | 'similar' | 'semantic'
+  query_params: Record<string, any>
+  results?: Record<string, any>
+  error_message?: string
+  metadata?: Record<string, any>
+  created_at?: string
+  processed_at?: string
+  expires_at?: string
+}
+
 export type UserProfileInsert = Database['public']['Tables']['user_profiles']['Insert']
 export type MovieInsert = Database['public']['Tables']['movies']['Insert']
 export type ChatSessionInsert = Database['public']['Tables']['chat_sessions']['Insert']

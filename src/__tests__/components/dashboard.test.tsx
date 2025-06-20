@@ -12,7 +12,7 @@ import { toast } from 'react-hot-toast'
 // Mock dependencies
 jest.mock('@/contexts/AuthContext')
 jest.mock('react-hot-toast')
-jest.mock('@/components/ai/ChatInterface', () => ({
+jest.mock('@/components/chat/ChatInterface', () => ({
   ChatInterface: ({
     onPreferencesExtracted,
   }: {
@@ -47,7 +47,9 @@ describe('DashboardPage', () => {
         aud: 'authenticated',
         created_at: '2024-01-01T00:00:00Z',
       },
+      isSessionValid: true,
       signOut: jest.fn(),
+      reloadProfile: jest.fn(),
       refreshUser: jest.fn(),
     })
 
@@ -61,7 +63,9 @@ describe('DashboardPage', () => {
       mockUseAuth.mockReturnValue({
         loading: true,
         user: null,
+        isSessionValid: false,
         signOut: jest.fn(),
+        reloadProfile: jest.fn(),
         refreshUser: jest.fn(),
       })
 

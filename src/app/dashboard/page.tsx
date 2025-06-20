@@ -4,7 +4,7 @@ import React from 'react'
 import Link from 'next/link'
 
 import { useAuth } from '@/contexts/AuthContext'
-import { ChatInterface } from '@/components/ai/ChatInterface'
+import { ChatInterface } from '@/components/chat/ChatInterface'
 
 import type { PreferenceData } from '@/types/chat'
 import { Film, Sparkles, List, Brain, CheckCircle, Zap } from 'lucide-react'

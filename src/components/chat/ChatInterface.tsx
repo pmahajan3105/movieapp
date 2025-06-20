@@ -10,7 +10,11 @@ import {
   useEnhancedRecommendations,
 } from './hooks'
 
-export function ChatInterface() {
+interface ChatInterfaceProps {
+  onPreferencesExtracted?: (preferences: any) => void
+}
+
+export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps = {}) {
   // Session management
   const {
     messages,
@@ -27,6 +31,13 @@ export function ChatInterface() {
     extractedPreferences,
     handlePreferencesExtracted,
   } = usePreferenceExtraction()
+
+  // Call the parent callback when preferences are extracted
+  React.useEffect(() => {
+    if (extractedPreferences && onPreferencesExtracted) {
+      onPreferencesExtracted(extractedPreferences)
+    }
+  }, [extractedPreferences, onPreferencesExtracted])
 
   // Enhanced recommendations
   const { getEnhancedRecommendations, isRecommendationRequest } = useEnhancedRecommendations()
