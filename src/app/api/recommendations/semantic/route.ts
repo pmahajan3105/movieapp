@@ -1,35 +1,12 @@
 /**
- * Semantic Recommendations API
- * Vector-enhanced movie recommendations using embeddings
+ * Semantic Recommendations API - Refactored using factory pattern
  */
 
-import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { getSupabaseUrl, getSupabaseServiceRoleKey } from '@/lib/env'
+import { createPublicApiHandler, parseJsonBody, getQueryParams } from '@/lib/api/factory'
+import { withRateLimit } from '@/lib/api/middleware/rate-limiter'
 import { embeddingService } from '@/lib/ai/embedding-service'
 import type { Movie } from '@/types'
-
-// Request throttling to prevent infinite loops
-const requestCounts = new Map<string, { count: number; resetTime: number }>()
-const MAX_REQUESTS_PER_MINUTE = 10
-const THROTTLE_WINDOW = 60000 // 1 minute
-
-function checkRateLimit(clientId: string): boolean {
-  const now = Date.now()
-  const clientData = requestCounts.get(clientId)
-
-  if (!clientData || now > clientData.resetTime) {
-    requestCounts.set(clientId, { count: 1, resetTime: now + THROTTLE_WINDOW })
-    return true
-  }
-
-  if (clientData.count >= MAX_REQUESTS_PER_MINUTE) {
-    return false
-  }
-
-  clientData.count++
-  return true
-}
+import type { NextRequest } from 'next/server'
 
 // Enhanced movie type with semantic search data
 interface SemanticMovie extends Movie {
@@ -38,17 +15,41 @@ interface SemanticMovie extends Movie {
   confidence: number
 }
 
-export async function POST(request: NextRequest) {
-  try {
-    // Rate limiting check
-    const clientId = request.headers.get('x-forwarded-for') || 'unknown'
-    if (!checkRateLimit(clientId)) {
-      return NextResponse.json(
-        { success: false, error: 'Too many requests. Please wait before trying again.' },
-        { status: 429 }
-      )
+interface SemanticRecommendationResponse {
+  success: boolean
+  data: {
+    movies: SemanticMovie[]
+    insights: {
+      method: string
+      semanticMatches: number
+      totalCandidates: number
+      diversityScore: number
     }
+    pagination: {
+      currentPage: number
+      limit: number
+      hasMore: boolean
+      totalResults: number
+    }
+  }
+}
 
+// Generate recommendation reason based on semantic similarity
+function generateReason(movie: Movie, similarity: number): string {
+  if (similarity > 0.8) {
+    return `Perfect match • ${movie.genre ? `${Array.isArray(movie.genre) ? movie.genre.join(', ') : movie.genre}` : 'Great choice'}`
+  } else if (similarity > 0.6) {
+    return `Great match • ${movie.rating ? `${movie.rating}/10 rated` : 'Recommended'}`
+  } else if (similarity > 0.4) {
+    return `Good match • ${movie.year ? `${movie.year}` : 'Popular choice'}`
+  } else {
+    return `Recommended for you • ${movie.genre ? `${Array.isArray(movie.genre) ? movie.genre[0] : movie.genre}` : 'Worth watching'}`
+  }
+}
+
+// POST /api/recommendations/semantic - Generate semantic recommendations
+export const POST = withRateLimit({ maxRequests: 10 })(
+  createPublicApiHandler<SemanticRecommendationResponse>(async (request: NextRequest, supabase) => {
     const {
       userId,
       query,
@@ -56,17 +57,20 @@ export async function POST(request: NextRequest) {
       mood,
       limit = 10,
       semanticThreshold = 0.7,
-      // diversityFactor = 0.3 // Reserved for future diversity ranking
-    } = await request.json()
+    } = await parseJsonBody<{
+      userId: string
+      query?: string
+      preferredGenres?: string[]
+      mood?: string
+      limit?: number
+      semanticThreshold?: number
+    }>(request)
 
     if (!userId) {
-      return NextResponse.json({ success: false, error: 'User ID is required' }, { status: 400 })
+      throw new Error('User ID is required')
     }
 
     console.log('🔍 Semantic search request:', { userId, query, preferredGenres, mood })
-
-    // Get Supabase client
-    const supabase = createClient(getSupabaseUrl()!, getSupabaseServiceRoleKey()!)
 
     let recommendedMovies: SemanticMovie[] = []
     let insights = {
@@ -106,9 +110,12 @@ export async function POST(request: NextRequest) {
               return {
                 ...movie,
                 semanticSimilarity: semanticMatch?.similarity || 0,
-                recommendationReason: generateReason(movie, semanticMatch?.similarity || 0),
+                recommendationReason: generateReason(
+                  movie as Movie,
+                  semanticMatch?.similarity || 0
+                ),
                 confidence: Math.min(0.9, (semanticMatch?.similarity || 0) * 1.2),
-              }
+              } as SemanticMovie
             })
             .sort((a, b) => b.semanticSimilarity - a.semanticSimilarity)
             .slice(0, limit)
@@ -137,12 +144,15 @@ export async function POST(request: NextRequest) {
       const { data: fallbackMovies } = await query.limit(limit)
 
       if (fallbackMovies) {
-        recommendedMovies = fallbackMovies.map(movie => ({
-          ...movie,
-          semanticSimilarity: 0,
-          recommendationReason: 'Based on your preferences',
-          confidence: 0.4,
-        }))
+        recommendedMovies = fallbackMovies.map(
+          movie =>
+            ({
+              ...movie,
+              semanticSimilarity: 0,
+              recommendationReason: 'Based on your preferences',
+              confidence: 0.4,
+            }) as SemanticMovie
+        )
 
         insights.method = 'preference-based'
         insights.totalCandidates = fallbackMovies.length
@@ -181,7 +191,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({
+    return {
       success: true,
       data: {
         movies: recommendedMovies,
@@ -193,87 +203,40 @@ export async function POST(request: NextRequest) {
           totalResults: recommendedMovies.length,
         },
       },
-    })
-  } catch (error) {
-    console.error('❌ Semantic recommendations error:', error)
-
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Failed to generate recommendations',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    )
-  }
-}
-
-/**
- * Generate recommendation reason based on semantic similarity
- */
-function generateReason(movie: Movie, similarity: number): string {
-  if (similarity > 0.8) {
-    return `Perfect match • ${movie.genre ? `${Array.isArray(movie.genre) ? movie.genre.join(', ') : movie.genre}` : 'Great choice'}`
-  } else if (similarity > 0.6) {
-    return `Great match • ${movie.rating ? `${movie.rating}/10 rated` : 'Recommended'}`
-  } else if (similarity > 0.4) {
-    return `Good match • ${movie.year ? `${movie.year}` : 'Popular choice'}`
-  } else {
-    return `Recommended for you • ${movie.genre ? `${Array.isArray(movie.genre) ? movie.genre[0] : movie.genre}` : 'Worth watching'}`
-  }
-}
-
-export async function GET(request: NextRequest) {
-  try {
-    // Rate limiting check
-    const clientId = request.headers.get('x-forwarded-for') || 'unknown'
-    if (!checkRateLimit(clientId)) {
-      return NextResponse.json(
-        { success: false, error: 'Too many requests. Please wait before trying again.' },
-        { status: 429 }
-      )
     }
+  })
+)
 
-    const { searchParams } = new URL(request.url)
-    const userId = searchParams.get('userId')
+// GET /api/recommendations/semantic - Handle GET requests
+export const GET = createPublicApiHandler<SemanticRecommendationResponse>(
+  withRateLimit({ maxRequests: 10 })(async (request: NextRequest, supabase) => {
+    const params = getQueryParams(request)
+    const userId = params.get('userId')
 
     if (!userId) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'User ID is required for semantic recommendations',
-        },
-        { status: 400 }
-      )
+      throw new Error('User ID is required for semantic recommendations')
     }
 
-    const query = searchParams.get('query')
-    const genres = searchParams.get('genres')
-    const mood = searchParams.get('mood')
-    const limit = parseInt(searchParams.get('limit') || '10')
+    const query = params.get('query')
+    const genres = params.get('genres')
+    const mood = params.get('mood')
+    const limit = params.getNumber('limit', 10)
 
-    // Convert to POST format and call the main handler
+    // Reuse POST logic with GET parameters
+    const postBody = {
+      userId,
+      query: query || undefined,
+      preferredGenres: genres ? genres.split(',') : undefined,
+      mood: mood || undefined,
+      limit,
+    }
+
+    // Create mock request for POST handler
     const mockRequest = {
-      json: async () => ({
-        userId,
-        query,
-        preferredGenres: genres ? genres.split(',') : undefined,
-        mood,
-        limit,
-      }),
-      headers: request.headers, // Pass through headers for rate limiting
+      ...request,
+      json: async () => postBody,
     } as NextRequest
 
-    return POST(mockRequest)
-  } catch (error) {
-    console.error('❌ GET semantic recommendations error:', error)
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Failed to process GET request',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    )
-  }
-}
+    return POST.handler(mockRequest, supabase)
+  })
+)

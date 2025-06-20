@@ -42,7 +42,7 @@ export interface SearchMeta {
 export interface AutocompleteResponse {
   success: boolean
   data?: {
-    movies: { id: string; title: string; year: number; poster_url?: string }[]
+    movies: { id: string; title: string; year: number | null; poster_url?: string | null }[]
     directors: string[]
     actors: string[]
     suggestions: string[]
