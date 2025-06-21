@@ -1,14 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { getAuthenticatedUserId } from '@/lib/auth-server'
+import { NextResponse } from 'next/server'
+import { requireAuth, withError } from '@/lib/api/factory'
 
 // DELETE - Delete a specific preference by ID
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id: preferenceId } = await params
+export const DELETE = withError(
+  requireAuth(async ({ request, supabase, user }) => {
+    const preferenceId = request.nextUrl.pathname.split('/').pop() || ''
 
     if (!preferenceId) {
       return NextResponse.json(
@@ -17,25 +13,11 @@ export async function DELETE(
       )
     }
 
-    // Get authenticated user
-    const userId = await getAuthenticatedUserId()
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'Authentication required', success: false },
-        { status: 401 }
-      )
-    }
-
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
-
     // Get current preferences
     const { data: currentProfile, error: fetchError } = await supabase
       .from('user_profiles')
       .select('preferences')
-      .eq('id', userId)
+      .eq('id', user.id)
       .single()
 
     if (fetchError && fetchError.code !== 'PGRST116') {
@@ -51,14 +33,5 @@ export async function DELETE(
       success: true,
       message: `Preference ${preferenceId} deleted successfully`,
     })
-  } catch (error) {
-    console.error('❌ Error deleting preference:', error)
-    return NextResponse.json(
-      {
-        error: 'Failed to delete preference',
-        success: false,
-      },
-      { status: 500 }
-    )
-  }
-}
+  })
+)
