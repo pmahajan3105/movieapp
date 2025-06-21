@@ -32,11 +32,11 @@ _Stop the bleeding, fix core architectural issues_
 
 #### Tasks:
 
-- [ ] **Generate Supabase Types**
+- [x] **Generate Supabase Types**
   ```bash
   supabase gen types typescript --local > src/types/supabase.ts
   ```
-- [ ] **Create Typed Client Helper**
+- [x] **Create Typed Client Helper**
   - Create `src/lib/typed-supabase.ts`
   - Export typed client with proper return types
   - Replace all `any` types in API responses
@@ -56,6 +56,14 @@ _Stop the bleeding, fix core architectural issues_
 - [ ] TypeScript errors reduced by 80%
 
 ---
+
+### 📈 Progress Log
+
+- **2025-06-21** Generated remote Supabase types (`src/types/supabase-generated.ts`, 600+ LOC) and added `npm run generate:types` script.
+- **2025-06-21** Introduced `src/lib/typed-supabase.ts` – a lightweight typed Supabase client for non-SSR contexts.
+- **2025-06-22** Added minimal API factory (`src/lib/api/factory.ts`) with `withSupabase` and `withError` wrappers – ready to wrap routes.
+
+Next up: wrap `api/watchlist/route.ts` GET handler with the new factory (without altering its core logic) to prove concept.
 
 ### 1.2 Split ChatInterface.tsx (Architectural Fix)
 

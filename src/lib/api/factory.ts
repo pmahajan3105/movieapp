@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { User } from '@supabase/supabase-js'
 import { createServerClient } from '@/lib/supabase/client'
+import { createClient as createSupabaseClient } from '@/lib/supabase/server-client'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import type { GeneratedDatabase } from '@/lib/supabase/types'
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -29,6 +32,13 @@ export type ApiHandler<T = unknown> = (
   request: NextRequest,
   context: { supabase: Awaited<ReturnType<typeof createServerClient>> }
 ) => Promise<NextResponse<ApiResponse<T>>>
+
+export interface SupabaseCtx {
+  supabase: SupabaseClient<GeneratedDatabase>
+  request: NextRequest
+}
+
+export type Handler = (ctx: SupabaseCtx) => Promise<Response> | Response
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -186,4 +196,29 @@ export function withAuthAndErrorHandling<T = unknown>(
 
     return await handler(request, { user, supabase })
   })
+}
+
+// Inject a typed Supabase client
+export const withSupabase = (handler: Handler): Handler => {
+  return async (ctx: SupabaseCtx) => {
+    const supabase = await createSupabaseClient()
+    return handler({ ...ctx, supabase })
+  }
+}
+
+// Simple error wrapper – catches unhandled exceptions
+export const withError = (handler: Handler): Handler => {
+  return async ctx => {
+    try {
+      return await handler(ctx)
+    } catch (err: any) {
+      console.error('API error:', err)
+      return Response.json(
+        { success: false, error: err?.message || 'Internal error' },
+        {
+          status: 500,
+        }
+      )
+    }
+  }
 }
