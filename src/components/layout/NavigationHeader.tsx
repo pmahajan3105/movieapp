@@ -19,7 +19,7 @@ import {
 import { SearchInterface } from '@/components/search/SearchInterface'
 
 export function NavigationHeader() {
-  const { user, loading, signOut } = useAuth()
+  const { user, isLoading, signOut } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
@@ -159,7 +159,7 @@ export function NavigationHeader() {
             )}
 
             {/* User Section */}
-            {loading ? (
+            {isLoading ? (
               <div className="h-8 w-8 animate-pulse rounded-full bg-gray-200" />
             ) : user ? (
               <div className="relative" ref={dropdownRef}>
