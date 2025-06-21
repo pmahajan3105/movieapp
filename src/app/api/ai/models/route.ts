@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { 
-  modelSelector, 
-  getModelForTask, 
-  getDefaultModel, 
-  AVAILABLE_MODELS,
-  supportsStreaming,
+import {
+  AI_MODELS,
+  getModelsByProvider,
+  getBestModelForTask,
+  DEFAULT_MODEL,
+  calculateCost,
+  supportsExtendedThinking,
   type AIProvider,
-  type ModelCapability
 } from '@/lib/ai/models'
 
 // GET /api/ai/models - List available models and current configuration
@@ -16,27 +16,25 @@ export async function GET(request: NextRequest) {
     const provider = searchParams.get('provider')
     const capability = searchParams.get('capability')
 
-    let models = Object.values(AVAILABLE_MODELS)
+    let models = [...AI_MODELS]
 
     // Filter by provider if specified
     if (provider) {
-      models = modelSelector.getModelsByProvider(provider as AIProvider)
+      models = getModelsByProvider(provider as AIProvider)
     }
 
-    // Filter by capability if specified
-    if (capability) {
-      models = models.filter(model => 
-        model.capabilities.includes(capability as ModelCapability)
-      )
+    // Simple capability filter – only "extended" supported for now
+    if (capability === 'extended') {
+      models = models.filter(m => m.supportsExtendedThinking)
     }
 
     // Get current task assignments
     const taskAssignments = {
-      chat: getModelForTask('chat'),
-      recommendations: getModelForTask('recommendations'),
-      mood_search: getModelForTask('mood_search'),
-      preference_extraction: getModelForTask('preference_extraction'),
-      default: getDefaultModel(),
+      chat: getBestModelForTask('chat'),
+      recommendations: getBestModelForTask('recommendations'),
+      analysis: getBestModelForTask('analysis'),
+      'fast-response': getBestModelForTask('fast-response'),
+      default: DEFAULT_MODEL,
     }
 
     return NextResponse.json({
@@ -46,17 +44,12 @@ export async function GET(request: NextRequest) {
       summary: {
         totalModels: models.length,
         providers: [...new Set(models.map(m => m.provider))],
-        recommendedModels: models.filter(m => m.recommended),
-        streamingModels: models.filter(m => supportsStreaming(m.id)),
-      }
+        extendedThinkingModels: models.filter(m => m.supportsExtendedThinking),
+      },
     })
-
   } catch (error) {
     console.error('❌ Models API error:', error)
-    return NextResponse.json(
-      { success: false, error: 'Failed to fetch models' },
-      { status: 500 }
-    )
+    return NextResponse.json({ success: false, error: 'Failed to fetch models' }, { status: 500 })
   }
 }
 
@@ -72,7 +65,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const model = AVAILABLE_MODELS[modelId]
+    const model = AI_MODELS.find(m => m.id === modelId)
     if (!model) {
       return NextResponse.json(
         { success: false, error: `Model ${modelId} not found` },
@@ -80,18 +73,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // If task is provided, temporarily set the model for that task
-    if (task) {
-      console.log(`🧪 Testing model ${model.name} for task: ${task}`)
-      modelSelector.setModelForTask(task, modelId)
-    }
-
     console.log(`🧪 Testing model: ${model.name} (${model.provider})`)
     console.log(`💬 Test message: "${message.substring(0, 50)}..."`)
 
     // Calculate estimated cost
-    const estimatedTokens = message.length / 4 // Rough estimate
-    const estimatedCost = modelSelector.estimateCost(modelId, estimatedTokens)
+    const estimatedTokens = Math.ceil(message.length / 4) // Rough estimate
+    const estimatedCost = calculateCost(model, estimatedTokens, Math.ceil(estimatedTokens / 2))
 
     return NextResponse.json({
       success: true,
@@ -99,24 +86,19 @@ export async function POST(request: NextRequest) {
         id: model.id,
         name: model.name,
         provider: model.provider,
-        capabilities: model.capabilities,
         description: model.description,
       },
       test: {
         message: message.substring(0, 100),
         estimatedTokens,
         estimatedCost: `$${estimatedCost.toFixed(6)}`,
-        supportsStreaming: supportsStreaming(modelId),
+        supportsExtendedThinking: supportsExtendedThinking(modelId),
         task: task || 'general',
       },
       message: `Model ${model.name} is configured and ready for testing`,
     })
-
   } catch (error) {
     console.error('❌ Model test error:', error)
-    return NextResponse.json(
-      { success: false, error: 'Model test failed' },
-      { status: 500 }
-    )
+    return NextResponse.json({ success: false, error: 'Model test failed' }, { status: 500 })
   }
-} 
+}

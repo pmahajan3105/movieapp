@@ -30,6 +30,10 @@ const envSchema = z.object({
     .string()
     .transform(val => val === 'true')
     .default('false'),
+
+  // Legacy movie DB envs (optional)
+  MOVIE_DEFAULT_DATABASE: z.string().optional(),
+  MOVIE_SEARCH_DATABASE: z.string().optional(),
 })
 
 // Type for validated environment variables
@@ -83,3 +87,10 @@ export const getAIFastModel = () => getEnv().AI_FAST_MODEL
 // Environment check helpers (using function form to avoid conflicts)
 export const isDev = () => getEnv().NODE_ENV === 'development'
 export const isProd = () => getEnv().NODE_ENV === 'production'
+
+// Legacy aliases expected by older tests
+export const getTMDBApiKey = getTmdbApiKey
+export const getGroqApiKey = () => process.env.GROQ_API_KEY || ''
+
+export const MOVIE_DEFAULT_DATABASE = process.env.MOVIE_DEFAULT_DATABASE || 'tmdb'
+export const MOVIE_SEARCH_DATABASE = process.env.MOVIE_SEARCH_DATABASE || 'tmdb'

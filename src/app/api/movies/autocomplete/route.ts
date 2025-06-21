@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { createClient as createSupabaseClient } from '@/lib/supabase/server-client'
 import type { AutocompleteResponse } from '@/types/search'
 
 export async function GET(request: NextRequest): Promise<NextResponse<AutocompleteResponse>> {
   try {
-    const supabase = await createServerClient()
+    const supabase = await createSupabaseClient()
     const { searchParams } = new URL(request.url)
 
     const query = searchParams.get('query')

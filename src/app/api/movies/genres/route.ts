@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { createClient as createSupabaseClient } from '@/lib/supabase/server-client'
 import type { GenreOption } from '@/types/search'
 
 interface GenresResponse {
@@ -15,7 +15,7 @@ interface MovieWithGenre {
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function GET(_request: NextRequest): Promise<NextResponse<GenresResponse>> {
   try {
-    const supabase = await createServerClient()
+    const supabase = await createSupabaseClient()
 
     console.log('🎭 Fetching movie genres...')
 

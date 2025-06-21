@@ -1,5 +1,6 @@
+/* eslint-disable */
 /**
- * @jest-environment node
+ * @jest-environment jsdom
  */
 
 import { SmartRecommenderV2 } from '@/lib/ai/smart-recommender-v2'

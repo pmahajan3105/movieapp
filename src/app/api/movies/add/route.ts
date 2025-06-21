@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { createClient as createSupabaseClient } from '@/lib/supabase/server-client'
 
 const popularMovies = [
   {
@@ -276,7 +276,7 @@ const popularMovies = [
 
 export async function POST() {
   try {
-    const supabase = await createServerClient()
+    const supabase = await createSupabaseClient()
 
     console.log('🎬 Adding popular movies to database...')
 

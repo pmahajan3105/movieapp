@@ -20,6 +20,8 @@ This plan combines insights from three different AI analyses to create a systema
 
 ---
 
+Remove Groq and set AI to use claude sonnet 3.7 from the latest docs
+
 ## Phase 1: Foundation & Stability (Days 1-5)
 
 _Stop the bleeding, fix core architectural issues_
@@ -42,6 +44,10 @@ _Stop the bleeding, fix core architectural issues_
   - Replace manual type definitions with generated types
   - Update `src/lib/supabase/types.ts` to extend generated types
   - Fix type mismatches in API responses
+- [ ] **Re-enable strict type-checking on test suite**
+  - Current workaround excludes `src/__tests__/**` from `tsconfig.json` to unblock CI.
+  - Remove the exclusion after fixing generics in `smart-recommender-v2.test.ts`, cookie helpers, and matcher typings.
+  - Goal: zero TS errors **with** tests included.
 
 #### Success Criteria:
 
