@@ -1,14 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { NextResponse } from 'next/server'
+import { withSupabase, withError } from '@/lib/api/factory'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
-
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const { id: movieId } = await params
+export const GET = withError(
+  withSupabase(async ({ request, supabase }) => {
+    const movieId = request.nextUrl.pathname.split('/').pop() || ''
 
     if (!movieId) {
       return NextResponse.json({ error: 'Movie ID is required' }, { status: 400 })
@@ -50,8 +45,5 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       success: true,
       data: movie,
     })
-  } catch (error) {
-    console.error('API error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
-}
+  })
+)

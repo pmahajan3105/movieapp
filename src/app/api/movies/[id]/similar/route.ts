@@ -1,14 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { NextResponse } from 'next/server'
+import { withSupabase, withError } from '@/lib/api/factory'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
-
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const { id: movieId } = await params
+export const GET = withError(
+  withSupabase(async ({ request, supabase }) => {
+    const movieId = request.nextUrl.pathname.split('/').slice(-2)[0] // segment before /similar
     const { searchParams } = new URL(request.url)
     const limit = parseInt(searchParams.get('limit') || '6')
 
@@ -65,26 +60,27 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Score and sort the movies based on similarity
+    const safeCurrent: any = currentMovie
     const scoredMovies = (similarMovies || []).map(movie => {
       let score = 0
 
       // Genre matching (0-3 points)
-      if (movie.genre && currentMovie.genre) {
-        const sharedGenres = movie.genre.filter((g: string) => currentMovie.genre.includes(g))
+      if (movie.genre && safeCurrent.genre) {
+        const sharedGenres = movie.genre.filter((g: string) => safeCurrent.genre.includes(g))
         score += sharedGenres.length
       }
 
       // Director matching (2 points)
-      if (movie.director && currentMovie.director) {
+      if (movie.director && safeCurrent.director) {
         const sharedDirectors = movie.director.filter((d: string) =>
-          currentMovie.director.includes(d)
+          safeCurrent.director.includes(d)
         )
         if (sharedDirectors.length > 0) score += 2
       }
 
       // Year proximity (0-1 points)
-      if (movie.year && currentMovie.year) {
-        const yearDiff = Math.abs(movie.year - currentMovie.year)
+      if (movie.year && safeCurrent.year) {
+        const yearDiff = Math.abs(movie.year - safeCurrent.year)
         if (yearDiff <= 5) score += 1
         else if (yearDiff <= 10) score += 0.5
       }
@@ -113,8 +109,5 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       total: topSimilar.length,
       movie_id: movieId,
     })
-  } catch (error) {
-    console.error('API error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
-}
+  })
+)
