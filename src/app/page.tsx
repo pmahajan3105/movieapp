@@ -6,18 +6,18 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 
 export default function Home() {
-  const { user, loading } = useAuth()
+  const { user, isLoading } = useAuth()
   const router = useRouter()
 
   // Redirect authenticated users to dashboard
   useEffect(() => {
-    if (!loading && user) {
+    if (!isLoading && user) {
       router.push('/dashboard')
     }
-  }, [user, loading, router])
+  }, [user, isLoading, router])
 
   // Show loading state while checking auth
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="hero bg-base-200 min-h-screen">
         <div className="hero-content text-center">

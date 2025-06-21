@@ -16,11 +16,11 @@ export function AuthGuard({
   requireAuth = true,
   redirectTo = '/auth/login',
 }: AuthGuardProps) {
-  const { user, loading, isSessionValid, signOut } = useAuth()
+  const { user, isLoading, isSessionValid, signOut } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
-    if (!loading && requireAuth) {
+    if (!isLoading && requireAuth) {
       // If no user or session is invalid, sign out and redirect
       if (!user || !isSessionValid) {
         console.log('🔄 AuthGuard: Invalid session detected, redirecting to login')
@@ -35,10 +35,10 @@ export function AuthGuard({
         }
       }
     }
-  }, [user, loading, isSessionValid, requireAuth, redirectTo, router, signOut])
+  }, [user, isLoading, isSessionValid, requireAuth, redirectTo, router, signOut])
 
   // Show loading while checking authentication
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50">
         <div className="flex flex-col items-center gap-4">

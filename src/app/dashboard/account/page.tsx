@@ -22,7 +22,7 @@ interface ToastMessage {
 }
 
 export default function AccountPage() {
-  const { user, reloadProfile } = useAuth()
+  const { user, refreshUser } = useAuth()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [userName, setUserName] = useState('')
@@ -91,7 +91,7 @@ export default function AccountPage() {
         showToast('Name updated successfully!', 'success')
 
         // Reload the profile data in AuthContext
-        await reloadProfile()
+        await refreshUser()
 
         console.log('✅ Profile updated and reloaded')
       } else {

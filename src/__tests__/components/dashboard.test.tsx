@@ -38,7 +38,7 @@ describe('DashboardPage', () => {
     jest.clearAllMocks()
 
     mockUseAuth.mockReturnValue({
-      loading: false,
+      isLoading: false,
       user: {
         id: 'user-123',
         email: 'test@example.com',
@@ -49,7 +49,6 @@ describe('DashboardPage', () => {
       },
       isSessionValid: true,
       signOut: jest.fn(),
-      reloadProfile: jest.fn(),
       refreshUser: jest.fn(),
     })
 
@@ -61,11 +60,10 @@ describe('DashboardPage', () => {
   describe('Loading State', () => {
     it('shows loading content when auth is loading', () => {
       mockUseAuth.mockReturnValue({
-        loading: true,
+        isLoading: true,
         user: null,
         isSessionValid: false,
         signOut: jest.fn(),
-        reloadProfile: jest.fn(),
         refreshUser: jest.fn(),
       })
 

@@ -46,11 +46,11 @@ export function useWatchlist(filter?: 'watched' | 'unwatched') {
         throw new Error(data.error || 'Failed to fetch watchlist')
       }
 
-      // Accept either [{...}, …] or { data: [...] }
-      const items = Array.isArray(data?.data)
-        ? data.data
-        : Array.isArray(data?.data?.data)
-          ? data.data.data
+      const nestedData: any = (data as any).data
+      const items: (WatchlistItem & { movies: Movie })[] = Array.isArray(data.data)
+        ? (data.data as any)
+        : Array.isArray(nestedData?.data)
+          ? nestedData.data
           : []
 
       return items

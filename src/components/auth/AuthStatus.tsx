@@ -6,7 +6,7 @@ import { RefreshCw, AlertCircle, CheckCircle } from 'lucide-react'
 import { useState } from 'react'
 
 export function AuthStatus() {
-  const { user, isSessionValid, refreshUser, loading, signOut } = useAuth()
+  const { user, isSessionValid, refreshUser, isLoading, signOut } = useAuth()
   const [isRefreshing, setIsRefreshing] = useState(false)
 
   const handleRefresh = async () => {
@@ -20,7 +20,7 @@ export function AuthStatus() {
     }
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="text-muted-foreground flex items-center gap-2 text-sm">
         <RefreshCw className="h-4 w-4 animate-spin" />

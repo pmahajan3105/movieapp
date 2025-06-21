@@ -19,9 +19,9 @@ jest.mock('@supabase/ssr', () => ({
 
 // Test component that uses auth
 function TestComponent() {
-  const { user, loading, signOut } = useAuth()
+  const { user, isLoading, signOut } = useAuth()
 
-  if (loading) {
+  if (isLoading) {
     return <div>Loading...</div>
   }
 

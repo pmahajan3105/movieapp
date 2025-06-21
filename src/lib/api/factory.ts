@@ -99,7 +99,7 @@ export function createAuthenticatedApiHandler<T = unknown>(handler: Authenticate
  */
 export function withAuth<T = unknown>(
   handler: AuthenticatedApiHandler<T>
-): (request: NextRequest) => Promise<NextResponse<ApiResponse<T>>> {
+): (request: NextRequest) => Promise<NextResponse<ApiResponse<T | undefined>>> {
   return async (request: NextRequest) => {
     try {
       const supabase = await createServerClient()
@@ -140,7 +140,7 @@ export function withAuth<T = unknown>(
  */
 export function withErrorHandling<T = unknown>(
   handler: ApiHandler<T>
-): (request: NextRequest) => Promise<NextResponse<ApiResponse<T>>> {
+): (request: NextRequest) => Promise<NextResponse<ApiResponse<T | undefined>>> {
   return async (request: NextRequest) => {
     try {
       const supabase = await createServerClient()
@@ -166,7 +166,7 @@ export function withErrorHandling<T = unknown>(
  */
 export function withAuthAndErrorHandling<T = unknown>(
   handler: AuthenticatedApiHandler<T>
-): (request: NextRequest) => Promise<NextResponse<ApiResponse<T>>> {
+): (request: NextRequest) => Promise<NextResponse<ApiResponse<T | undefined>>> {
   return withErrorHandling(async (request, { supabase }) => {
     const {
       data: { user },

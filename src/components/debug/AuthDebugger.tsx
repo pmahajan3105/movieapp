@@ -30,7 +30,7 @@ interface AuthCheckResult {
 }
 
 export function AuthDebugger() {
-  const { user, loading } = useAuth()
+  const { user, isLoading } = useAuth()
   const [authCheck, setAuthCheck] = useState<AuthCheckResult | null>(null)
   const [isChecking, setIsChecking] = useState(false)
 
@@ -85,12 +85,12 @@ export function AuthDebugger() {
 
   useEffect(() => {
     // Auto-check on mount
-    if (!loading) {
+    if (!isLoading) {
       checkAuth()
     }
-  }, [loading, user, checkAuth])
+  }, [isLoading, user, checkAuth])
 
-  if (loading) {
+  if (isLoading) {
     return (
       <Card className="max-w-2xl">
         <CardContent className="p-6 text-center">

@@ -10,7 +10,7 @@ import type { PreferenceData } from '@/types/chat'
 import { Film, Sparkles, List, Brain, CheckCircle, Zap } from 'lucide-react'
 
 export default function DashboardPage() {
-  const { user, loading, reloadProfile } = useAuth()
+  const { user, isLoading, refreshUser } = useAuth()
 
   const handlePreferencesExtracted = async (preferences: PreferenceData) => {
     console.log('🎯 Preferences confirmed:', preferences)
@@ -43,7 +43,7 @@ export default function DashboardPage() {
       console.log('✅ Preferences saved successfully via API:', result)
 
       // Reload the user profile to get the updated data
-      await reloadProfile()
+      await refreshUser()
 
       alert(
         '✅ Your preferences have been saved! Check out your personalized movies in the Movies section.'
@@ -55,7 +55,7 @@ export default function DashboardPage() {
     }
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="bg-base-100 flex min-h-screen flex-col justify-center py-12 sm:px-6 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
