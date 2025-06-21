@@ -1,49 +1,31 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { getAuthenticatedUserId } from '@/lib/auth-server'
+import { NextResponse } from 'next/server'
+import { requireAuth, withError } from '@/lib/api/factory'
 
 // DELETE - Clear all preferences in a specific category
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ category: string }> }
-) {
-  try {
-    const { category } = await params
+export const DELETE = withError(
+  requireAuth(async ({ request, supabase, user }) => {
+    const category = request.nextUrl.pathname.split('/').pop() || ''
 
     if (!category) {
       return NextResponse.json({ error: 'Category is required', success: false }, { status: 400 })
     }
 
-    // Get authenticated user
-    const userId = await getAuthenticatedUserId()
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'Authentication required', success: false },
-        { status: 401 }
-      )
-    }
-
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
-
     // Get current preferences
     const { data: currentProfile, error: fetchError } = await supabase
       .from('user_profiles')
       .select('preferences')
-      .eq('id', userId)
+      .eq('id', user.id)
       .single()
 
     if (fetchError && fetchError.code !== 'PGRST116') {
       throw fetchError
     }
 
-    const currentPreferences = currentProfile?.preferences || {}
+    const currentPreferences: any = (currentProfile?.preferences as any) || {}
 
     // Remove the specified category
     // This is a simplified implementation - in a real app we'd need proper category structure
-    const updatedPreferences = { ...currentPreferences }
+    const updatedPreferences: any = { ...(currentPreferences as any) }
     delete (updatedPreferences as Record<string, unknown>)[category]
 
     // Update in database
@@ -53,7 +35,7 @@ export async function DELETE(
         preferences: updatedPreferences,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', userId)
+      .eq('id', user.id)
       .select()
       .single()
 
@@ -66,14 +48,5 @@ export async function DELETE(
       message: `All preferences in category "${category}" have been cleared`,
       preferences: data.preferences,
     })
-  } catch (error) {
-    console.error('❌ Error clearing category preferences:', error)
-    return NextResponse.json(
-      {
-        error: 'Failed to clear category preferences',
-        success: false,
-      },
-      { status: 500 }
-    )
-  }
-}
+  })
+)
