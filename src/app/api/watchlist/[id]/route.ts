@@ -1,42 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { NextResponse } from 'next/server'
+import { requireAuth, withError } from '@/lib/api/factory'
 
-// Create Supabase client for server-side use
-function createSupabaseServerClient(request: NextRequest) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value
-        },
-        set() {
-          // API routes don't set cookies
-        },
-        remove() {
-          // API routes don't remove cookies
-        },
-      },
-    }
-  )
-}
+export const PATCH = withError(
+  requireAuth(async ({ request, supabase, user }) => {
+    // Extract watchlist ID from URL path (last segment)
+    const watchlistId = request.nextUrl.pathname.split('/').pop() || ''
 
-export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const supabase = createSupabaseServerClient(request)
-
-    // Get current user
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { id: watchlistId } = await params
     const body = await request.json()
     const { watched, notes, rating } = body
 
@@ -132,30 +101,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     })
 
     return NextResponse.json({ success: true, data })
-  } catch (error) {
-    console.error('❌ Watchlist PATCH error:', error)
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
-  }
-}
+  })
+)
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const supabase = createSupabaseServerClient(request)
-
-    // Get current user
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { id: watchlistId } = await params
+export const DELETE = withError(
+  requireAuth(async ({ request, supabase, user }) => {
+    const watchlistId = request.nextUrl.pathname.split('/').pop() || ''
 
     console.log('🗑️ Deleting watchlist item:', {
       watchlistId,
@@ -189,8 +140,5 @@ export async function DELETE(
     })
 
     return NextResponse.json({ success: true, message: 'Watchlist item deleted' })
-  } catch (error) {
-    console.error('❌ Watchlist DELETE error:', error)
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
-  }
-}
+  })
+)
