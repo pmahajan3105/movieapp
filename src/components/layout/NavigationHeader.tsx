@@ -97,7 +97,7 @@ export function NavigationHeader() {
     { label: 'Movies', href: '/dashboard/movies', icon: Film },
     { label: 'Watchlist', href: '/dashboard/watchlist', icon: List },
     { label: 'Watched', href: '/dashboard/watched', icon: CheckCircle },
-    { label: 'Settings', href: '/dashboard/settings', icon: Settings },
+    { label: 'Preferences', href: '/dashboard/settings', icon: Settings },
   ]
 
   // Don't render user-dependent content until mounted to avoid hydration mismatch

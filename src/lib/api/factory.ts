@@ -1,179 +1,189 @@
 import { NextRequest, NextResponse } from 'next/server'
-import {
-  createTypedServerClient,
-  createApiResponse,
-  handleSupabaseError,
-} from '@/lib/typed-supabase'
-import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@/types/supabase-generated'
+import { User } from '@supabase/supabase-js'
+import { createServerClient } from '@/lib/supabase/client'
 
-type TypedSupabaseClient = SupabaseClient<Database>
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
 
-// Enhanced request context with user and supabase client
-export interface RequestContext {
-  request: NextRequest
-  supabase: TypedSupabaseClient
-  user: {
-    id: string
-    email: string
+export interface ApiResponse<T = unknown> {
+  success: boolean
+  data?: T
+  error?: {
+    message: string
+    code: string
+    details?: unknown
+  }
+  meta?: {
+    timestamp: string
+    requestId: string
   }
 }
 
-// Handler types
-export type AuthenticatedHandler<T = unknown> = (context: RequestContext) => Promise<T>
-export type ErrorSafeHandler<T = unknown> = (request: NextRequest) => Promise<T>
-export type SupabaseHandler<T = unknown> = (
+export type AuthenticatedApiHandler<T = unknown> = (
   request: NextRequest,
-  supabase: TypedSupabaseClient
-) => Promise<T>
+  context: { user: User; supabase: Awaited<ReturnType<typeof createServerClient>> }
+) => Promise<NextResponse<ApiResponse<T>>>
+
+export type ApiHandler<T = unknown> = (
+  request: NextRequest,
+  context: { supabase: Awaited<ReturnType<typeof createServerClient>> }
+) => Promise<NextResponse<ApiResponse<T>>>
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+export function createApiResponse<T>(
+  success: boolean,
+  data?: T,
+  error?: { message: string; code: string; details?: unknown }
+): ApiResponse<T> {
+  return {
+    success,
+    data,
+    error,
+    meta: {
+      timestamp: new Date().toISOString(),
+      requestId: crypto.randomUUID(),
+    },
+  }
+}
+
+export function handleSupabaseError(error: unknown): {
+  message: string
+  code: string
+  details?: unknown
+} {
+  if (error && typeof error === 'object' && 'code' in error && 'message' in error) {
+    return {
+      message: (error as any).message,
+      code: (error as any).code,
+      details: error,
+    }
+  }
+
+  return {
+    message: error instanceof Error ? error.message : 'Unknown error occurred',
+    code: 'UNKNOWN_ERROR',
+    details: error,
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  NEW  – compat helpers so legacy routes keep working               */
+/* ------------------------------------------------------------------ */
 
 /**
- * Adds authentication middleware to a handler
+ *  parseJsonBody – tiny wrapper kept for backwards-compatibility
+ *    (routes that were written before the refactor still import it)
  */
-export function withAuth<T>(handler: AuthenticatedHandler<T>) {
-  return async (request: NextRequest, supabase: TypedSupabaseClient): Promise<T> => {
-    // Get current user
+export async function parseJsonBody<T = unknown>(req: Request): Promise<T> {
+  return req.json() as Promise<T>
+}
+
+/**
+ *  createAuthenticatedApiHandler – legacy alias that simply
+ *  delegates to the new combined middleware.
+ */
+export function createAuthenticatedApiHandler<T = unknown>(handler: AuthenticatedApiHandler<T>) {
+  return withAuthAndErrorHandling(handler)
+}
+
+// ============================================================================
+// API MIDDLEWARE FACTORIES
+// ============================================================================
+
+/**
+ * Wraps an API handler with authentication requirement
+ */
+export function withAuth<T = unknown>(
+  handler: AuthenticatedApiHandler<T>
+): (request: NextRequest) => Promise<NextResponse<ApiResponse<T>>> {
+  return async (request: NextRequest) => {
+    try {
+      const supabase = await createServerClient()
+
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser()
+
+      if (authError || !user) {
+        return NextResponse.json(
+          createApiResponse(false, undefined, {
+            message: 'Authentication required',
+            code: 'UNAUTHORIZED',
+            details: authError,
+          }),
+          { status: 401 }
+        )
+      }
+
+      return await handler(request, { user, supabase })
+    } catch (error) {
+      console.error('Auth middleware error:', error)
+      return NextResponse.json(
+        createApiResponse(false, undefined, {
+          message: 'Authentication check failed',
+          code: 'AUTH_CHECK_FAILED',
+          details: handleSupabaseError(error),
+        }),
+        { status: 500 }
+      )
+    }
+  }
+}
+
+/**
+ * Wraps an API handler with error handling
+ */
+export function withErrorHandling<T = unknown>(
+  handler: ApiHandler<T>
+): (request: NextRequest) => Promise<NextResponse<ApiResponse<T>>> {
+  return async (request: NextRequest) => {
+    try {
+      const supabase = await createServerClient()
+      return await handler(request, { supabase })
+    } catch (error) {
+      console.error('API handler error:', error)
+      const supabaseError = handleSupabaseError(error)
+
+      return NextResponse.json(
+        createApiResponse(false, undefined, {
+          message: 'Internal server error',
+          code: 'INTERNAL_ERROR',
+          details: supabaseError,
+        }),
+        { status: 500 }
+      )
+    }
+  }
+}
+
+/**
+ * Combines auth and error handling middleware
+ */
+export function withAuthAndErrorHandling<T = unknown>(
+  handler: AuthenticatedApiHandler<T>
+): (request: NextRequest) => Promise<NextResponse<ApiResponse<T>>> {
+  return withErrorHandling(async (request, { supabase }) => {
     const {
       data: { user },
       error: authError,
     } = await supabase.auth.getUser()
 
     if (authError || !user) {
-      throw new Error('Unauthorized')
+      return NextResponse.json(
+        createApiResponse(false, undefined, {
+          message: 'Authentication required',
+          code: 'UNAUTHORIZED',
+          details: authError,
+        }),
+        { status: 401 }
+      )
     }
 
-    const context: RequestContext = {
-      request,
-      supabase,
-      user: {
-        id: user.id,
-        email: user.email || '',
-      },
-    }
-
-    return handler(context)
-  }
-}
-
-/**
- * Adds Supabase client to a handler
- */
-export function withSupabase<T>(handler: SupabaseHandler<T>) {
-  return async (request: NextRequest): Promise<T> => {
-    const supabase = await createTypedServerClient()
-    return handler(request, supabase)
-  }
-}
-
-/**
- * Adds comprehensive error handling to a handler
- */
-export function withError<T>(handler: ErrorSafeHandler<T>) {
-  return async (request: NextRequest): Promise<NextResponse> => {
-    try {
-      const result = await handler(request)
-      return NextResponse.json(createApiResponse(true, result))
-    } catch (error) {
-      console.error('API Error:', error)
-
-      // Handle common error types
-      if (error instanceof Error) {
-        if (error.message === 'Unauthorized') {
-          return NextResponse.json(
-            createApiResponse(false, undefined, {
-              message: 'Authentication required',
-              code: 'UNAUTHORIZED',
-            }),
-            { status: 401 }
-          )
-        }
-
-        if (error.message.includes('not found')) {
-          return NextResponse.json(
-            createApiResponse(false, undefined, {
-              message: 'Resource not found',
-              code: 'NOT_FOUND',
-            }),
-            { status: 404 }
-          )
-        }
-
-        if (error.message.includes('validation') || error.message.includes('required')) {
-          return NextResponse.json(
-            createApiResponse(false, undefined, {
-              message: error.message,
-              code: 'VALIDATION_ERROR',
-            }),
-            { status: 400 }
-          )
-        }
-      }
-
-      // Handle Supabase errors
-      const supabaseError = handleSupabaseError(error)
-      return NextResponse.json(createApiResponse(false, undefined, supabaseError), { status: 500 })
-    }
-  }
-}
-
-/**
- * Compose all middleware: withAuth(withError(withSupabase(handler)))
- * This is the main function you'll use for authenticated API endpoints
- */
-export function createAuthenticatedApiHandler<T>(handler: AuthenticatedHandler<T>) {
-  return withError(withSupabase(withAuth(handler)))
-}
-
-/**
- * For API endpoints that don't require authentication
- */
-export function createPublicApiHandler<T>(handler: SupabaseHandler<T>) {
-  return withError(withSupabase(handler))
-}
-
-/**
- * Helper to parse and validate JSON body
- */
-export async function parseJsonBody<T = unknown>(request: NextRequest): Promise<T> {
-  try {
-    return await request.json()
-  } catch {
-    throw new Error('Invalid JSON body')
-  }
-}
-
-/**
- * Helper to extract query parameters
- */
-export function getQueryParams(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  return {
-    get: (key: string, defaultValue?: string) => searchParams.get(key) || defaultValue,
-    getNumber: (key: string, defaultValue = 0) => {
-      const value = searchParams.get(key)
-      return value ? parseInt(value, 10) : defaultValue
-    },
-    getBoolean: (key: string, defaultValue = false) => {
-      const value = searchParams.get(key)
-      if (value === null) return defaultValue
-      return value === 'true' || value === '1'
-    },
-  }
-}
-
-/**
- * Helper for pagination
- */
-export function getPagination(request: NextRequest) {
-  const params = getQueryParams(request)
-  const page = Math.max(1, params.getNumber('page', 1))
-  const limit = Math.max(1, Math.min(100, params.getNumber('limit', 20))) // Cap at 100
-  const offset = (page - 1) * limit
-
-  return {
-    page,
-    limit,
-    offset,
-    range: [offset, offset + limit - 1] as [number, number],
-  }
+    return await handler(request, { user, supabase })
+  })
 }

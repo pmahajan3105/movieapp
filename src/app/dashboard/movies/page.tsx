@@ -27,7 +27,7 @@ const MovieCard = ({
   isInWatchlist: boolean
 }) => {
   return (
-    <Card className="group h-full overflow-hidden transition-all duration-200 hover:shadow-lg">
+    <Card className="group overflow-hidden transition-all duration-200 hover:shadow-lg">
       <div className="relative aspect-[2/3] overflow-hidden">
         <Image
           src={
@@ -54,52 +54,50 @@ const MovieCard = ({
         )}
       </div>
 
-      <CardContent className="flex h-full flex-col justify-between p-4">
-        <div className="flex-1">
-          <h3
-            className="hover:text-primary mb-2 line-clamp-2 cursor-pointer text-sm font-semibold transition-colors"
-            onClick={() => onMovieClick(movie)}
-          >
-            {movie.title}
-          </h3>
+      <CardContent className="p-3">
+        <h3
+          className="hover:text-primary mb-2 line-clamp-2 cursor-pointer text-sm leading-tight font-semibold transition-colors"
+          onClick={() => onMovieClick(movie)}
+        >
+          {movie.title}
+        </h3>
 
-          {movie.genre && movie.genre.length > 0 && (
-            <div className="mb-3 flex flex-wrap gap-1">
-              {movie.genre.slice(0, 2).map(genre => (
-                <Badge key={genre} variant="outline" className="text-xs">
-                  {genre}
-                </Badge>
-              ))}
-              {movie.genre.length > 2 && (
-                <Badge variant="outline" className="text-xs">
-                  +{movie.genre.length - 2}
-                </Badge>
-              )}
+        {movie.genre && movie.genre.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-1">
+            {movie.genre.slice(0, 2).map(genre => (
+              <Badge key={genre} variant="outline" className="h-5 px-1.5 py-0 text-xs">
+                {genre}
+              </Badge>
+            ))}
+            {movie.genre.length > 2 && (
+              <Badge variant="outline" className="h-5 px-1.5 py-0 text-xs">
+                +{movie.genre.length - 2}
+              </Badge>
+            )}
+          </div>
+        )}
+
+        {/* Plot/Overview - Reduced height */}
+        {movie.plot && (
+          <div className="mb-2">
+            <p className="line-clamp-2 text-xs leading-relaxed text-gray-600">{movie.plot}</p>
+          </div>
+        )}
+
+        {movie.reasoning && (
+          <div className="from-primary/10 to-secondary/10 border-primary/20 mb-2 rounded-lg border bg-gradient-to-r p-2">
+            <div className="mb-1 flex items-center gap-1">
+              <span className="text-primary text-xs font-medium">🤖 Why recommended:</span>
             </div>
-          )}
+            <p className="line-clamp-2 text-xs text-gray-700">{movie.reasoning}</p>
+          </div>
+        )}
 
-          {/* Plot/Overview */}
-          {movie.plot && (
-            <div className="mb-3">
-              <p className="line-clamp-3 text-xs leading-relaxed text-gray-600">{movie.plot}</p>
-            </div>
-          )}
-
-          {movie.reasoning && (
-            <div className="from-primary/10 to-secondary/10 border-primary/20 mb-3 rounded-lg border bg-gradient-to-r p-3">
-              <div className="mb-1 flex items-center gap-1">
-                <span className="text-primary text-xs font-medium">🤖 Why recommended:</span>
-              </div>
-              <p className="line-clamp-3 text-xs text-gray-700">{movie.reasoning}</p>
-            </div>
-          )}
-        </div>
-
-        <div className="mt-3 flex gap-2">
+        <div className="flex gap-2">
           <Button
             variant="outline"
             size="sm"
-            className="flex-1 text-xs"
+            className="h-7 flex-1 text-xs"
             onClick={() => onMovieClick(movie)}
           >
             View Details
@@ -108,7 +106,7 @@ const MovieCard = ({
             variant={isInWatchlist ? 'default' : 'outline'}
             size="sm"
             onClick={() => onAddToWatchlist(movie.id)}
-            className="text-xs"
+            className="h-7 px-2 text-xs"
           >
             {isInWatchlist ? (
               <BookmarkCheck className="h-3 w-3" />
@@ -124,7 +122,7 @@ const MovieCard = ({
 
 // Main Page Component
 export default function SmartMoviesPage() {
-  const { user, loading: authLoading } = useAuth()
+  const { user, isLoading: authLoading } = useAuth()
   const { watchlistIds, toggleWatchlist } = useMoviesWatchlist()
   // Always show personalized recommendations by default
   const [showingRecommendations, setShowingRecommendations] = useState(true)
@@ -370,7 +368,7 @@ export default function SmartMoviesPage() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4">
             {movies.map((movie: Movie & { reasoning?: string }, index) => (
               <MovieCard
                 key={`${movie.id}-${index}`} // Include index to handle duplicates across pages

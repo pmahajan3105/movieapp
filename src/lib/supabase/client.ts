@@ -29,6 +29,7 @@ export const supabase = createBrowserSupabaseClient()
 
 // Server client for server components and API routes
 export const createServerClient = cache(async () => {
+  // MUST await for dynamic cookies API
   const cookieStore = await cookies()
 
   return createSSRServerClient<Database>(
@@ -36,28 +37,17 @@ export const createServerClient = cache(async () => {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value
+        getAll() {
+          return cookieStore.getAll()
         },
-        set(name: string, value: string, options) {
-          try {
-            cookieStore.set({ name, value, ...options })
-          } catch {
-            // The `set` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing
-            // user sessions.
-            console.warn(`Failed to set cookie "${name}" in server component.`)
-          }
-        },
-        remove(name: string, options) {
-          try {
-            cookieStore.set({ name, value: '', ...options })
-          } catch {
-            // The `delete` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing
-            // user sessions.
-            console.warn(`Failed to remove cookie "${name}" in server component.`)
-          }
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            try {
+              cookieStore.set(name, value, options)
+            } catch {
+              /* called from a Server Component – safe to ignore */
+            }
+          })
         },
       },
     }

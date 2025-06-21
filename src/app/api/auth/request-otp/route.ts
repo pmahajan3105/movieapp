@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { getAuthCallbackURL, debugURLConfig } from '@/lib/utils/url-helper'
 
 export async function POST(request: NextRequest) {
   try {
     const { email } = await request.json()
 
-    // Debug logging
+    // Debug logging with URL configuration
     console.log('🔍 OTP Request Debug:')
     console.log('- Email:', email)
     console.log('- Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL ? 'SET' : 'NOT SET')
@@ -14,6 +15,9 @@ export async function POST(request: NextRequest) {
       '- Supabase Anon Key:',
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'SET' : 'NOT SET'
     )
+
+    // Debug URL configuration
+    debugURLConfig()
 
     // Validate email
     if (!email || typeof email !== 'string') {
@@ -54,13 +58,16 @@ export async function POST(request: NextRequest) {
       }
     )
 
-    console.log('📧 Attempting to send magic link to:', email)
+    // Get the proper callback URL for the current environment
+    const callbackURL = getAuthCallbackURL()
+    console.log('📧 Sending magic link to:', email)
+    console.log('📍 Callback URL:', callbackURL)
 
     // Send magic link via Supabase (PKCE is enabled by default in newer versions)
     const { error } = await supabase.auth.signInWithOtp({
       email: email,
       options: {
-        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/auth/callback`,
+        emailRedirectTo: callbackURL,
         shouldCreateUser: true,
       },
     })
@@ -97,11 +104,13 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('✅ Magic link sent successfully to:', email)
+    console.log('📍 Magic link will redirect to:', callbackURL)
 
     return NextResponse.json({
       success: true,
       message: 'Magic link sent successfully! Check your email.',
       email: email,
+      callbackURL: callbackURL, // Include for debugging
     })
   } catch (error) {
     console.error('💥 OTP request error:', error)

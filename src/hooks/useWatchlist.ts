@@ -46,7 +46,14 @@ export function useWatchlist(filter?: 'watched' | 'unwatched') {
         throw new Error(data.error || 'Failed to fetch watchlist')
       }
 
-      return data.data || []
+      // Accept either [{...}, …] or { data: [...] }
+      const items = Array.isArray(data?.data)
+        ? data.data
+        : Array.isArray(data?.data?.data)
+          ? data.data.data
+          : []
+
+      return items
     },
     enabled: !!user, // Only run query if user is authenticated
     staleTime: 2 * 60 * 1000, // 2 minutes

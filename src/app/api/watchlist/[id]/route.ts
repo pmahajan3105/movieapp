@@ -1,9 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase/client'
+import { createServerClient } from '@supabase/ssr'
+
+// Create Supabase client for server-side use
+function createSupabaseServerClient(request: NextRequest) {
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return request.cookies.get(name)?.value
+        },
+        set() {
+          // API routes don't set cookies
+        },
+        remove() {
+          // API routes don't remove cookies
+        },
+      },
+    }
+  )
+}
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const supabase = await createServerClient()
+    const supabase = createSupabaseServerClient(request)
 
     // Get current user
     const {
@@ -122,7 +143,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createServerClient()
+    const supabase = createSupabaseServerClient(request)
 
     // Get current user
     const {

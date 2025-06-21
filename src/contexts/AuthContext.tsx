@@ -2,34 +2,31 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { User } from '@supabase/supabase-js'
-import { createTypedBrowserClient } from '@/lib/typed-supabase'
-import type { UserProfile } from '@/lib/typed-supabase'
+import { supabase as browserClient } from '@/lib/supabase/browser-client'
+import type { UserProfile } from '@/lib/supabase/browser-client'
 
 interface AuthUser extends User {
-  onboarding_completed?: boolean
   profile?: UserProfile
 }
 
 interface AuthContextType {
   user: AuthUser | null
-  loading: boolean
-  isSessionValid: boolean
+  isLoading: boolean
   signOut: () => Promise<void>
-  reloadProfile: () => Promise<void>
   refreshUser: () => Promise<void>
+  isSessionValid: boolean
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [initialized, setInitialized] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  const supabase = supabaseUrl && supabaseAnonKey ? createTypedBrowserClient() : null
+  const supabase = supabaseUrl && supabaseAnonKey ? browserClient : null
 
   const loadUserProfile = async (authUser: User): Promise<AuthUser> => {
     if (!supabase) return authUser as AuthUser
@@ -48,7 +45,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return {
         ...authUser,
         profile: userProfile || undefined,
-        onboarding_completed: userProfile?.onboarding_completed || false,
       }
     } catch (error) {
       console.error('❌ Error loading user profile:', error)
@@ -80,18 +76,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!supabase) {
       console.warn('Supabase not configured - auth will be disabled')
-      setLoading(false)
-      setInitialized(true)
+      setIsLoading(false)
       return
     }
 
     // Get initial session
     const initializeAuth = async () => {
       try {
+        console.log('🔍 AuthContext: Starting session initialization...')
+        console.log(
+          '🔍 AuthContext: Supabase URL:',
+          process.env.NEXT_PUBLIC_SUPABASE_URL ? 'SET' : 'NOT SET'
+        )
+        console.log(
+          '🔍 AuthContext: Supabase Key:',
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'SET' : 'NOT SET'
+        )
+
+        // Debug cookie information
+        if (typeof document !== 'undefined') {
+          const cookies = document.cookie.split('; ')
+          const authCookies = cookies.filter(c => c.includes('auth-token'))
+          console.log('🍪 AuthContext: Available cookies:', cookies.length)
+          console.log('🍪 AuthContext: Auth cookies:', authCookies)
+          console.log('🍪 AuthContext: Full document.cookie:', document.cookie)
+        }
+
+        console.log('🔄 AuthContext: Calling supabase.auth.getSession()...')
         const {
           data: { session },
           error,
         } = await supabase.auth.getSession()
+
+        console.log('🔍 AuthContext: Session check result:', {
+          hasSession: !!session,
+          hasUser: !!session?.user,
+          userEmail: session?.user?.email,
+          sessionExpiresAt: session?.expires_at,
+          hasAccessToken: !!session?.access_token,
+          hasRefreshToken: !!session?.refresh_token,
+          error: error?.message || 'NONE',
+        })
 
         if (error) {
           console.error('❌ Error getting initial session:', error)
@@ -108,8 +133,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('❌ Error initializing auth:', error)
         setUser(null)
       } finally {
-        setLoading(false)
-        setInitialized(true)
+        setIsLoading(false)
       }
     }
 
@@ -119,38 +143,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('🔄 Auth state change:', { event, hasSession: !!session })
-
-      if (!initialized) {
-        // Skip processing during initialization to avoid double-loading
-        return
-      }
+      console.log('🔄 AuthContext: Auth state change:', {
+        event,
+        hasSession: !!session,
+        hasUser: !!session?.user,
+        userEmail: session?.user?.email,
+      })
 
       try {
         if (session?.user) {
+          console.log('✅ AuthContext: Setting user from auth state change')
           const enrichedUser = await loadUserProfile(session.user)
           setUser(enrichedUser)
         } else {
+          console.log('❌ AuthContext: Clearing user from auth state change')
           setUser(null)
         }
       } catch (error) {
         console.error('❌ Error handling auth state change:', error)
         setUser(null)
+      } finally {
+        setIsLoading(false)
       }
     })
 
     return () => {
       subscription.unsubscribe()
     }
-  }, [supabase, initialized])
+  }, [supabase])
 
   const value = {
     user,
-    loading,
-    isSessionValid: !!user && !loading,
+    isLoading,
     signOut,
-    reloadProfile,
-    refreshUser: reloadProfile, // Alias for reloadProfile
+    refreshUser: reloadProfile,
+    isSessionValid: !!user,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

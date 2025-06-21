@@ -1,7 +1,8 @@
 import { createAuthenticatedApiHandler, parseJsonBody } from '@/lib/api/factory'
+import { NextResponse } from 'next/server'
 
 // GET /api/user/preferences - Get user preferences
-export const GET = createAuthenticatedApiHandler(async ({ supabase, user }) => {
+export const GET = createAuthenticatedApiHandler(async (_req, { supabase, user }) => {
   const { data: userProfile } = await supabase
     .from('user_profiles')
     .select('*')
@@ -10,18 +11,16 @@ export const GET = createAuthenticatedApiHandler(async ({ supabase, user }) => {
 
   const preferences = userProfile?.preferences as any
 
-  return {
+  return NextResponse.json({
     success: true,
-    preferences: preferences || null,
+    preferences: preferences ?? null,
     hasPreferences: !!preferences?.preferred_genres,
-  }
+  })
 })
 
 // POST /api/user/preferences - Save user preferences
-export const POST = createAuthenticatedApiHandler(async ({ request, supabase, user }) => {
-  const body = await parseJsonBody<{ preferences: any }>(request)
-  const { preferences } = body
-
+export const POST = createAuthenticatedApiHandler(async (request, { supabase, user }) => {
+  const { preferences } = await parseJsonBody<{ preferences: any }>(request)
   if (!preferences) {
     throw new Error('Preferences data is required')
   }
@@ -63,14 +62,14 @@ export const POST = createAuthenticatedApiHandler(async ({ request, supabase, us
 
   console.log('✅ Preferences saved successfully:', data)
 
-  return {
+  return NextResponse.json({
     success: true,
     data: data[0],
-  }
+  })
 })
 
 // DELETE /api/user/preferences - Clear user preferences
-export const DELETE = createAuthenticatedApiHandler(async ({ supabase, user }) => {
+export const DELETE = createAuthenticatedApiHandler(async (_req, { supabase, user }) => {
   console.log('🗑️ Clearing manual preferences for user:', user.id)
 
   // Clear preferences by setting to null
@@ -89,8 +88,8 @@ export const DELETE = createAuthenticatedApiHandler(async ({ supabase, user }) =
 
   console.log('✅ Successfully cleared manual preferences for user:', user.id)
 
-  return {
+  return NextResponse.json({
     success: true,
     message: 'Manual preferences cleared successfully',
-  }
+  })
 })

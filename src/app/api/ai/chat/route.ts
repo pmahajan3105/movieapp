@@ -1,9 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase/client'
+import { createServerClient } from '@supabase/ssr'
+
+// Create Supabase client for server-side use
+function createSupabaseServerClient(request: NextRequest) {
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return request.cookies.get(name)?.value
+        },
+        set() {
+          // API routes don't set cookies
+        },
+        remove() {
+          // API routes don't remove cookies
+        },
+      },
+    }
+  )
+}
 import { z } from 'zod'
 import { MOVIE_SYSTEM_PROMPT } from '@/lib/anthropic/config'
 import { movieService } from '@/lib/services/movie-service'
-import { getModelForTask, supportsStreaming } from '@/lib/ai/models'
+import { getBestModelForTask, supportsExtendedThinking } from '@/lib/ai/models'
 import { v4 as uuidv4 } from 'uuid'
 import type { ChatMessage, PreferenceData } from '@/types/chat'
 // Legacy mem0 integration removed - using simpler preference extraction
@@ -59,21 +80,16 @@ export async function POST(request: NextRequest) {
       stream,
     })
 
-    // Check if AI service is available
-    if (!process.env.ANTHROPIC_API_KEY && !process.env.GROQ_API_KEY) {
-      console.error('❌ No AI API keys configured')
-      return NextResponse.json(
-        { error: 'AI service not configured', success: false },
-        { status: 500 }
-      )
+    // Force Anthropic for now – Groq path disabled
+    const useGroq = false
+    console.log('🤖 Using AI provider: Anthropic (Claude)')
+
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return NextResponse.json({ error: 'Anthropic API key missing' }, { status: 500 })
     }
 
-    // Prefer GROQ if available, fallback to Anthropic
-    const useGroq = !!process.env.GROQ_API_KEY
-    console.log('🤖 Using AI provider:', useGroq ? 'GROQ' : 'Anthropic')
-
     // Use server client to get authenticated user
-    const supabase = await createServerClient()
+    const supabase = createSupabaseServerClient(request)
 
     // Get the authenticated user
     const {
@@ -209,18 +225,17 @@ export async function POST(request: NextRequest) {
     console.log('🤖 Calling Claude API with', claudeMessages.length, 'messages')
 
     // Get the appropriate model for chat task
-    const model = getModelForTask('chat')
-    console.log(`🎯 Using model: ${model.name} (${model.provider})`)
+    const modelId = getBestModelForTask('chat')
+    console.log(`🎯 Using model: ${modelId}`)
 
     try {
       // Handle streaming vs non-streaming responses
       if (stream) {
         console.log('📡 Using streaming response')
 
-        // Check if model supports streaming
-        if (!supportsStreaming(model.id)) {
-          console.log('⚠️ Model does not support streaming, falling back to non-streaming')
-          stream = false
+        // Check if model supports extended thinking (simplified check)
+        if (!supportsExtendedThinking(modelId)) {
+          console.log('⚠️ Model does not support extended thinking')
         }
       }
 
@@ -231,6 +246,11 @@ export async function POST(request: NextRequest) {
 
         const responseStream = new ReadableStream({
           async start(controller) {
+            let fullResponse = ''
+            let fullResponseSent = false
+            let preferencesExtracted = false
+            let extractedPreferences: any = null
+
             try {
               let response
 
@@ -292,7 +312,6 @@ export async function POST(request: NextRequest) {
                 throw new Error('No response stream available')
               }
 
-              let fullResponse = ''
               let buffer = '' // Buffer for incomplete chunks
               let jsonBuffer = '' // Buffer specifically for JSON parsing
 
@@ -547,19 +566,10 @@ export async function POST(request: NextRequest) {
                         )
                       )
 
-                      // Update chat session
-                      await supabase
-                        .from('chat_sessions')
-                        .update({
-                          messages: chatHistory,
-                          preferences_extracted: preferencesExtracted,
-                          updated_at: new Date().toISOString(),
-                        })
-                        .eq('id', currentSessionId)
-
+                      // legacy sentinel for any old clients that relied on it
                       controller.enqueue(encoder.encode(`data: [DONE]\n\n`))
-                      controller.close()
-                      return
+                      fullResponseSent = true
+                      break
                     }
 
                     // Skip empty data events
@@ -803,20 +813,36 @@ export async function POST(request: NextRequest) {
                   }
                 }
               }
-            } catch (error) {
-              console.error('❌ Streaming error:', error)
+            } catch (err) {
+              // <-- any error ends up here, but we're still streaming
+              console.error('🔴 chat stream crashed:', err)
 
               controller.enqueue(
                 encoder.encode(
                   `data: ${JSON.stringify({
                     type: 'error',
-                    error: error instanceof Error ? error.message : 'Streaming error occurred',
+                    error: err instanceof Error ? err.message : 'Unknown error',
                     timestamp: new Date().toISOString(),
                   })}\n\n`
                 )
               )
-
-              controller.close()
+            } finally {
+              // guarantee a completion marker exactly once
+              if (!fullResponseSent) {
+                controller.enqueue(
+                  encoder.encode(
+                    `data: ${JSON.stringify({
+                      type: 'complete',
+                      fullResponse,
+                      sessionId: currentSessionId,
+                      preferencesExtracted,
+                      preferences: extractedPreferences,
+                      timestamp: new Date().toISOString(),
+                    })}\n\n`
+                  )
+                )
+                controller.enqueue(encoder.encode(`data: [DONE]\n\n`))
+              }
             }
           },
         })

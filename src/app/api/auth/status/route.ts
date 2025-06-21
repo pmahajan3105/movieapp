@@ -1,27 +1,52 @@
-import { NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase/client'
+import { NextRequest, NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const supabase = await createServerClient()
+    // Debug: Log all cookies received
+    const cookieCount = request.cookies.getAll().length
+    const cookieNames = request.cookies.getAll().map(c => c.name)
+    console.log('🍪 Cookies received:', { cookieCount, cookieNames })
 
-    // Get current user and session
-    const [
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
-        data: { user },
-        error: userError,
-      },
-      {
-        data: { session },
-        error: sessionError,
-      },
-    ] = await Promise.all([supabase.auth.getUser(), supabase.auth.getSession()])
+        cookies: {
+          get(name: string) {
+            const cookie = request.cookies.get(name)
+            if (name.includes('supabase')) {
+              console.log(`🍪 Reading cookie ${name}:`, cookie ? 'EXISTS' : 'MISSING')
+            }
+            return cookie?.value
+          },
+          set() {
+            // Auth status endpoint should not set cookies
+          },
+          remove() {
+            // Auth status endpoint should not remove cookies
+          },
+        },
+      }
+    )
 
-    console.log('🔐 Auth Status Check:', {
+    // Get the current user first
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser()
+
+    // Get session separately to debug
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession()
+
+    const response = {
       hasUser: !!user,
       userId: user?.id,
       userEmail: user?.email,
-      userError: userError?.message,
+      userError: userError?.message || (user ? undefined : 'Auth session missing!'),
       userErrorCode: userError?.code,
       hasSession: !!session,
       sessionError: sessionError?.message,
@@ -29,46 +54,19 @@ export async function GET() {
       sessionExpiresAt: session?.expires_at,
       sessionRefreshToken: !!session?.refresh_token,
       sessionAccessToken: !!session?.access_token,
-    })
+      cookieCount,
+      cookieNames,
+    }
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        authenticated: !!user && !!session,
-        user: user
-          ? {
-              id: user.id,
-              email: user.email,
-              created_at: user.created_at,
-            }
-          : null,
-        session: session
-          ? {
-              expires_at: session.expires_at,
-              has_refresh_token: !!session.refresh_token,
-              has_access_token: !!session.access_token,
-            }
-          : null,
-        errors: {
-          user_error: userError?.message,
-          session_error: sessionError?.message,
-        },
-      },
-    })
+    console.log('🔐 Auth Status Check:', response)
+
+    return NextResponse.json(response)
   } catch (error) {
-    console.error('❌ Auth status check error:', error)
+    console.error('❌ Auth status error:', error)
     return NextResponse.json(
       {
-        success: false,
-        error: 'Failed to check auth status',
-        data: {
-          authenticated: false,
-          user: null,
-          session: null,
-          errors: {
-            system_error: error instanceof Error ? error.message : 'Unknown error',
-          },
-        },
+        error: 'Internal server error',
+        message: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }
     )

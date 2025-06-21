@@ -49,7 +49,12 @@ function watchlistReducer(state: WatchlistPageState, action: WatchlistAction): W
     case 'SET_ERROR':
       return { ...state, error: action.payload, isLoading: false }
     case 'SET_ITEMS':
-      return { ...state, items: action.payload, isLoading: false, error: null }
+      return {
+        ...state,
+        items: Array.isArray(action.payload) ? action.payload : [],
+        isLoading: false,
+        error: null,
+      }
     case 'SET_FILTER':
       return { ...state, filter: action.payload }
     case 'SET_SORT':
@@ -67,14 +72,18 @@ function watchlistReducer(state: WatchlistPageState, action: WatchlistAction): W
     case 'REMOVE_ITEM':
       return {
         ...state,
-        items: state.items.filter(item => item.movies.id !== action.payload),
+        items: Array.isArray(state.items)
+          ? state.items.filter(item => item.movies.id !== action.payload)
+          : [],
       }
     case 'UPDATE_ITEM':
       return {
         ...state,
-        items: state.items.map(item =>
-          item.id === action.payload.id ? { ...item, ...action.payload.updates } : item
-        ),
+        items: Array.isArray(state.items)
+          ? state.items.map(item =>
+              item.id === action.payload.id ? { ...item, ...action.payload.updates } : item
+            )
+          : [],
       }
     default:
       return state
@@ -108,7 +117,13 @@ export function useWatchlistPage() {
 
       const data = await response.json()
       if (data.success) {
-        dispatch({ type: 'SET_ITEMS', payload: data.data })
+        // Accept either [{...}, …] or { data: [...] }
+        const items = Array.isArray(data?.data)
+          ? data.data
+          : Array.isArray(data?.data?.data)
+            ? data.data.data
+            : []
+        dispatch({ type: 'SET_ITEMS', payload: items })
       } else {
         dispatch({ type: 'SET_ERROR', payload: data.error || 'Failed to load watchlist' })
       }
@@ -144,7 +159,8 @@ export function useWatchlistPage() {
 
   // Mark as watched
   const handleMarkWatched = async (movieId: string, watchlistId: string) => {
-    const movie = state.items.find(item => item.movies.id === movieId)?.movies
+    const items = Array.isArray(state.items) ? state.items : []
+    const movie = items.find(item => item.movies.id === movieId)?.movies
     if (movie) {
       dispatch({
         type: 'SET_MARK_WATCHED_MOVIE',
@@ -242,7 +258,9 @@ export function useWatchlistPage() {
 
   // Get sorted and filtered items
   const getSortedItems = useCallback(() => {
-    let filteredItems = [...state.items]
+    // Ensure state.items is an array
+    const items = Array.isArray(state.items) ? state.items : []
+    let filteredItems = [...items]
 
     // Apply filter
     if (state.filter === 'watched') {
@@ -268,10 +286,11 @@ export function useWatchlistPage() {
   }, [state.items, state.filter, state.sortBy])
 
   // Calculate counts
+  const items = Array.isArray(state.items) ? state.items : []
   const counts = {
-    total: state.items.length,
-    watched: state.items.filter(item => item.watched).length,
-    unwatched: state.items.filter(item => !item.watched).length,
+    total: items.length,
+    watched: items.filter(item => item.watched).length,
+    unwatched: items.filter(item => !item.watched).length,
   }
 
   // Load data on mount
@@ -284,7 +303,7 @@ export function useWatchlistPage() {
     state,
     dispatch,
     sortedItems: getSortedItems(),
-    unwatchedItems: state.items.filter(item => !item.watched), // Only unwatched movies
+    unwatchedItems: items.filter(item => !item.watched), // Only unwatched movies
     counts,
 
     // Actions

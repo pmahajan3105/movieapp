@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase/client'
+import { createServerClient } from '@supabase/ssr'
 import { getDatabaseForTask, getBestDatabaseForCapability } from '@/lib/movie-databases/config'
 import { getMoviesByPreferences, getPopularMovies } from '@/lib/services/movieService'
 import { smartRecommenderV2 } from '@/lib/ai/smart-recommender-v2'
@@ -42,10 +42,31 @@ async function handleLegacyRequest(request: NextRequest, supabase: SupabaseClien
   return NextResponse.json(response)
 }
 
+// Create Supabase client for server-side use
+function createSupabaseServerClient(request: NextRequest) {
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return request.cookies.get(name)?.value
+        },
+        set() {
+          // API routes don't set cookies
+        },
+        remove() {
+          // API routes don't remove cookies
+        },
+      },
+    }
+  )
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const supabase = await createServerClient()
+    const supabase = createSupabaseServerClient(request)
 
     const smartMode = searchParams.get('smart') === 'true'
     const realTime = searchParams.get('realtime') === 'true'

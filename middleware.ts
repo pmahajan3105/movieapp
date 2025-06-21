@@ -27,51 +27,53 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // IMPORTANT: Avoid writing any logic between createServerClient and
-  // supabase.auth.getUser(). A simple mistake could make it very hard to debug
-  // issues with users being randomly logged out.
+  // Check authentication only for dashboard routes
+  const pathname = request.nextUrl.pathname
+  const isDashboardRoute = pathname.startsWith('/dashboard')
+  const isWatchlistRoute = pathname.startsWith('/watchlist') && pathname !== '/watchlist' // protect dynamic watchlist routes
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  console.log('🔐 Middleware check:', {
+    path: pathname,
+    isDashboardRoute,
+    isWatchlistRoute,
+    shouldCheckAuth: isDashboardRoute || isWatchlistRoute,
+  })
 
-  // Protect dashboard routes and any routes that require authentication
-  const protectedRoutes = ['/dashboard', '/watchlist', '/profile']
-  const isProtectedRoute = protectedRoutes.some(route => request.nextUrl.pathname.startsWith(route))
+  // Only check auth for dashboard and specific protected routes
+  if (isDashboardRoute || isWatchlistRoute) {
+    console.log('🔒 Protected route, checking authentication...')
 
-  if (!user && isProtectedRoute) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/auth/login'
-    url.searchParams.set('redirectTo', request.nextUrl.pathname)
-    return NextResponse.redirect(url)
+    // Get user session
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser()
+
+    console.log('🔐 Middleware auth result:', {
+      hasUser: !!user,
+      userId: user?.id,
+      userEmail: user?.email,
+      error: error?.message || 'NONE',
+      cookieCount: request.cookies.getAll().length,
+    })
+
+    // If no user, redirect to login
+    if (!user || error) {
+      console.log('❌ No authenticated user, redirecting to login')
+      const loginUrl = new URL('/auth/login', request.url)
+
+      // Add return URL for after login
+      if (pathname !== '/auth/login') {
+        loginUrl.searchParams.set('next', pathname)
+      }
+
+      return NextResponse.redirect(loginUrl)
+    }
+
+    console.log('✅ User authenticated in middleware')
+  } else {
+    console.log('📂 Route does not require auth check')
   }
-
-  // Redirect authenticated users away from auth pages
-  if (user && request.nextUrl.pathname.startsWith('/auth')) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
-    return NextResponse.redirect(url)
-  }
-
-  // Redirect authenticated users from root page to dashboard
-  if (user && request.nextUrl.pathname === '/') {
-    const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
-    return NextResponse.redirect(url)
-  }
-
-  // IMPORTANT: You *must* return the supabaseResponse object as it is. If you're
-  // creating a new response object with NextResponse.next() make sure to:
-  // 1. Pass the request in it, like so:
-  //    const myNewResponse = NextResponse.next({ request })
-  // 2. Copy over the cookies, like so:
-  //    myNewResponse.cookies.setAll(supabaseResponse.cookies.getAll())
-  // 3. Change the myNewResponse object to fit your needs, but avoid changing
-  //    the cookies!
-  // 4. Finally:
-  //    return myNewResponse
-  // If this is not done, you may be causing the browser and server to go out
-  // of sync and terminate the user's session prematurely!
 
   return supabaseResponse
 }
@@ -79,12 +81,10 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * Feel free to modify this pattern to include more paths.
+     * Match dashboard and protected routes only
+     * Skip all API routes except specific ones that need auth
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/dashboard/:path*',
+    '/watchlist/:path*',
   ],
 }

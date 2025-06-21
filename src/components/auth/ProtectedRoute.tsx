@@ -15,19 +15,22 @@ export function ProtectedRoute({
   requireOnboarding = false,
   redirectTo = '/auth/login',
 }: ProtectedRouteProps) {
-  const { user, loading } = useAuth()
+  const { user, isLoading } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
-    if (!loading) {
+    if (!isLoading) {
       // No user, redirect to login
       if (!user) {
+        console.log('🔄 ProtectedRoute: No user found, redirecting to login')
         router.push(redirectTo)
         return
       }
 
+      console.log('✅ ProtectedRoute: User authenticated, allowing access')
+
       // User exists but onboarding required and not completed
-      if (requireOnboarding && !user.onboarding_completed) {
+      if (requireOnboarding && !user.profile?.onboarding_completed) {
         router.push('/dashboard/preferences')
         return
       }
@@ -35,17 +38,18 @@ export function ProtectedRoute({
       // User exists, onboarding complete, but accessing onboarding page
       if (
         !requireOnboarding &&
-        user.onboarding_completed &&
+        user.profile?.onboarding_completed &&
+        typeof window !== 'undefined' &&
         window.location.pathname === '/dashboard/preferences'
       ) {
         router.push('/dashboard')
         return
       }
     }
-  }, [user, loading, router, requireOnboarding, redirectTo])
+  }, [user, isLoading, router, requireOnboarding, redirectTo])
 
   // Show loading spinner while checking auth
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex min-h-screen flex-col justify-center bg-gray-50 py-12 sm:px-6 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
@@ -64,13 +68,13 @@ export function ProtectedRoute({
   }
 
   // Check onboarding requirements
-  if (requireOnboarding && !user.onboarding_completed) {
+  if (requireOnboarding && !user.profile?.onboarding_completed) {
     return null
   }
 
   if (
     !requireOnboarding &&
-    user.onboarding_completed &&
+    user.profile?.onboarding_completed &&
     typeof window !== 'undefined' &&
     window.location.pathname === '/dashboard/preferences'
   ) {

@@ -1,15 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase/client'
+import { createServerClient } from '@supabase/ssr'
 import { z } from 'zod'
+
+// Create Supabase client for server-side use
+function createSupabaseServerClient(request: NextRequest) {
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return request.cookies.get(name)?.value
+        },
+        set() {
+          // API routes don't set cookies
+        },
+        remove() {
+          // API routes don't remove cookies
+        },
+      },
+    }
+  )
+}
 
 const profileUpdateSchema = z.object({
   fullName: z.string().optional(),
 })
 
 // GET - Get user profile information
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const supabase = await createServerClient()
+    const supabase = createSupabaseServerClient(request)
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -56,7 +77,7 @@ export async function GET() {
 // PUT - Update user profile information
 export async function PUT(request: NextRequest) {
   try {
-    const supabase = await createServerClient()
+    const supabase = createSupabaseServerClient(request)
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -125,7 +146,7 @@ export async function PUT(request: NextRequest) {
 // PATCH - Update user profile information (alternative to PUT)
 export async function PATCH(request: NextRequest) {
   try {
-    const supabase = await createServerClient()
+    const supabase = createSupabaseServerClient(request)
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -192,9 +213,9 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
-    const supabase = await createServerClient()
+    const supabase = createSupabaseServerClient(request)
     const {
       data: { user },
     } = await supabase.auth.getUser()

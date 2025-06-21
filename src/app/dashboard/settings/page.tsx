@@ -192,7 +192,7 @@ export default function SettingsPage() {
       const response = await fetch('/api/user/preferences', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(preferences),
+        body: JSON.stringify({ preferences }),
       })
 
       if (response.ok) {

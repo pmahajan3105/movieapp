@@ -1,81 +1,85 @@
 import { z } from 'zod'
 
+// Environment validation schema
 const envSchema = z.object({
-  // TMDB API
+  // Database
+  NEXT_PUBLIC_SUPABASE_URL: z.string().url('Valid Supabase URL is required'),
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1, 'Supabase anon key is required'),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, 'Supabase service role key is required'),
+
+  // Site URL for proper auth redirects
+  NEXT_PUBLIC_SITE_URL: z.string().url().optional(),
+
+  // External APIs
   TMDB_API_KEY: z.string().min(1, 'TMDB API key is required'),
 
-  // Supabase
-  NEXT_PUBLIC_SUPABASE_URL: z.string().url('Invalid Supabase URL'),
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1, 'Supabase anon key is required'),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, 'Supabase service role key is required').optional(),
-
-  // Anthropic API
+  // AI APIs - Primary: Anthropic Claude
   ANTHROPIC_API_KEY: z.string().min(1, 'Anthropic API key is required'),
-
-  // Groq API (optional)
-  GROQ_API_KEY: z.string().min(1, 'Groq API key is required'),
 
   // Environment
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  NEXT_PUBLIC_APP_ENV: z.enum(['development', 'staging', 'production']).default('development'),
+  NEXT_PUBLIC_APP_ENV: z.enum(['development', 'production', 'test']).default('development'),
 
-  // Optional: Override default database assignments
-  MOVIE_DEFAULT_DATABASE: z.string().optional(),
-  MOVIE_SEARCH_DATABASE: z.string().optional(),
-  MOVIE_TRENDING_DATABASE: z.string().optional(),
-  MOVIE_RECOMMENDATIONS_DATABASE: z.string().optional(),
-  MOVIE_FALLBACK_DATABASE: z.string().optional(),
+  // AI Model Configuration (optional)
+  AI_DEFAULT_MODEL: z.string().default('claude-3-7-sonnet-20250219'),
+  AI_CHAT_MODEL: z.string().default('claude-3-7-sonnet-20250219'),
+  AI_FAST_MODEL: z.string().default('claude-3-5-haiku-20241022'),
+
+  // Development
+  DEVELOPMENT_LOGGING: z
+    .string()
+    .transform(val => val === 'true')
+    .default('false'),
 })
 
-// Cache the parsed environment
-let cachedEnv: z.infer<typeof envSchema> | null = null
+// Type for validated environment variables
+export type Environment = z.infer<typeof envSchema>
 
-export function getEnv(): z.infer<typeof envSchema> {
-  if (cachedEnv) {
-    return cachedEnv
+// Global environment validation result
+let validatedEnv: Environment | null = null
+
+/**
+ * Get validated environment variables
+ * Validates once and caches the result
+ */
+export function getEnv(): Environment {
+  if (validatedEnv) {
+    return validatedEnv
   }
 
   try {
-    cachedEnv = envSchema.parse(process.env)
-    return cachedEnv
+    validatedEnv = envSchema.parse(process.env)
+    return validatedEnv
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const missingKeys = error.errors
-        .filter(err => err.code === 'invalid_type' && err.received === 'undefined')
-        .map(err => err.path.join('.'))
-
-      if (missingKeys.length > 0) {
-        throw new Error(
-          `Missing required environment variables: ${missingKeys.join(', ')}\n` +
-            'Please check your .env.local file and ensure all required variables are set.'
-        )
-      }
-
-      const invalidKeys = error.errors
-        .filter(err => err.code !== 'invalid_type' || err.received !== 'undefined')
+      const missingVars = error.errors
         .map(err => `${err.path.join('.')}: ${err.message}`)
-
-      if (invalidKeys.length > 0) {
-        throw new Error(
-          `Invalid environment variables:\n${invalidKeys.join('\n')}\n` +
-            'Please check your .env.local file and ensure all variables have valid values.'
-        )
-      }
+        .join('\n')
+      throw new Error(`Environment validation failed:\n${missingVars}`)
     }
-
     throw error
   }
 }
 
-// Individual getters for convenience
-export const getSupabaseUrl = () => getEnv().NEXT_PUBLIC_SUPABASE_URL
-export const getSupabaseAnonKey = () => getEnv().NEXT_PUBLIC_SUPABASE_ANON_KEY
-export const getSupabaseServiceRoleKey = () => getEnv().SUPABASE_SERVICE_ROLE_KEY
-export const getAnthropicApiKey = () => getEnv().ANTHROPIC_API_KEY
-export const getGroqApiKey = () => getEnv().GROQ_API_KEY
-export const getTMDBApiKey = () => getEnv().TMDB_API_KEY
-
-// Environment helpers
+// Convenience getters for common environment variables
 export const isDevelopment = () => getEnv().NODE_ENV === 'development'
 export const isProduction = () => getEnv().NODE_ENV === 'production'
 export const isTest = () => getEnv().NODE_ENV === 'test'
+
+export const getSupabaseUrl = () => getEnv().NEXT_PUBLIC_SUPABASE_URL
+export const getSupabaseAnonKey = () => getEnv().NEXT_PUBLIC_SUPABASE_ANON_KEY
+export const getSupabaseServiceRoleKey = () => getEnv().SUPABASE_SERVICE_ROLE_KEY
+
+export const getTmdbApiKey = () => getEnv().TMDB_API_KEY
+export const getAnthropicApiKey = () => getEnv().ANTHROPIC_API_KEY
+
+export const getSiteUrl = () => getEnv().NEXT_PUBLIC_SITE_URL
+
+// AI Model getters
+export const getAIDefaultModel = () => getEnv().AI_DEFAULT_MODEL
+export const getAIChatModel = () => getEnv().AI_CHAT_MODEL
+export const getAIFastModel = () => getEnv().AI_FAST_MODEL
+
+// Environment check helpers (using function form to avoid conflicts)
+export const isDev = () => getEnv().NODE_ENV === 'development'
+export const isProd = () => getEnv().NODE_ENV === 'production'

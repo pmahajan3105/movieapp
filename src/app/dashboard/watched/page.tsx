@@ -15,7 +15,7 @@ interface WatchedMovie extends WatchlistItem {
 }
 
 export default function WatchedMoviesPage() {
-  const { loading } = useAuth()
+  const { isLoading: authLoading } = useAuth()
   const [watchedMovies, setWatchedMovies] = useState<WatchedMovie[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -25,10 +25,10 @@ export default function WatchedMoviesPage() {
   const [editingNotes, setEditingNotes] = useState('')
 
   useEffect(() => {
-    if (!loading) {
+    if (!authLoading) {
       fetchWatchedMovies()
     }
-  }, [loading])
+  }, [authLoading])
 
   const fetchWatchedMovies = async () => {
     try {
@@ -38,10 +38,12 @@ export default function WatchedMoviesPage() {
       const response = await fetch('/api/watchlist?watched=true')
       const data = await response.json()
 
-      if (data.success && data.data) {
-        const watched = data.data.filter((item: WatchedMovie) => item.watched)
+      if (data.success && data.data && data.data.data) {
+        const watchedItems = data.data.data || []
+        const watched = watchedItems.filter((item: WatchedMovie) => item.watched)
         setWatchedMovies(watched)
       } else {
+        console.error('Unexpected API response format:', data)
         throw new Error(data.error || 'Failed to fetch watched movies')
       }
     } catch (err) {

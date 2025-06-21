@@ -14,12 +14,6 @@ interface WatchlistItem {
   notes?: string | null
 }
 
-interface WatchlistResponse {
-  success: boolean
-  data: WatchlistItem[]
-  error?: string
-}
-
 // Enhanced hook for all watchlist operations across the app
 export const useMoviesWatchlist = () => {
   const queryClient = useQueryClient()
@@ -56,14 +50,24 @@ export const useMoviesWatchlist = () => {
             throw new Error('Failed to fetch watchlist after retry')
           }
 
-          const retryData: WatchlistResponse = await retryResponse.json()
-          return retryData.data || []
+          const retryData = await retryResponse.json()
+          const retryList = Array.isArray(retryData?.data)
+            ? retryData.data
+            : Array.isArray(retryData?.data?.data)
+              ? retryData.data.data
+              : []
+          return retryList
         }
         throw new Error('Failed to fetch watchlist')
       }
 
-      const data: WatchlistResponse = await response.json()
-      return data.data || []
+      const data = await response.json()
+      const list = Array.isArray(data?.data)
+        ? data.data
+        : Array.isArray(data?.data?.data)
+          ? data.data.data
+          : []
+      return list
     },
     enabled: !!user, // Only fetch if user is logged in
     retry: (failureCount, error) => {
@@ -293,11 +297,6 @@ export const useMoviesWatchlist = () => {
   const toggleWatchlist = (movieId: string) => {
     if (!user) {
       toast.error('Please sign in to manage your watchlist')
-      return
-    }
-
-    if (!isSessionValid) {
-      toast.error('Session expired. Please refresh the page and try again.')
       return
     }
 
