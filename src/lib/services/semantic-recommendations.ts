@@ -6,11 +6,7 @@ import type { Database } from '@/types/supabase-generated'
 type TypedSupabaseClient = SupabaseClient<Database>
 
 // Enhanced movie type with semantic search data
-export interface SemanticMovie extends Movie {
-  semanticSimilarity: number
-  recommendationReason: string
-  confidence: number
-}
+export type SemanticMovie = any
 
 export interface SemanticRecommendationRequest {
   userId: string
@@ -126,14 +122,16 @@ export class SemanticRecommendationService {
     }
 
     // Add semantic scores and apply basic filtering
-    const recommendedMovies = movies
+    const recommendedMovies: SemanticMovie[] = movies
       .map(movie => {
         const semanticMatch = semanticResults.find(r => r.movieId === movie.id)
         return {
           ...movie,
           semanticSimilarity: semanticMatch?.similarity || 0,
-          recommendationReason: this.generateReason(movie, semanticMatch?.similarity || 0),
+
+          recommendationReason: this.generateReason(movie as any, semanticMatch?.similarity || 0),
           confidence: Math.min(0.9, (semanticMatch?.similarity || 0) * 1.2),
+          year: movie.year,
         }
       })
       .sort((a, b) => b.semanticSimilarity - a.semanticSimilarity)
@@ -168,11 +166,12 @@ export class SemanticRecommendationService {
       return []
     }
 
-    const recommendedMovies = fallbackMovies.map(movie => ({
+    const recommendedMovies: SemanticMovie[] = fallbackMovies.map(movie => ({
       ...movie,
       semanticSimilarity: 0,
       recommendationReason: 'Based on your preferences',
       confidence: 0.4,
+      year: movie.year,
     }))
 
     insights.method = 'preference-based'

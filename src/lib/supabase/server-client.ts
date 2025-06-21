@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { cache } from 'react'
 
-// Simple Database interface for Supabase client typing
+// Temporary stub until all helpers are migrated to generated types
 interface Database {
   public: {
     Tables: {

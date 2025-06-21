@@ -34,8 +34,8 @@ export type ApiHandler<T = unknown> = (
 ) => Promise<NextResponse<ApiResponse<T>>>
 
 export interface SupabaseCtx {
-  supabase: SupabaseClient<GeneratedDatabase>
   request: NextRequest
+  supabase: SupabaseClient<GeneratedDatabase>
 }
 
 export type Handler = (ctx: SupabaseCtx) => Promise<Response> | Response
@@ -199,18 +199,20 @@ export function withAuthAndErrorHandling<T = unknown>(
 }
 
 // Inject a typed Supabase client
-export const withSupabase = (handler: Handler): Handler => {
-  return async (ctx: SupabaseCtx) => {
+export const withSupabase = (handler: Handler): ((request: NextRequest) => Promise<Response>) => {
+  return async (request: NextRequest) => {
     const supabase = await createSupabaseClient()
-    return handler({ ...ctx, supabase })
+    return handler({ request, supabase })
   }
 }
 
 // Simple error wrapper – catches unhandled exceptions
-export const withError = (handler: Handler): Handler => {
-  return async ctx => {
+export const withError = (
+  handler: (request: NextRequest) => Promise<Response>
+): ((request: NextRequest) => Promise<Response>) => {
+  return async request => {
     try {
-      return await handler(ctx)
+      return await handler(request)
     } catch (err: any) {
       console.error('API error:', err)
       return Response.json(
@@ -222,3 +224,37 @@ export const withError = (handler: Handler): Handler => {
     }
   }
 }
+
+// -----------------------------------------------------------------
+// Auth wrapper – requires user else 401
+// -----------------------------------------------------------------
+
+export interface RequireAuthCtx extends SupabaseCtx {
+  user: User
+}
+
+export const requireAuth = (
+  handler: (ctx: RequireAuthCtx) => Promise<Response>
+): ((request: NextRequest) => Promise<Response>) => {
+  return withSupabase(async ({ request, supabase }) => {
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser()
+
+    if (error || !user) {
+      return fail('Unauthorized', 401)
+    }
+
+    return handler({ request, supabase, user })
+  })
+}
+
+// -----------------------------------------------------------------
+// Convenience JSON helpers
+// -----------------------------------------------------------------
+export const ok = <T>(data: T, init: ResponseInit = {}) =>
+  Response.json({ success: true, data }, { ...init, status: 200 })
+
+export const fail = (error: string, code = 500) =>
+  Response.json({ success: false, error }, { status: code })

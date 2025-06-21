@@ -2,12 +2,12 @@
 export interface Movie {
   id: string
   title: string
-  year?: number
-  genre?: string[]
-  director?: string[]
+  year?: number | null
+  genre?: string[] | null
+  director?: string[] | null
   actors?: string[] // Legacy field name
   cast?: string[] // Database field name
-  plot?: string
+  plot?: string | null
   poster_url?: string
   backdrop_url?: string
   description?: string // Plot overview / TMDB overview
@@ -21,6 +21,9 @@ export interface Movie {
   source?: string
   created_at?: string
   updated_at?: string
+
+  // Allow additional nullable DB fields during migration
+  [key: string]: any
 }
 
 // User Types

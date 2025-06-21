@@ -9,6 +9,7 @@ This guide will walk you through setting up the Movie Recommendation App from sc
 - A Supabase account
 - A TMDB API account
 - An Anthropic API account
+- Docker (for local db)
 
 ## Step 1: Clone and Setup
 
@@ -31,7 +32,7 @@ SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key_here
 # Movie Database API Keys
 TMDB_API_KEY=your_tmdb_api_key_here
 
-# AI API Keys  
+# AI API Keys
 ANTHROPIC_API_KEY=your_anthropic_api_key_here
 
 # Optional AI Providers
@@ -42,6 +43,7 @@ OPENAI_API_KEY=your_openai_api_key_here
 ## Step 3: API Key Setup
 
 ### 1. **Supabase Setup:**
+
 - Go to [Supabase](https://supabase.com)
 - Create a new project
 - Go to Settings > API
@@ -49,6 +51,7 @@ OPENAI_API_KEY=your_openai_api_key_here
 - Copy the service role key (keep this secret!)
 
 ### 2. **TMDB API Key:**
+
 - Go to [The Movie Database (TMDB)](https://www.themoviedb.org/)
 - Create a free account
 - Go to Settings > API
@@ -56,6 +59,7 @@ OPENAI_API_KEY=your_openai_api_key_here
 - Copy the API key (v3 auth)
 
 ### 3. **Anthropic API Key:**
+
 - Go to [Anthropic Console](https://console.anthropic.com)
 - Sign up and verify your account
 - Go to API Keys section
@@ -71,6 +75,7 @@ npm run db:migrate
 ```
 
 This will create the following tables:
+
 - `movies` - Movie data
 - `user_profiles` - User information and preferences
 - `ratings` - User movie ratings
@@ -96,6 +101,7 @@ Visit [http://localhost:3000](http://localhost:3000) to see the app.
 ## Step 7: Test the Setup
 
 Visit [http://localhost:3000/api/test-seed](http://localhost:3000/api/test-seed) to verify:
+
 - ✅ Supabase connection
 - ✅ TMDB API access
 - ✅ Basic app functionality
@@ -105,15 +111,18 @@ Visit [http://localhost:3000/api/test-seed](http://localhost:3000/api/test-seed)
 ### Common Issues:
 
 1. **"TMDB API key not configured"**
+
    - Verify your TMDB_API_KEY is correctly set in `.env.local`
    - Make sure you're using the v3 API key, not v4
 
 2. **"Supabase connection failed"**
+
    - Check your Supabase URL and keys
    - Ensure your Supabase project is active
    - Verify RLS policies are set correctly
 
 3. **AI chat not working**
+
    - Verify your ANTHROPIC_API_KEY is set
    - Check you have sufficient API credits
 
@@ -145,4 +154,18 @@ For production deployment, make sure to:
 4. Set up monitoring and logging
 5. Test the production environment thoroughly
 
-Your movie recommendation app should now be fully functional! 🎬 
+Your movie recommendation app should now be fully functional! 🎬
+
+### Supabase CLI (for type generation)
+
+```
+# macOS (recommended)
+brew install supabase/tap/supabase
+
+# Other platforms – see https://github.com/supabase/cli#install
+
+# After install, generate DB types any time the schema changes:
+npm run generate:types
+```
+
+This writes `src/types/supabase-generated.ts`, which the app imports for compile-time safety.
