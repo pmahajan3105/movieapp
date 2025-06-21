@@ -1,5 +1,4 @@
-import { createClient as createSupabaseClient } from '@/lib/supabase/server-client'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import type { WatchlistInsert } from '@/lib/supabase/types'
 import { withSupabase, withError } from '@/lib/api/factory'
 
@@ -147,11 +146,8 @@ export const GET = withError(
 )
 
 // POST /api/watchlist - Add movie to watchlist
-export async function POST(request: NextRequest) {
-  try {
-    // 1.  Create client *first* – this may mutate the cookie store
-    const supabase = await createSupabaseClient()
-
+export const POST = withError(
+  withSupabase(async ({ request, supabase }) => {
     // Check authentication
     const {
       data: { user },
@@ -309,17 +305,12 @@ export async function POST(request: NextRequest) {
     // 3.  Build the response **after** everything else,
     //     so updated cookies are included
     return NextResponse.json({ success: true, data }, { status: 200 })
-  } catch (error) {
-    console.error('Watchlist POST error:', error)
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
-  }
-}
+  })
+)
 
 // PATCH /api/watchlist - Update watchlist item (mark as watched, add rating, etc.)
-export async function PATCH(request: NextRequest) {
-  try {
-    const supabase = await createSupabaseClient()
-
+export const PATCH = withError(
+  withSupabase(async ({ request, supabase }) => {
     // Check authentication
     const {
       data: { user },
@@ -433,17 +424,12 @@ export async function PATCH(request: NextRequest) {
       success: true,
       data,
     })
-  } catch (error) {
-    console.error('Watchlist PATCH error:', error)
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
-  }
-}
+  })
+)
 
 // DELETE /api/watchlist - Remove movie from watchlist
-export async function DELETE(request: NextRequest) {
-  try {
-    const supabase = await createSupabaseClient()
-
+export const DELETE = withError(
+  withSupabase(async ({ request, supabase }) => {
     // Check authentication
     const {
       data: { user },
@@ -474,9 +460,6 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error('Watchlist DELETE error:', error)
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
-  }
-}
+    return NextResponse.json({ success: true, message: 'Removed from watchlist' }, { status: 200 })
+  })
+)
