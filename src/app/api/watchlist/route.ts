@@ -1,12 +1,7 @@
 import { createClient as createSupabaseClient } from '@/lib/supabase/server-client'
 import { NextRequest, NextResponse } from 'next/server'
-
-interface WatchlistInsert {
-  user_id: string
-  movie_id: string
-  watched?: boolean
-  notes?: string | null
-}
+import type { WatchlistInsert } from '@/lib/supabase/types'
+import { withSupabase, withError } from '@/lib/api/factory'
 
 const TMDB_KEY = process.env.TMDB_API_KEY!
 
@@ -79,10 +74,8 @@ async function fetchTmdbMovie(tmdbId: number) {
 // ------------------------------------------------------------------
 
 // GET /api/watchlist - Get user's watchlist items
-export async function GET(request: NextRequest) {
-  try {
-    const supabase = await createSupabaseClient()
-
+export const GET = withError(
+  withSupabase(async ({ request, supabase }) => {
     // Check authentication
     const {
       data: { user },
@@ -150,11 +143,8 @@ export async function GET(request: NextRequest) {
         },
       },
     })
-  } catch (error) {
-    console.error('Watchlist GET error:', error)
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
-  }
-}
+  })
+)
 
 // POST /api/watchlist - Add movie to watchlist
 export async function POST(request: NextRequest) {
