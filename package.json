@@ -22,6 +22,7 @@
     "test:integration": "jest src/__tests__/integration/ --verbose",
     "test:pre-commit": "node src/__tests__/run-tests.js",
     "type-check": "tsc --noEmit",
+    "generate:types": "supabase gen types typescript --linked --schema public > src/types/supabase-generated.ts",
     "prepare": "husky",
     "pre-commit": "lint-staged"
   },
