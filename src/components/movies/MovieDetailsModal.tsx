@@ -196,14 +196,7 @@ export function MovieDetailsModal({
                   <p className="font-mono text-sm text-gray-900">{movie.imdb_id}</p>
                 </div>
               )}
-              {movie.tmdb_id && (
-                <div className="rounded border border-gray-200 bg-white p-3">
-                  <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-                    TMDB ID
-                  </h4>
-                  <p className="font-mono text-sm text-gray-900">{movie.tmdb_id}</p>
-                </div>
-              )}
+              {/* TMDB ID is internal; no need to show to users */}
             </div>
           </div>
         </div>

@@ -340,16 +340,20 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await parseJsonBody<{
-      movie_id: string
+      movie_id?: string
+      watchlist_id?: string
       watched?: boolean
       rating?: number
       notes?: string
     }>(request)
 
-    const { movie_id, watched, rating, notes } = body
+    const { movie_id, watchlist_id, watched, rating, notes } = body
 
-    if (!movie_id) {
-      return NextResponse.json({ success: false, error: 'Movie ID is required' }, { status: 400 })
+    if (!movie_id && !watchlist_id) {
+      return NextResponse.json(
+        { success: false, error: 'Movie ID or Watchlist ID is required' },
+        { status: 400 }
+      )
     }
 
     const updates: Partial<WatchlistInsert & { rating?: number; watched_at?: string }> = {}
@@ -369,11 +373,15 @@ export async function PATCH(request: NextRequest) {
       updates.notes = notes
     }
 
-    const { data, error } = await supabase
-      .from('watchlist')
-      .update(updates)
-      .eq('user_id', user.id)
-      .eq('movie_id', movie_id)
+    let updateQuery = supabase.from('watchlist').update(updates).eq('user_id', user.id)
+
+    if (movie_id) {
+      updateQuery = updateQuery.eq('movie_id', movie_id)
+    } else if (watchlist_id) {
+      updateQuery = updateQuery.eq('id', watchlist_id)
+    }
+
+    const { data, error } = await updateQuery
       .select(
         `
         id,
@@ -403,6 +411,32 @@ export async function PATCH(request: NextRequest) {
         { success: false, error: 'Failed to update watchlist item' },
         { status: 500 }
       )
+    }
+
+    // If marking as watched and movie is a stub, fetch full TMDB details and update movies table
+    if (watched === true && movie_id) {
+      try {
+        const { data: movieRow } = await supabase
+          .from('movies')
+          .select('id, title, poster_url, tmdb_id')
+          .eq('id', movie_id)
+          .single()
+
+        if (
+          movieRow &&
+          movieRow.tmdb_id &&
+          (!movieRow.poster_url || movieRow.title.startsWith('[Imported'))
+        ) {
+          const full = await fetchTmdbMovie(movieRow.tmdb_id)
+          await supabase.from('movies').update(full).eq('id', movieRow.id)
+          // Optionally refresh `data.movies` in response
+          if (data && (data as any).movies) {
+            ;(data as any).movies = { ...(data as any).movies, ...full }
+          }
+        }
+      } catch (e) {
+        console.warn('TMDB enrichment failed:', e)
+      }
     }
 
     return NextResponse.json({

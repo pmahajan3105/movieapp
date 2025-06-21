@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { MovieDetailsModal } from '@/components/movies/MovieDetailsModal'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Star, Calendar, Edit, Trash2 } from 'lucide-react'
+import { Star, Calendar, Edit, Trash2, Film } from 'lucide-react'
 import Image from 'next/image'
 import type { Movie, WatchlistItem } from '@/types'
 import { toast } from 'react-hot-toast'
@@ -192,14 +192,28 @@ export default function WatchedMoviesPage() {
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {watchedMovies.map(item => (
               <Card key={item.id} className="overflow-hidden transition-shadow hover:shadow-lg">
-                <div className="relative aspect-[2/3]">
-                  <Image
-                    src={item.movies.poster_url || '/placeholder-movie.jpg'}
-                    alt={item.movies.title}
-                    fill
-                    className="cursor-pointer object-cover"
-                    onClick={() => handleMovieClick(item.movies)}
-                  />
+                <div className="relative">
+                  <div className="aspect-[2/3] w-full overflow-hidden">
+                    {item.movies.poster_url ? (
+                      <div className="relative h-full w-full">
+                        <Image
+                          src={item.movies.poster_url}
+                          alt={item.movies.title}
+                          fill
+                          className="cursor-pointer object-cover transition-transform hover:scale-105"
+                          onClick={() => handleMovieClick(item.movies)}
+                          sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
+                        />
+                      </div>
+                    ) : (
+                      <div
+                        className="flex h-full w-full cursor-pointer items-center justify-center bg-gray-200"
+                        onClick={() => handleMovieClick(item.movies)}
+                      >
+                        <Film className="h-12 w-12 text-gray-400" />
+                      </div>
+                    )}
+                  </div>
                   <div className="absolute top-2 right-2 rounded-full bg-green-500 px-2 py-1 text-xs font-medium text-white">
                     ✓ Watched
                   </div>

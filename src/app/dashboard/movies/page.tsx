@@ -8,7 +8,7 @@ import { useMoviesWatchlist } from '@/hooks/useMoviesWatchlist'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { RefreshCw, Loader2, Bookmark, BookmarkCheck } from 'lucide-react'
+import { Loader2, Bookmark, BookmarkCheck } from 'lucide-react'
 import Image from 'next/image'
 import PreferencesSetup from '@/components/PreferencesSetup'
 import { MovieDetailsModal } from '@/components/movies/MovieDetailsModal'
@@ -124,10 +124,9 @@ const MovieCard = ({
 export default function SmartMoviesPage() {
   const { user, isLoading: authLoading } = useAuth()
   const { watchlistIds, toggleWatchlist } = useMoviesWatchlist()
-  // Always show personalized recommendations by default
-  const [showingRecommendations, setShowingRecommendations] = useState(true)
+  // Always load movies from TMDB (no AI-personalized split)
+  const [showingRecommendations, setShowingRecommendations] = useState(false)
   const [showPreferencesSetup, setShowPreferencesSetup] = useState(false)
-  const [hasPreferences, setHasPreferences] = useState(true)
   const [savingPreferences, setSavingPreferences] = useState(false)
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null)
 
@@ -238,7 +237,6 @@ export default function SmartMoviesPage() {
       })
 
       if (response.ok) {
-        setHasPreferences(true)
         setShowPreferencesSetup(false)
         setShowingRecommendations(true)
       } else {
@@ -304,28 +302,7 @@ export default function SmartMoviesPage() {
           <h1 className="text-3xl font-bold">
             {showingRecommendations ? 'Your Personalized Movies' : 'Real-time Movie Discovery'}
           </h1>
-          <p className="text-gray-600">
-            {showingRecommendations
-              ? '🎬 AI-powered personalized recommendations based on your preferences'
-              : '🌐 Fresh movies from TMDB database • Unlimited scroll'}
-          </p>
-          <div className="mt-2 flex items-center gap-2">
-            <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800 dark:bg-green-900 dark:text-green-200">
-              🔴 Live TMDB Data
-            </span>
-            {showingRecommendations && (
-              <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                🤖 AI Personalized {hasPreferences ? '(Your Preferences)' : '(Default)'}
-              </span>
-            )}
-          </div>
-        </div>
-
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handleRefresh} disabled={isLoading}>
-            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
+          <p className="text-gray-600">🌐 Fresh movies from TMDB database • Unlimited scroll</p>
         </div>
       </div>
 
@@ -333,20 +310,7 @@ export default function SmartMoviesPage() {
       <div className="mb-6 flex items-center justify-between">
         <span className="text-sm text-gray-600">
           Showing {movies.length} of {totalMovies.toLocaleString()} movies • Scroll for more
-          {showingRecommendations && ' (AI Enhanced)'}
         </span>
-
-        {hasNextPage && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => fetchNextPage()}
-            disabled={isFetchingNextPage}
-            className="flex items-center gap-2"
-          >
-            {isFetchingNextPage ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Load More'}
-          </Button>
-        )}
       </div>
 
       {/* Movies Grid */}
@@ -395,23 +359,6 @@ export default function SmartMoviesPage() {
             <div className="mt-8 text-center">
               <p className="text-gray-500">
                 🎬 You&apos;ve explored {totalMovies.toLocaleString()} movies from TMDB!
-                {showingRecommendations ? (
-                  <Button
-                    variant="link"
-                    onClick={() => setShowingRecommendations(false)}
-                    className="ml-2"
-                  >
-                    Browse trending movies
-                  </Button>
-                ) : (
-                  <Button
-                    variant="link"
-                    onClick={() => setShowingRecommendations(true)}
-                    className="ml-2"
-                  >
-                    Get AI recommendations
-                  </Button>
-                )}
               </p>
             </div>
           )}
