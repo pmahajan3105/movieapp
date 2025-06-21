@@ -61,9 +61,9 @@ _Stop the bleeding, fix core architectural issues_
 
 - **2025-06-21** Generated remote Supabase types (`src/types/supabase-generated.ts`, 600+ LOC) and added `npm run generate:types` script.
 - **2025-06-21** Introduced `src/lib/typed-supabase.ts` – a lightweight typed Supabase client for non-SSR contexts.
-- **2025-06-22** Added minimal API factory (`src/lib/api/factory.ts`) with `withSupabase` and `withError` wrappers – ready to wrap routes.
+- **2025-06-22** Added minimal API factory (`src/lib/api/factory.ts`) with `withSupabase`, `withError`, `requireAuth`, `ok`, `fail` helpers – ready to wrap routes.
 
-Next up: wrap `api/watchlist/route.ts` GET handler with the new factory (without altering its core logic) to prove concept.
+Next up: migrate dynamic route `api/watchlist/[id]/route.ts` using `withSupabase` + `requireAuth` + `withError`, then iterate through remaining simple routes.
 
 ### 1.2 Split ChatInterface.tsx (Architectural Fix)
 
