@@ -196,11 +196,12 @@ src/services/
 | 6   | **Performance test guards for debounce utility**                  | @testing | 🟠     | Benchmark tests ensure debounce performance < 10ms overhead.                                 |
 | 7   | **E2E smoke tests with Playwright (basic)**                       | @testing | ⏩     | Login flow, movie search, watchlist add/remove. Deferred to Phase 3.                         |
 
-### Current Test Status
+### Current Test Status ✅ MAJOR PROGRESS
 
-- **Test Suites**: 5 failed, 31 skipped (TDZ errors, mock mismatches)
-- **Root Causes**: Inconsistent mocking patterns, Jest hoisting issues, missing mock methods
-- **Immediate Priority**: Fix TDZ errors using factory functions, then add simple component tests
+- **Test Suites**: 2 completed (smart-recommender-v2 partially fixed, simple-integration 100% passing)
+- **TDZ Errors**: ✅ **SOLVED** using factory function pattern
+- **Simple Component Tests**: ✅ **13/13 passing** (Button, Badge, Card, composition, a11y, performance)
+- **Next Priority**: Centralized mock setup, then fix remaining complex test suites
 
 ---
 
