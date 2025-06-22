@@ -3,8 +3,8 @@
  * @jest-environment jsdom
  */
 
-import { SmartRecommenderV2 } from '@/lib/ai/smart-recommender-v2'
-import type { Movie } from '@/types'
+import { SmartRecommenderV2 } from '../../../lib/ai/smart-recommender-v2'
+import type { Movie } from '../../../types'
 
 // Mock the embedding service
 const mockEmbeddingService = {
@@ -20,30 +20,36 @@ const mockSupabaseClient = {
   from: jest.fn(() => ({
     select: jest.fn(() => ({
       eq: jest.fn(() => ({
-        single: jest.fn(() => Promise.resolve({ data: null, error: null })),
+        single: jest.fn(),
       })),
       or: jest.fn(() => ({
-        limit: jest.fn(() => Promise.resolve({ data: [], error: null })),
+        limit: jest.fn(),
       })),
       not: jest.fn(() => ({
         order: jest.fn(() => ({
-          limit: jest.fn(() => Promise.resolve({ data: [], error: null })),
+          limit: jest.fn(),
         })),
       })),
-      limit: jest.fn(() => Promise.resolve({ data: [], error: null })),
+      limit: jest.fn(),
     })),
   })),
-}
+} as any
 
 // Mock environment variables
-jest.mock('@/lib/env', () => ({
+jest.mock('../../../lib/env', () => ({
   getSupabaseUrl: () => 'https://test.supabase.co',
   getSupabaseServiceRoleKey: () => 'test-service-role-key',
 }))
 
-// Mock embedding service
-jest.mock('@/lib/ai/embedding-service', () => ({
-  embeddingService: mockEmbeddingService,
+// Mock embedding service with factory function to avoid TDZ
+jest.mock('../../../lib/ai/embedding-service', () => ({
+  embeddingService: {
+    generateEmbedding: jest.fn(),
+    searchSimilarMovies: jest.fn(),
+    searchUserMemories: jest.fn(),
+    saveUserMemory: jest.fn(),
+    getInstance: jest.fn(),
+  },
 }))
 
 // Mock Supabase client creation
@@ -87,24 +93,28 @@ describe('SmartRecommenderV2 - Tier 2 Intelligent Recommendations', () => {
     },
   ]
 
-  beforeEach(() => {
+  beforeEach(async () => {
     smartRecommender = new SmartRecommenderV2()
     jest.clearAllMocks()
 
+    // Get the mocked embedding service from the factory
+    const { embeddingService } = await import('../../../lib/ai/embedding-service')
+    const mockedEmbeddingService = embeddingService as jest.Mocked<typeof embeddingService>
+
     // Setup default mocks
-    mockEmbeddingService.generateEmbedding.mockResolvedValue({
+    mockedEmbeddingService.generateEmbedding.mockResolvedValue({
       embedding: new Array(1536).fill(0.1),
       text: 'test',
       model: 'semantic-analyzer-v1',
       usage: { tokens: 10 },
     })
 
-    mockEmbeddingService.searchSimilarMovies.mockResolvedValue([
+    mockedEmbeddingService.searchSimilarMovies.mockResolvedValue([
       { movieId: 'movie-1', title: 'The Matrix', similarity: 0.9 },
       { movieId: 'movie-2', title: 'Blade Runner 2049', similarity: 0.8 },
     ])
 
-    mockEmbeddingService.searchUserMemories.mockResolvedValue([
+    mockedEmbeddingService.searchUserMemories.mockResolvedValue([
       {
         id: 'memory-1',
         content: 'User loves sci-fi movies',
@@ -116,7 +126,7 @@ describe('SmartRecommenderV2 - Tier 2 Intelligent Recommendations', () => {
       },
     ])
 
-    mockEmbeddingService.saveUserMemory.mockResolvedValue(true)
+    mockedEmbeddingService.saveUserMemory.mockResolvedValue(true)
 
     // Mock movie data from Supabase
     mockSupabaseClient.from().select().or().limit.mockResolvedValue({
