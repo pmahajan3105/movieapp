@@ -148,7 +148,7 @@ function SearchPageContent() {
       setFilters(prev => ({ ...prev, query: queryFromUrl, offset: 0 }))
       setCurrentPage(1)
     }
-  }, [searchParams]) // Only depend on searchParams
+  }, [searchParams, filters.query])
 
   const currentQuery = filters.query || searchParams.get('q') || ''
 

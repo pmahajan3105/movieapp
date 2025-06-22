@@ -4,6 +4,7 @@ import { getDatabaseForTask, getBestDatabaseForCapability } from '@/lib/movie-da
 import { getMoviesByPreferences, getPopularMovies } from '@/lib/services/movieService'
 import { smartRecommenderV2 } from '@/lib/ai/smart-recommender-v2'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { MovieRepository } from '@/repositories'
 
 async function handleLegacyRequest(request: NextRequest, supabase: SupabaseClient) {
   const { searchParams } = new URL(request.url)
@@ -288,104 +289,138 @@ async function handleSmartRecommendations(
     const userPreferredGenres = userProfile?.preferences?.preferred_genres || []
     const finalGenres = genres.length > 0 ? genres : userPreferredGenres
 
-    // Fast local recommendations with smart filtering
-    let moviesQuery = supabase.from('movies').select('*', { count: 'exact' })
+    // Use MovieRepository for smart filtering
+    const movieRepo = new MovieRepository(supabase)
+
+    // Build search filters
+    const filters: Parameters<typeof movieRepo.search>[1] = {
+      limit,
+      offset: (page - 1) * limit,
+    }
 
     // Apply genre filtering if specified
     if (finalGenres.length > 0) {
-      moviesQuery = moviesQuery.overlaps('genre', finalGenres)
+      filters.genres = finalGenres
     }
 
-    // Apply mood-based filtering
+    // Apply mood-based genre filtering
     if (mood) {
-      switch (mood.toLowerCase()) {
-        case 'happy':
-        case 'upbeat':
-          moviesQuery = moviesQuery.overlaps('genre', ['Comedy', 'Animation', 'Family', 'Musical'])
-          break
-        case 'sad':
-        case 'emotional':
-          moviesQuery = moviesQuery.overlaps('genre', ['Drama', 'Romance'])
-          break
-        case 'excited':
-        case 'energetic':
-          moviesQuery = moviesQuery.overlaps('genre', ['Action', 'Adventure', 'Thriller'])
-          break
-        case 'relaxed':
-        case 'calm':
-          moviesQuery = moviesQuery.overlaps('genre', ['Documentary', 'Biography', 'History'])
-          break
-        case 'scared':
-        case 'thrilled':
-          moviesQuery = moviesQuery.overlaps('genre', ['Horror', 'Thriller', 'Mystery'])
-          break
+      const moodGenres: Record<string, string[]> = {
+        happy: ['Comedy', 'Animation', 'Family', 'Musical'],
+        upbeat: ['Comedy', 'Animation', 'Family', 'Musical'],
+        sad: ['Drama', 'Romance'],
+        emotional: ['Drama', 'Romance'],
+        excited: ['Action', 'Adventure', 'Thriller'],
+        energetic: ['Action', 'Adventure', 'Thriller'],
+        relaxed: ['Documentary', 'Biography', 'History'],
+        calm: ['Documentary', 'Biography', 'History'],
+        scared: ['Horror', 'Thriller', 'Mystery'],
+        thrilled: ['Horror', 'Thriller', 'Mystery'],
+      }
+
+      const moodLower = mood.toLowerCase()
+      if (moodGenres[moodLower]) {
+        filters.genres = [...(filters.genres || []), ...moodGenres[moodLower]]
+        // Remove duplicates
+        filters.genres = [...new Set(filters.genres)]
       }
     }
 
-    // Apply text search if query provided
-    if (query) {
-      moviesQuery = moviesQuery.or(
-        `title.ilike.%${query}%, plot.ilike.%${query}%, director.cs.{${query}}`
-      )
-    }
+    try {
+      const { movies, total } = await movieRepo.search(query || '', filters)
 
-    // Apply pagination and sorting
-    const offset = (page - 1) * limit
-    moviesQuery = moviesQuery
-      .order('rating', { ascending: false })
-      .range(offset, offset + limit - 1)
-
-    const { data: movies, error, count } = await moviesQuery
-
-    if (error) {
-      throw error
-    }
-
-    // Enhance movies with recommendation reasoning
-    const enhancedMovies =
-      movies?.map(movie => ({
+      // Enhance movies with recommendation reasoning
+      const enhancedMovies = movies.map(movie => ({
         ...movie,
         reasoning: generateRecommendationReason(movie, finalGenres, mood, query),
         confidence_score: calculateConfidenceScore(movie, finalGenres, mood, query),
         source: 'smart-local',
-      })) || []
+      }))
 
-    // Save user interaction for future recommendations
-    if (query || mood || finalGenres.length > 0) {
-      await smartRecommenderV2.saveUserInteraction(user.id, 'smart-search', 'search', {
-        source: 'search',
-        query,
-        mood,
-        genres: finalGenres,
-        timestamp: new Date().toISOString(),
+      // Save user interaction for future recommendations
+      if (query || mood || finalGenres.length > 0) {
+        await smartRecommenderV2.saveUserInteraction(user.id, 'smart-search', 'search', {
+          source: 'search',
+          query,
+          mood,
+          genres: finalGenres,
+          timestamp: new Date().toISOString(),
+        })
+      }
+
+      const totalPages = Math.ceil(total / limit)
+
+      return NextResponse.json({
+        success: true,
+        data: enhancedMovies,
+        total,
+        pagination: {
+          currentPage: page,
+          limit,
+          hasMore: page < totalPages,
+          totalPages,
+        },
+        source: 'smart-local-v2',
+        vectorEnhanced: true,
+        filters: {
+          genres: finalGenres,
+          mood,
+          query,
+        },
+        performance: {
+          fast: true,
+          local: true,
+        },
+      })
+    } catch (error) {
+      console.error('❌ Smart recommendations V2 error:', error)
+
+      // Fallback to standard preference-based recommendations on error
+      const result = await getMoviesByPreferences({
+        supabase,
+        userId: user.id,
+        limit,
+        page,
+        offset: (page - 1) * limit,
+      })
+
+      if (result) {
+        return NextResponse.json({
+          success: true,
+          data: result.data,
+          total: result.total,
+          pagination: {
+            currentPage: result.page,
+            limit: result.limit,
+            hasMore: result.hasMore,
+            totalPages: Math.ceil(result.total / result.limit),
+          },
+          source: 'local-preferences-fallback',
+          vectorEnhanced: false,
+        })
+      }
+
+      // Final fallback to popular movies
+      const popularResult = await getPopularMovies({
+        supabase,
+        limit,
+        page,
+        offset: (page - 1) * limit,
+      })
+      return NextResponse.json({
+        success: true,
+        data: popularResult.data,
+        total: popularResult.total,
+        pagination: {
+          currentPage: popularResult.page,
+          limit: popularResult.limit,
+          hasMore: popularResult.hasMore,
+          totalPages: Math.ceil(popularResult.total / popularResult.limit),
+        },
+        source: 'popular-fallback',
+        vectorEnhanced: false,
       })
     }
-
-    const total = count || 0
-    const totalPages = Math.ceil(total / limit)
-
-    return NextResponse.json({
-      success: true,
-      data: enhancedMovies,
-      total,
-      pagination: {
-        currentPage: page,
-        limit,
-        hasMore: page < totalPages,
-        totalPages,
-      },
-      source: 'smart-local-v2',
-      vectorEnhanced: true,
-      filters: {
-        genres: finalGenres,
-        mood,
-        query,
-      },
-      performance: {
-        fast: true,
-        local: true,
-      },
-    })
   } catch (error) {
     console.error('❌ Smart recommendations V2 error:', error)
 
