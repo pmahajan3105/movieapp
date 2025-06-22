@@ -6,6 +6,7 @@ import { Heart, Bookmark, Star, ThumbsUp, ThumbsDown } from 'lucide-react'
 import { MovieGridCardProps } from '@/types'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useRateMovie } from '@/hooks/useRateMovie'
 
 export const MovieGridCard: React.FC<MovieGridCardProps> = ({
   movie,
@@ -15,6 +16,8 @@ export const MovieGridCard: React.FC<MovieGridCardProps> = ({
   size = 'md',
   className = '',
 }) => {
+  const { mutate: rateMovie } = useRateMovie()
+
   const sizeClasses = {
     sm: 'w-32',
     md: 'w-40',
@@ -24,11 +27,19 @@ export const MovieGridCard: React.FC<MovieGridCardProps> = ({
   const posterAspectRatio = 'aspect-[3/4]'
 
   const handleLike = () => {
-    onRate(movie.id, true)
+    if (onRate) {
+      onRate(movie.id, true)
+    } else {
+      rateMovie({ movie_id: movie.id, interested: true })
+    }
   }
 
   const handleDislike = () => {
-    onRate(movie.id, false)
+    if (onRate) {
+      onRate(movie.id, false)
+    } else {
+      rateMovie({ movie_id: movie.id, interested: false })
+    }
   }
 
   const handleAddToWatchlist = () => {

@@ -5,7 +5,8 @@ const envSchema = z.object({
   // Database
   NEXT_PUBLIC_SUPABASE_URL: z.string().url('Valid Supabase URL is required'),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1, 'Supabase anon key is required'),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, 'Supabase service role key is required'),
+  // Server-side admin key – optional for most operations & in CI
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, 'Supabase service role key is required').optional(),
 
   // Site URL for proper auth redirects
   NEXT_PUBLIC_SITE_URL: z.string().url().optional(),
@@ -47,6 +48,11 @@ let validatedEnv: Environment | null = null
  * Validates once and caches the result
  */
 export function getEnv(): Environment {
+  // In the browser we don't have access to the full set of secrets. Return process.env
+  if (typeof window !== 'undefined') {
+    // Cast is safe for client code that only relies on NEXT_PUBLIC_* vars
+    return process.env as unknown as Environment
+  }
   if (validatedEnv) {
     return validatedEnv
   }
@@ -56,19 +62,33 @@ export function getEnv(): Environment {
     return validatedEnv
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const missingVars = error.errors
-        .map(err => `${err.path.join('.')}: ${err.message}`)
-        .join('\n')
-      throw new Error(`Environment validation failed:\n${missingVars}`)
+      // Distinguish between missing required vars and other validation issues for clearer DX & to satisfy tests
+      const missingRequired = error.errors.filter(
+        err => err.code === 'invalid_type' || err.message.includes('required')
+      )
+      const header = missingRequired.length
+        ? 'Missing required environment variables'
+        : 'Invalid environment variables'
+
+      const details = error.errors.map(err => `${err.path.join('.')}: ${err.message}`).join('\n')
+
+      throw new Error(`${header}. Please check your .env.local file.\n${details}`)
     }
     throw error
   }
 }
 
+const isBrowser = typeof window !== 'undefined'
+
 // Convenience getters for common environment variables
-export const isDevelopment = () => getEnv().NODE_ENV === 'development'
-export const isProduction = () => getEnv().NODE_ENV === 'production'
-export const isTest = () => getEnv().NODE_ENV === 'test'
+export const isDevelopment = () =>
+  isBrowser ? process.env.NODE_ENV === 'development' : getEnv().NODE_ENV === 'development'
+
+export const isProduction = () =>
+  isBrowser ? process.env.NODE_ENV === 'production' : getEnv().NODE_ENV === 'production'
+
+export const isTest = () =>
+  isBrowser ? process.env.NODE_ENV === 'test' : getEnv().NODE_ENV === 'test'
 
 export const getSupabaseUrl = () => getEnv().NEXT_PUBLIC_SUPABASE_URL
 export const getSupabaseAnonKey = () => getEnv().NEXT_PUBLIC_SUPABASE_ANON_KEY

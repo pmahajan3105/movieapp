@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from 'react-hot-toast'
 import { useRouter } from 'next/navigation'
+import { logger } from '@/lib/logger'
 
 // Simple interface for movies page watchlist needs
 interface WatchlistItem {
@@ -26,7 +27,7 @@ export const useMoviesWatchlist = () => {
     queryFn: async () => {
       // Check if session is valid before making request
       if (!isSessionValid) {
-        console.log('🔄 Session invalid, attempting to refresh...')
+        logger.debug('Session invalid, attempting to refresh')
         await refreshUser()
       }
 
@@ -34,7 +35,7 @@ export const useMoviesWatchlist = () => {
 
       if (!response.ok) {
         if (response.status === 401) {
-          console.log('🔄 Got 401, attempting session refresh...')
+          logger.debug('Received 401, refreshing session')
           await refreshUser()
 
           // Retry the request after refresh
@@ -42,7 +43,7 @@ export const useMoviesWatchlist = () => {
           if (!retryResponse.ok) {
             if (retryResponse.status === 401) {
               // Session is truly invalid, sign out and redirect
-              console.log('🔄 Session invalid after retry, signing out...')
+              logger.warn('Session invalid after retry, signing out')
               await signOut()
               router.push('/auth/login')
               throw new Error('Session expired. Please sign in again.')
@@ -89,11 +90,11 @@ export const useMoviesWatchlist = () => {
       }
 
       if (!isSessionValid) {
-        console.log('🔄 Session invalid, refreshing before add...')
+        logger.debug('Session invalid, refreshing before add')
         await refreshUser()
       }
 
-      console.log('🔄 Adding movie to watchlist:', {
+      logger.info('Adding movie to watchlist', {
         movieId,
         userId: user.id,
         userEmail: user.email,
@@ -101,7 +102,7 @@ export const useMoviesWatchlist = () => {
       })
 
       const requestBody = { movie_id: movieId }
-      console.log('📤 Request body:', requestBody)
+      logger.debug('Watchlist request body', requestBody)
 
       const response = await fetch('/api/watchlist', {
         method: 'POST',
@@ -111,7 +112,7 @@ export const useMoviesWatchlist = () => {
         body: JSON.stringify(requestBody),
       })
 
-      console.log('📡 Watchlist API response:', {
+      logger.debug('Watchlist API response', {
         status: response.status,
         statusText: response.statusText,
         ok: response.ok,
@@ -120,7 +121,7 @@ export const useMoviesWatchlist = () => {
 
       // Handle 401 with retry
       if (response.status === 401) {
-        console.log('🔄 Got 401, attempting session refresh and retry...')
+        logger.debug('Received 401 on add; refreshing session and retrying')
         await refreshUser()
 
         // Retry the request
@@ -134,7 +135,7 @@ export const useMoviesWatchlist = () => {
 
         if (retryResponse.status === 401) {
           // Session is truly invalid, sign out and redirect
-          console.log('🔄 Session invalid after retry, signing out...')
+          logger.warn('Session invalid after retry, signing out')
           await signOut()
           router.push('/auth/login')
           throw new Error('Session expired. Please sign in again.')
@@ -158,11 +159,13 @@ export const useMoviesWatchlist = () => {
       let data
       try {
         data = await response.json()
-        console.log('📋 Watchlist API data:', data)
+        logger.debug('Watchlist API data', data)
       } catch (jsonError) {
-        console.error('❌ Failed to parse response as JSON:', jsonError)
+        logger.error('Failed to parse watchlist response as JSON', {
+          error: jsonError instanceof Error ? jsonError.message : String(jsonError),
+        })
         const responseText = await response.text()
-        console.log('📄 Raw response text:', responseText)
+        logger.debug('Raw watchlist response text', { responseText })
         throw new Error(`HTTP ${response.status}: Failed to parse response`)
       }
 
@@ -192,7 +195,9 @@ export const useMoviesWatchlist = () => {
       toast.success('Added to watchlist!')
     },
     onError: (error, movieId, context) => {
-      console.error('❌ Add to watchlist error:', error)
+      logger.error('Add to watchlist mutation failed', {
+        error: error instanceof Error ? error.message : String(error),
+      })
 
       if (context?.previousData) {
         queryClient.setQueryData(['movies-watchlist'], context.previousData)
@@ -211,7 +216,7 @@ export const useMoviesWatchlist = () => {
       }
 
       if (!isSessionValid) {
-        console.log('🔄 Session invalid, refreshing before remove...')
+        logger.debug('Session invalid, refreshing before remove')
         await refreshUser()
       }
 
@@ -221,7 +226,7 @@ export const useMoviesWatchlist = () => {
 
       // Handle 401 with retry
       if (response.status === 401) {
-        console.log('🔄 Got 401, attempting session refresh and retry...')
+        logger.debug('Received 401 on remove; refreshing session and retrying')
         await refreshUser()
 
         const retryResponse = await fetch(
@@ -233,7 +238,7 @@ export const useMoviesWatchlist = () => {
 
         if (retryResponse.status === 401) {
           // Session is truly invalid, sign out and redirect
-          console.log('🔄 Session invalid after retry, signing out...')
+          logger.warn('Session invalid after retry, signing out')
           await signOut()
           router.push('/auth/login')
           throw new Error('Session expired. Please sign in again.')
@@ -281,7 +286,9 @@ export const useMoviesWatchlist = () => {
       toast.success('Removed from watchlist')
     },
     onError: (error, movieId, context) => {
-      console.error('❌ Remove from watchlist error:', error)
+      logger.error('Remove from watchlist mutation failed', {
+        error: error instanceof Error ? error.message : String(error),
+      })
 
       if (context?.previousData) {
         queryClient.setQueryData(['movies-watchlist'], context.previousData)

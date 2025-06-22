@@ -26,7 +26,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  const supabase = supabaseUrl && supabaseAnonKey ? browserClient : null
+  // Treat undefined or placeholder strings as missing configuration to avoid hanging auth
+  const hasValidSupabaseConfig = Boolean(
+    supabaseUrl && supabaseAnonKey && supabaseUrl !== 'undefined' && supabaseAnonKey !== 'undefined'
+  )
+
+  const supabase = hasValidSupabaseConfig ? browserClient : null
+
+  const supabaseCookieName = supabaseUrl
+    ? `sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`
+    : ''
+
+  const hydrateSessionFromCookie = async () => {
+    if (!supabase || !supabaseCookieName) return
+    try {
+      const raw = document.cookie
+        .split('; ') // cookie string
+        .find(c => c.startsWith(`${supabaseCookieName}=`))
+        ?.split('=')[1]
+
+      if (!raw) return // no cookie yet
+
+      // Supabase v2 prefixes JSON with "base64-" – strip it, then decodeURIComponent
+      const encoded = raw.startsWith('base64-') ? raw.slice(7) : raw
+
+      // Cookie is URL-encoded; decode first
+      const decodedUri = decodeURIComponent(encoded)
+
+      // Adjust base64 padding and URL-safe chars before atob
+      const padded = decodedUri.replace(/-/g, '+').replace(/_/g, '/')
+      const fixPad = padded + '==='.slice((padded.length + 3) % 4)
+
+      const parsed = JSON.parse(atob(fixPad)) as {
+        currentAccessToken?: string
+        currentRefreshToken?: string
+      }
+
+      if (parsed.currentAccessToken && parsed.currentRefreshToken) {
+        // Seed the session; ignore error (will refresh later)
+        await supabase.auth.setSession({
+          access_token: parsed.currentAccessToken,
+          refresh_token: parsed.currentRefreshToken,
+        })
+        console.log('🪄 Supabase session seeded from cookies')
+      }
+    } catch (err) {
+      console.warn('⚠️ Failed to hydrate session from cookie', err)
+    }
+  }
 
   const loadUserProfile = async (authUser: User): Promise<AuthUser> => {
     if (!supabase) return authUser as AuthUser
@@ -80,95 +127,65 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return
     }
 
-    // Get initial session
-    const initializeAuth = async () => {
+    let authSubscription:
+      | ReturnType<typeof supabase.auth.onAuthStateChange>['data']['subscription']
+      | null = null
+
+    const initAuth = async () => {
+      // Seed from cookie first so getSession has something cached
+      await hydrateSessionFromCookie()
+
+      const getSessionWithTimeout = async <T,>(promise: Promise<T>, ms = 10000): Promise<T> =>
+        Promise.race([
+          promise,
+          new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+        ])
+
       try {
-        console.log('🔍 AuthContext: Starting session initialization...')
-        console.log(
-          '🔍 AuthContext: Supabase URL:',
-          process.env.NEXT_PUBLIC_SUPABASE_URL ? 'SET' : 'NOT SET'
-        )
-        console.log(
-          '🔍 AuthContext: Supabase Key:',
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'SET' : 'NOT SET'
-        )
+        const { data } = await getSessionWithTimeout(supabase.auth.getSession())
+        console.log('🔍 getSession priming call result', {
+          hasSession: !!data.session,
+          userId: data.session?.user?.id,
+        })
 
-        // Debug cookie information
-        if (typeof document !== 'undefined') {
-          const cookies = document.cookie.split('; ')
-          const authCookies = cookies.filter(c => c.includes('auth-token'))
-          console.log('🍪 AuthContext: Available cookies:', cookies.length)
-          console.log('🍪 AuthContext: Auth cookies:', authCookies)
-          console.log('🍪 AuthContext: Full document.cookie:', document.cookie)
+        if (data.session?.user) {
+          const enriched = await loadUserProfile(data.session.user)
+          setUser(enriched)
         }
+      } catch (e) {
+        console.warn('⚠️ getSession priming call failed', e)
+      } finally {
+        setIsLoading(false)
+      }
 
-        console.log('🔄 AuthContext: Calling supabase.auth.getSession()...')
-        const {
-          data: { session },
-          error,
-        } = await supabase.auth.getSession()
-
-        console.log('🔍 AuthContext: Session check result:', {
+      // Subscribe to ongoing auth changes
+      authSubscription = supabase.auth.onAuthStateChange(async (_event, session) => {
+        console.log('🔄 AuthContext: Auth state change:', {
           hasSession: !!session,
           hasUser: !!session?.user,
           userEmail: session?.user?.email,
-          sessionExpiresAt: session?.expires_at,
-          hasAccessToken: !!session?.access_token,
-          hasRefreshToken: !!session?.refresh_token,
-          error: error?.message || 'NONE',
         })
 
-        if (error) {
-          console.error('❌ Error getting initial session:', error)
+        try {
+          if (session?.user) {
+            const enrichedUser = await loadUserProfile(session.user)
+            setUser(enrichedUser)
+          } else {
+            setUser(null)
+          }
+        } catch (err) {
+          console.error('❌ Error handling auth state change:', err)
           setUser(null)
-        } else if (session?.user) {
-          console.log('🔄 Initial session found, loading user profile')
-          const enrichedUser = await loadUserProfile(session.user)
-          setUser(enrichedUser)
-        } else {
-          console.log('🔄 No initial session found')
-          setUser(null)
+        } finally {
+          setIsLoading(false)
         }
-      } catch (error) {
-        console.error('❌ Error initializing auth:', error)
-        setUser(null)
-      } finally {
-        setIsLoading(false)
-      }
+      }).data.subscription
     }
 
-    initializeAuth()
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('🔄 AuthContext: Auth state change:', {
-        event,
-        hasSession: !!session,
-        hasUser: !!session?.user,
-        userEmail: session?.user?.email,
-      })
-
-      try {
-        if (session?.user) {
-          console.log('✅ AuthContext: Setting user from auth state change')
-          const enrichedUser = await loadUserProfile(session.user)
-          setUser(enrichedUser)
-        } else {
-          console.log('❌ AuthContext: Clearing user from auth state change')
-          setUser(null)
-        }
-      } catch (error) {
-        console.error('❌ Error handling auth state change:', error)
-        setUser(null)
-      } finally {
-        setIsLoading(false)
-      }
-    })
+    initAuth()
 
     return () => {
-      subscription.unsubscribe()
+      authSubscription?.unsubscribe()
     }
   }, [supabase])
 

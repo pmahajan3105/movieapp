@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { useAuth } from '@/contexts/AuthContext'
@@ -13,6 +13,7 @@ import Image from 'next/image'
 import PreferencesSetup from '@/components/PreferencesSetup'
 import { MovieDetailsModal } from '@/components/movies/MovieDetailsModal'
 import type { Movie } from '@/types'
+import { logger } from '@/lib/logger'
 
 // Movie Card Component
 const MovieCard = ({
@@ -144,7 +145,7 @@ export default function SmartMoviesPage() {
     queryKey: ['movies-infinite-realtime', showingRecommendations],
     queryFn: async ({ pageParam = 1 }) => {
       const params = new URLSearchParams({
-        limit: '16', // 16 movies for 4 rows of 4 movies each
+        limit: '18', // 18 movies gives 3 rows of 6 or 6x3 layout
         page: pageParam.toString(),
         realtime: 'true',
         database: 'tmdb',
@@ -154,7 +155,7 @@ export default function SmartMoviesPage() {
       const response = await fetch(`/api/movies?${params}`)
       if (!response.ok) {
         const errorText = await response.text()
-        console.error('❌ Movie fetch error:', response.status, errorText)
+        logger.error('Movie fetch error', { status: response.status, errorText })
         throw new Error(`Failed to fetch movies: ${response.status} ${errorText}`)
       }
       const data = await response.json()
@@ -165,7 +166,7 @@ export default function SmartMoviesPage() {
         total: data.total || 10000,
         pagination: {
           currentPage: data.page || pageParam,
-          limit: parseInt(params.get('limit') || '16'),
+          limit: parseInt(params.get('limit') || '18'),
           hasMore: (data.page || pageParam) < (data.totalPages || 500),
           totalPages: data.totalPages || 500,
         },
@@ -186,18 +187,23 @@ export default function SmartMoviesPage() {
   const movies = data?.pages.flatMap(page => page.data) || []
   const totalMovies = data?.pages[0]?.total || 0
 
-  // Infinite scroll handler
+  // Infinite scroll handler with 200 ms debounce
+  const debounceRef = useRef<NodeJS.Timeout | null>(null)
+
   const handleScroll = useCallback(() => {
-    if (
-      window.innerHeight + document.documentElement.scrollTop >=
-        document.documentElement.offsetHeight - 800 && // Load when 800px from bottom (reduced threshold)
-      hasNextPage &&
-      !isFetchingNextPage &&
-      !isLoading
-    ) {
-      console.log('🔄 Triggering infinite scroll - loading more movies')
-      fetchNextPage()
-    }
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+
+    debounceRef.current = setTimeout(() => {
+      if (
+        window.innerHeight + document.documentElement.scrollTop >=
+          document.documentElement.offsetHeight - 400 && // tighter threshold
+        hasNextPage &&
+        !isFetchingNextPage &&
+        !isLoading
+      ) {
+        fetchNextPage()
+      }
+    }, 200)
   }, [hasNextPage, isFetchingNextPage, fetchNextPage, isLoading])
 
   // Set up scroll listener
@@ -243,7 +249,9 @@ export default function SmartMoviesPage() {
         console.error('Failed to save preferences')
       }
     } catch (error) {
-      console.error('Error saving preferences:', error)
+      logger.error('Error saving preferences', {
+        error: error instanceof Error ? error.message : String(error),
+      })
     } finally {
       setSavingPreferences(false)
     }

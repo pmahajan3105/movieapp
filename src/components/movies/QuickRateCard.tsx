@@ -1,27 +1,28 @@
 'use client'
 
-import React, { useState } from 'react'
+import React from 'react'
 import Image from 'next/image'
 import { ThumbsUp, ThumbsDown, Heart, X } from 'lucide-react'
 import { QuickRateCardProps } from '@/types'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useRateMovie } from '@/hooks/useRateMovie'
 
 export const QuickRateCard: React.FC<QuickRateCardProps> = ({ movie, onRate, className = '' }) => {
-  const [isRating, setIsRating] = useState(false)
+  const { mutate: rateMovie } = useRateMovie()
 
   const handleLike = () => {
-    setIsRating(true)
-    setTimeout(() => {
+    if (onRate) {
       onRate(true)
-    }, 200)
+    }
+    rateMovie({ movie_id: movie.id, interested: true })
   }
 
   const handleDislike = () => {
-    setIsRating(true)
-    setTimeout(() => {
+    if (onRate) {
       onRate(false)
-    }, 200)
+    }
+    rateMovie({ movie_id: movie.id, interested: false })
   }
 
   return (
@@ -30,7 +31,6 @@ export const QuickRateCard: React.FC<QuickRateCardProps> = ({ movie, onRate, cla
         'relative overflow-hidden rounded-xl bg-white shadow-lg',
         'border border-gray-200 transition-all duration-300',
         'mx-auto max-w-sm',
-        isRating && 'scale-95 opacity-75',
         className
       )}
     >
@@ -57,7 +57,6 @@ export const QuickRateCard: React.FC<QuickRateCardProps> = ({ movie, onRate, cla
               onClick={handleDislike}
               size="lg"
               className="transform rounded-full bg-red-500 p-4 text-white shadow-lg transition-all duration-200 hover:scale-110 hover:bg-red-600"
-              disabled={isRating}
             >
               <X className="h-8 w-8" />
             </Button>
@@ -66,7 +65,6 @@ export const QuickRateCard: React.FC<QuickRateCardProps> = ({ movie, onRate, cla
               onClick={handleLike}
               size="lg"
               className="transform rounded-full bg-green-500 p-4 text-white shadow-lg transition-all duration-200 hover:scale-110 hover:bg-green-600"
-              disabled={isRating}
             >
               <Heart className="h-8 w-8 fill-current" />
             </Button>
@@ -75,22 +73,15 @@ export const QuickRateCard: React.FC<QuickRateCardProps> = ({ movie, onRate, cla
 
         {/* Movie Rating */}
         {movie.rating && (
-          <div className="absolute left-3 top-3 flex items-center gap-1 rounded bg-black/70 px-2 py-1 text-sm text-white">
+          <div className="absolute top-3 left-3 flex items-center gap-1 rounded bg-black/70 px-2 py-1 text-sm text-white">
             ⭐ {movie.rating.toFixed(1)}
           </div>
         )}
 
         {/* Year Badge */}
-        <div className="absolute right-3 top-3 rounded bg-purple-600 px-2 py-1 text-sm font-medium text-white">
+        <div className="absolute top-3 right-3 rounded bg-purple-600 px-2 py-1 text-sm font-medium text-white">
           {movie.year}
         </div>
-
-        {/* Rating Animation Overlay */}
-        {isRating && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/80">
-            <div className="animate-pulse text-lg font-bold text-white">Rating...</div>
-          </div>
-        )}
       </div>
 
       {/* Movie Details */}
@@ -125,7 +116,6 @@ export const QuickRateCard: React.FC<QuickRateCardProps> = ({ movie, onRate, cla
             onClick={handleDislike}
             variant="outline"
             className="flex-1 border-red-300 text-red-600 transition-colors hover:bg-red-50"
-            disabled={isRating}
           >
             <ThumbsDown className="mr-2 h-4 w-4" />
             Skip
@@ -134,7 +124,6 @@ export const QuickRateCard: React.FC<QuickRateCardProps> = ({ movie, onRate, cla
           <Button
             onClick={handleLike}
             className="flex-1 bg-green-600 text-white transition-colors hover:bg-green-700"
-            disabled={isRating}
           >
             <ThumbsUp className="mr-2 h-4 w-4" />
             Like
@@ -151,7 +140,7 @@ export const QuickRateCard: React.FC<QuickRateCardProps> = ({ movie, onRate, cla
       </div>
 
       {/* Swipe Indicators */}
-      <div className="absolute bottom-20 left-0 right-0 flex justify-center gap-8 opacity-50">
+      <div className="absolute right-0 bottom-20 left-0 flex justify-center gap-8 opacity-50">
         <div className="flex items-center gap-1 text-red-500">
           <X className="h-4 w-4" />
           <span className="text-xs">Swipe left</span>

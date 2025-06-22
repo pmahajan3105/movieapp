@@ -2,12 +2,25 @@
 
 import React from 'react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 
 import { useAuth } from '@/contexts/AuthContext'
-import { ChatInterface } from '@/components/chat/ChatInterface'
 
 import type { PreferenceData } from '@/types/chat'
 import { Film, Sparkles, List, Brain, CheckCircle, Zap } from 'lucide-react'
+
+// Lazy-load chat to cut initial bundle size
+const ChatInterface = dynamic(
+  () => import('@/components/chat/ChatInterface').then(m => m.ChatInterface),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-40 items-center justify-center">
+        <span className="loading loading-spinner text-primary"></span>
+      </div>
+    ),
+  }
+)
 
 export default function DashboardPage() {
   const { user, isLoading, refreshUser } = useAuth()

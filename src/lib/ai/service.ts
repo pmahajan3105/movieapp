@@ -1,7 +1,7 @@
 // AI Service for CineAI - Anthropic Claude only
 import Anthropic from '@anthropic-ai/sdk'
 import { logger } from '@/lib/logger'
-import { DEFAULT_MODEL, FAST_MODEL } from './models'
+import { DEFAULT_MODEL } from './models'
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({
@@ -239,45 +239,6 @@ Return valid JSON only.`,
       ...options,
     })
   }
-
-  /**
-   * Search movies by mood/description
-   */
-  async moodSearch(
-    moodQuery: string,
-    availableMovies: string,
-    options: AICallOptions = {}
-  ): Promise<AIResponse> {
-    const messages: AIMessage[] = [
-      {
-        role: 'system',
-        content: `You are a movie mood-matching expert. Find movies that match the user's current mood or vague description from the available movies list.
-
-Guidelines:
-- Match movies to the mood/feeling described
-- Consider atmosphere, tone, and emotional impact
-- Provide 3-5 relevant matches
-- Explain why each movie fits the mood
-- Be creative with mood interpretation`,
-      },
-      {
-        role: 'user',
-        content: `Mood/Description: "${moodQuery}"
-
-Available Movies:
-${availableMovies}
-
-Find movies that match this mood:`,
-      },
-    ]
-
-    return this.chat(messages, {
-      model: options.model || FAST_MODEL, // Use faster model for mood search
-      temperature: 0.7,
-      maxTokens: 1500,
-      ...options,
-    })
-  }
 }
 
 // Export singleton instance
@@ -297,12 +258,4 @@ export async function extractUserPreferences(
   options?: AICallOptions
 ): Promise<AIResponse> {
   return aiService.extractPreferences(chatHistory, options)
-}
-
-export async function searchMoviesByMood(
-  moodQuery: string,
-  availableMovies: string,
-  options?: AICallOptions
-): Promise<AIResponse> {
-  return aiService.moodSearch(moodQuery, availableMovies, options)
 }
