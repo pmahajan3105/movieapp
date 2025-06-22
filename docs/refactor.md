@@ -70,6 +70,18 @@ _Stop the bleeding, fix core architectural issues_
 - **2025-06-22** Deleted unused `api/categories/route.ts` and confirmed no code references; `browse_categories` table already dropped in later migration → no typing needed.
 - **2025-06-22** Pruned remaining unused `withAuth` / `withErrorHandling` shims; consolidation task complete.
 - **2025-06-23** Deleted unused API routes: `api/ai/models`, `api/ai/memory/[action]`, `api/movie-databases`. Confirmed no frontend/tests reference them. Helper libs kept where still used by other routes.
+- **2025-06-22** Refactored hooks to eliminate `any` types (`useRateMovie`, `useWatchlist`, `useStreamingChat`) and swapped remaining `console.warn` with `logger.warn`. ESLint shows 0 `any` in `src/hooks/**`.
+
+#### Pending / In-Flight
+
+| Area            | Key Tasks Remaining                                                                                                                                                                          |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Type Safety** | • Replace `any` in `src/lib/**`, `api` routes, and tests.<br>• Update API response typing to use generated Supabase types.<br>• Re-enable strict type-checking for tests in `tsconfig.json`. |
+| **Logging**     | • Codemod remaining ~150 `console.*` calls across `lib/` and `api/` to use `logger.*`.<br>• Ensure `logger` import deduplication.                                                            |
+| **React Hooks** | • Fix `react-hooks/exhaustive-deps` warnings (e.g., `AuthContext`, `useEnhancedRecommendations`).                                                                                            |
+| **CI / Lint**   | • Adjust ESLint config to error on `no-console` after codemod.<br>• Reduce remaining `@typescript-eslint/no-explicit-any` warnings in tests or suppress via generics where practical.        |
+
+These have been added to the internal task tracker and will be tackled in the upcoming sprints.
 
 Next up:
 
@@ -112,7 +124,7 @@ All success criteria met:
 
 #### Tasks:
 
-- [ ] **Create API Factory Pattern**
+- [x] **Create API Factory Pattern**
 
   ```typescript
   // src/lib/api/factory.ts
@@ -123,7 +135,7 @@ All success criteria met:
   // Compose: withAuth(withError(withSupabase(myHandler)))
   ```
 
-- [ ] **Refactor 5 Routes First** (proof of concept)
+- [x] **Refactor 5 Routes First** (completed – 8 routes migrated)
 
   - `api/watchlist/route.ts`
   - `api/watchlist/[id]/route.ts`
@@ -131,7 +143,7 @@ All success criteria met:
   - `api/user/preferences/route.ts`
   - `api/movies/route.ts`
 
-- [ ] **Create Standard Response Format**
+- [x] **Create Standard Response Format**
   ```typescript
   interface ApiResponse<T> {
     success: boolean
@@ -635,7 +647,7 @@ _Ensure quality and maintainability_
 
 Make sure all type errors are fixed and test coverage is there
 
----
+## Streaming Responses: Consider implementing streaming responses for AI recommendations to improve perceived performance:
 
 ## Risk Mitigation
 
