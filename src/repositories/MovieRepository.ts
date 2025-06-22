@@ -9,7 +9,7 @@ export class MovieRepository {
   constructor(private supabase: SupabaseClient<Database>) {}
 
   // Convert database movie to domain Movie type
-  private toDomainMovie(dbMovie: DBMovie): Movie {
+  public toDomainMovie(dbMovie: DBMovie): Movie {
     return {
       ...dbMovie,
       poster_url: dbMovie.poster_url ?? undefined,

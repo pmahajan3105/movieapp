@@ -1,12 +1,7 @@
-import { createClient } from '@supabase/supabase-js'
 import type { Movie } from '@/types'
-// import { movieMemoryService } from '@/lib/mem0/client' // Disabled due to package removal
 import { analyzeCompleteUserBehavior, type UserBehaviorProfile } from './behavioral-analysis'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+import { createClient } from '@/lib/supabase/server-client'
+import { logger } from '@/lib/logger'
 
 // Type definitions for data structures
 type UserProfile = {
@@ -124,7 +119,7 @@ export async function buildEnhancedRecommendationContext(
   recommendationCount: number = 10,
   moodContext?: string
 ): Promise<EnhancedRecommendationContext> {
-  console.log('🚀 Building enhanced recommendation context for user:', userId)
+  logger.info('Building enhanced recommendation context for user:', { userId })
 
   try {
     // Run all data collection in parallel for maximum efficiency
@@ -182,7 +177,7 @@ export async function buildEnhancedRecommendationContext(
       intelligence_summary: intelligenceSummary,
     }
 
-    console.log('✅ Enhanced context built successfully:', {
+    logger.info('Enhanced context built successfully:', {
       watchedMovies: allWatchedMovies.length,
       watchlistMovies: allWatchlistMovies.length,
       memories:
@@ -195,7 +190,7 @@ export async function buildEnhancedRecommendationContext(
 
     return context
   } catch (error) {
-    console.error('❌ Error building enhanced context:', error)
+    logger.error('Error building enhanced context:', { error: String(error) })
     throw error
   }
 }
@@ -321,6 +316,7 @@ Important: Use the behavioral intelligence extensively. Reference specific patte
 // Helper functions for data collection
 
 async function getUserProfile(userId: string) {
+  const supabase = await createClient()
   const { data: profile } = await supabase
     .from('user_profiles')
     .select('*')
@@ -338,6 +334,7 @@ async function getUserProfile(userId: string) {
 }
 
 async function getConversationHistory(userId: string) {
+  const supabase = await createClient()
   const { data: sessions } = await supabase
     .from('chat_sessions')
     .select(
@@ -355,8 +352,8 @@ async function getConversationHistory(userId: string) {
 
   const allMessages =
     sessions?.flatMap(
-      session =>
-        session.chat_messages?.map(msg => ({
+      (session: any) =>
+        session.chat_messages?.map((msg: any) => ({
           role: msg.role as 'user' | 'assistant',
           content: msg.content,
           timestamp: msg.created_at,
@@ -374,6 +371,7 @@ async function getConversationHistory(userId: string) {
 }
 
 async function getAllWatchedMovies(userId: string) {
+  const supabase = await createClient()
   const { data, error } = await supabase
     .from('watchlist')
     .select(
@@ -389,23 +387,23 @@ async function getAllWatchedMovies(userId: string) {
     .order('watched_at', { ascending: false })
 
   if (error) {
-    console.error('Error fetching watched movies:', error)
+    logger.error('Error fetching watched movies:', { error: String(error) })
     return [] // Return empty array instead of throwing to prevent app crash
   }
 
   if (!data) return []
 
   // Get ratings for these movies from separate ratings table
-  const movieIds = data.map(item => item.movie_id)
+  const movieIds = data.map((item: any) => item.movie_id)
   const { data: ratingsData } = await supabase
     .from('ratings')
     .select('movie_id, rating')
     .eq('user_id', userId)
     .in('movie_id', movieIds)
 
-  const ratingsMap = new Map(ratingsData?.map(r => [r.movie_id, r.rating]) || [])
+  const ratingsMap = new Map(ratingsData?.map((r: any) => [r.movie_id, r.rating]) || [])
 
-  return data.map(item => ({
+  return data.map((item: any) => ({
     ...item,
     movie: item.movies as unknown as Movie,
     rating: ratingsMap.get(item.movie_id),
@@ -414,6 +412,7 @@ async function getAllWatchedMovies(userId: string) {
 }
 
 async function getAllWatchlistMovies(userId: string) {
+  const supabase = await createClient()
   const { data, error } = await supabase
     .from('watchlist')
     .select(
@@ -427,12 +426,12 @@ async function getAllWatchlistMovies(userId: string) {
     .order('added_at', { ascending: false })
 
   if (error) {
-    console.error('Error fetching watchlist:', error)
+    logger.error('Error fetching watchlist:', { error: String(error) })
     return [] // Return empty array instead of throwing to prevent app crash
   }
 
   return (
-    data?.map(item => ({
+    data?.map((item: any) => ({
       ...item,
       movie: item.movies as unknown as Movie,
     })) || []

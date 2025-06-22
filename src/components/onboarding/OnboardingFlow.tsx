@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -21,8 +21,8 @@ import {
   ThumbsDown,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
-import { supabase } from '@/lib/supabase/browser-client'
 import Image from 'next/image'
+import { useToast } from '@/hooks/useToast'
 
 interface OnboardingFlowProps {
   onComplete: () => void
@@ -113,8 +113,8 @@ export function OnboardingFlow({ onComplete, className = '' }: OnboardingFlowPro
   const [movieRatings, setMovieRatings] = useState<Record<string, number>>({})
   const [popularMovies, setPopularMovies] = useState<MovieRating[]>([])
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
   const [currentMovieIndex, setCurrentMovieIndex] = useState(0)
+  const { showSuccess, showError } = useToast()
 
   const totalSteps = 4
   const progress = (step / totalSteps) * 100
@@ -179,72 +179,65 @@ export function OnboardingFlow({ onComplete, className = '' }: OnboardingFlowPro
     }
   }
 
-  const savePreferences = async () => {
+  const submitRatings = async () => {
     if (!user) return
+
     setLoading(true)
-    setError('')
+    const ratingsArray = Array.from(Object.entries(movieRatings))
+    const validRatings = ratingsArray.filter(([, rating]) => rating > 0)
+
+    if (validRatings.length === 0) {
+      showError('No ratings to submit. Please rate at least one movie to continue')
+      setLoading(false)
+      return
+    }
 
     try {
-      // Calculate preferred genres from mood selections
-      const moodGenres = selectedMoods
-        .map(mood => MOOD_GENRES.find(mg => mg.mood === mood)?.genre)
-        .filter(Boolean) as string[]
+      // Submit all ratings in parallel for better performance
+      const ratingPromises = validRatings.map(([movieId, rating]) =>
+        fetch('/api/user/interactions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            movieId,
+            interactionType: 'rate',
+            rating,
+            context: {
+              source: 'onboarding',
+              timestamp: new Date().toISOString(),
+            },
+          }),
+        })
+      )
 
-      const allPreferredGenres = [...new Set([...selectedGenres, ...moodGenres])]
+      const results = await Promise.all(ratingPromises)
 
-      // Analyze movie ratings to extract preferences
-      const ratedMovies = Object.entries(movieRatings)
-      const likedMovies = ratedMovies.filter(([, rating]) => rating >= 4)
-      const dislikedMovies = ratedMovies.filter(([, rating]) => rating <= 2)
+      // Check if all requests were successful
+      const allSuccessful = results.every(res => res.ok)
 
-      const preferences = {
-        explicitGenres: selectedGenres,
-        preferredGenres: allPreferredGenres,
-        moods: selectedMoods,
-        movieRatings: movieRatings,
-        likedMovieIds: likedMovies.map(([id]) => id),
-        dislikedMovieIds: dislikedMovies.map(([id]) => id),
-        onboardingCompletedAt: new Date().toISOString(),
-        onboardingVersion: '2.0',
+      if (!allSuccessful) {
+        throw new Error('Some ratings failed to submit')
       }
 
-      const { error: profileError } = await supabase.from('user_profiles').upsert({
-        id: user.id,
-        email: user.email!,
-        preferences: preferences,
-        onboarding_completed: true,
-        updated_at: new Date().toISOString(),
+      // Update user profile
+      await fetch('/api/user/profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          preferences_set: true,
+        }),
       })
 
-      if (profileError) throw profileError
-
-      // Save individual movie ratings for the recommendation system
-      for (const [movieId, rating] of ratedMovies) {
-        if (rating > 0) {
-          try {
-            await fetch('/api/user/interactions', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                movieId,
-                interactionType: 'rate',
-                context: {
-                  rating,
-                  source: 'onboarding',
-                  timestamp: new Date().toISOString(),
-                },
-              }),
-            })
-          } catch (interactionError) {
-            console.warn('Failed to save movie interaction:', interactionError)
-          }
-        }
-      }
+      showSuccess('Preferences saved! Your movie preferences have been recorded.')
 
       onComplete()
-    } catch (err) {
-      console.error('Error saving preferences:', err)
-      setError('Failed to save preferences. Please try again.')
+    } catch (error) {
+      console.error('Failed to submit ratings:', error)
+      showError('Failed to save preferences. Please try again')
     } finally {
       setLoading(false)
     }
@@ -608,17 +601,13 @@ export function OnboardingFlow({ onComplete, className = '' }: OnboardingFlowPro
                   </p>
                 </div>
 
-                {error && (
-                  <div className="bg-error/10 text-error rounded-lg p-3 text-sm">{error}</div>
-                )}
-
                 <div className="flex justify-between pt-4">
                   <Button variant="outline" onClick={() => setStep(3)} disabled={loading}>
                     <ChevronLeft className="mr-2 h-4 w-4" />
                     Back
                   </Button>
 
-                  <Button onClick={savePreferences} disabled={loading} size="lg" className="px-8">
+                  <Button onClick={submitRatings} disabled={loading} size="lg" className="px-8">
                     {loading ? (
                       <>
                         <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-white" />

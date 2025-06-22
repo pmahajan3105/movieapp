@@ -240,9 +240,8 @@ export class SmartRecommenderV2 {
     userContext: UserContextVector,
     options: SmartRecommendationOptions
   ): Promise<EnhancedMovie[]> {
-    const enhancedMovies: EnhancedMovie[] = []
-
-    for (const movie of candidates) {
+    // Process all movies in parallel for better performance
+    const enhancedMoviesPromises = candidates.map(async movie => {
       try {
         // Get or generate movie embeddings
         let movieEmbedding = await this.getMovieEmbedding(movie)
@@ -275,7 +274,7 @@ export class SmartRecommenderV2 {
           matchCategories: categories,
         }
 
-        enhancedMovies.push(enhancedMovie)
+        return enhancedMovie
       } catch (error) {
         console.error(`❌ Failed to process movie ${movie.title}:`, error)
         // Include movie without enhancement
@@ -286,10 +285,12 @@ export class SmartRecommenderV2 {
           confidenceScore: 0.3,
           matchCategories: ['basic'],
         }
-        enhancedMovies.push(basicEnhancedMovie)
+        return basicEnhancedMovie
       }
-    }
+    })
 
+    // Wait for all movies to be processed
+    const enhancedMovies = await Promise.all(enhancedMoviesPromises)
     return enhancedMovies
   }
 

@@ -47,7 +47,7 @@ export class WatchlistRepository {
     // Transform the joined data to match expected structure
     return (data || []).map(item => ({
       ...item,
-      movie: item.movies ? this.movieRepo['toDomainMovie'](item.movies) : undefined,
+      movies: item.movies ? this.movieRepo.toDomainMovie(item.movies) : undefined,
     }))
   }
 
@@ -79,7 +79,7 @@ export class WatchlistRepository {
 
     return {
       ...data,
-      movie: data.movies ? this.movieRepo['toDomainMovie'](data.movies) : undefined,
+      movies: data.movies ? this.movieRepo.toDomainMovie(data.movies) : undefined,
     } as WatchlistItem
   }
 
@@ -115,7 +115,7 @@ export class WatchlistRepository {
 
     return {
       ...data,
-      movie: data.movies ? this.movieRepo['toDomainMovie'](data.movies) : undefined,
+      movies: data.movies ? this.movieRepo.toDomainMovie(data.movies) : undefined,
     } as WatchlistItem
   }
 
@@ -162,7 +162,7 @@ export class WatchlistRepository {
 
     return {
       ...data,
-      movie: data.movies ? this.movieRepo['toDomainMovie'](data.movies) : undefined,
+      movies: data.movies ? this.movieRepo.toDomainMovie(data.movies) : undefined,
     } as WatchlistItem
   }
 

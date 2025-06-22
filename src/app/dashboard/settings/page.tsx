@@ -487,7 +487,9 @@ export default function SettingsPage() {
                 </div>
               ) : (
                 <PreferencesSetup
-                  onSave={handleSaveManualPreferences}
+                  onSave={preferences => {
+                    void handleSaveManualPreferences(preferences as unknown as ManualPreferences)
+                  }}
                   onSkip={() => setActiveTab('ai-learned')}
                   isLoading={saving}
                 />

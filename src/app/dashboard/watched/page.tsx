@@ -38,8 +38,13 @@ export default function WatchedMoviesPage() {
       const response = await fetch('/api/watchlist?watched=true')
       const data = await response.json()
 
-      if (data.success && data.data && data.data.data) {
-        const watchedItems = data.data.data || []
+      if (data.success) {
+        // Handle both old format (data.data.data) and new format (data)
+        const watchedItems = Array.isArray(data.data)
+          ? data.data
+          : Array.isArray(data.data?.data)
+            ? data.data.data
+            : []
         const watched = watchedItems.filter((item: WatchedMovie) => item.watched)
         setWatchedMovies(watched)
       } else {

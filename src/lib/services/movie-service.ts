@@ -1,6 +1,7 @@
 // Unified Movie Service - TMDB as primary source with intelligent fallbacks
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import type { Movie } from '@/types'
+import { logger } from '@/lib/logger'
 
 // TMDB API interfaces
 interface TMDBMovie {
@@ -48,6 +49,13 @@ interface MovieServiceConfig {
   cacheMaxAge?: number // in minutes
 }
 
+export interface PaginatedMovieResults {
+  results: Movie[]
+  page: number
+  total_pages: number
+  total_results: number
+}
+
 export class MovieService {
   private tmdbApiKey: string
   private tmdbBaseUrl = 'https://api.themoviedb.org/3'
@@ -56,6 +64,7 @@ export class MovieService {
   private enableCache: boolean
   private cacheMaxAge: number
   private genreCache: Map<number, string> = new Map()
+  private genreCacheExpiry = 0
 
   constructor(config: MovieServiceConfig) {
     this.tmdbApiKey = config.tmdbApiKey
@@ -80,7 +89,7 @@ export class MovieService {
       )
 
       if (!response.ok) {
-        console.warn('Failed to load TMDB genres')
+        logger.warn('Failed to load TMDB genres', { status: response.status })
         return
       }
 
@@ -89,7 +98,7 @@ export class MovieService {
         this.genreCache.set(genre.id, genre.name)
       })
     } catch (error) {
-      console.warn('Error loading TMDB genres:', error)
+      logger.warn('Error loading TMDB genres:', { error: String(error) })
     }
   }
 
@@ -129,7 +138,7 @@ export class MovieService {
         page: data.page,
       }
     } catch (error) {
-      console.error('❌ TMDB trending error:', error)
+      logger.error('TMDB trending error:', { error: String(error) })
       // Fallback to local database
       return this.getLocalMovies({ limit, page })
     }
@@ -181,7 +190,7 @@ export class MovieService {
         page: data.page,
       }
     } catch (error) {
-      console.error('❌ TMDB search error:', error)
+      logger.error('TMDB search error:', { error: String(error) })
       // Fallback to local database search
       return this.searchLocalMovies(query, { limit, page })
     }
@@ -201,7 +210,7 @@ export class MovieService {
       const movie: TMDBMovieDetailed = await response.json()
       return this.transformTMDBToMovie(movie, true) // detailed = true
     } catch (error) {
-      console.error('❌ TMDB movie details error:', error)
+      logger.error('TMDB movie details error:', { error: String(error) })
       return null
     }
   }
@@ -232,7 +241,7 @@ export class MovieService {
 
       return this.formatMovieInfoForChat(detailedMovie)
     } catch (error) {
-      console.error('❌ Error getting movie info for chat:', error)
+      logger.error('Error getting movie info for chat:', { error: String(error), movieTitle })
       return `I encountered an error while looking up "${movieTitle}". Please try asking about the movie in a different way.`
     }
   }
@@ -331,7 +340,7 @@ export class MovieService {
         page,
       }
     } catch (error) {
-      console.error('❌ Local database error:', error)
+      logger.error('Local database error:', { error: String(error) })
       return {
         movies: [],
         totalResults: 0,
@@ -383,7 +392,7 @@ export class MovieService {
         page,
       }
     } catch (error) {
-      console.error('❌ Local database search error:', error)
+      logger.error('Local database search error:', { error: String(error) })
       return {
         movies: [],
         totalResults: 0,

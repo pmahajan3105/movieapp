@@ -2,6 +2,7 @@ import { embeddingService } from '@/lib/ai/embedding-service'
 import type { Movie } from '@/types'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/supabase-generated'
+import { logger } from '@/lib/logger'
 
 type TypedSupabaseClient = SupabaseClient<Database>
 
@@ -43,7 +44,12 @@ export class SemanticRecommendationService {
   ): Promise<SemanticRecommendationResponse> {
     const { userId, query, preferredGenres, mood, limit = 10, semanticThreshold = 0.7 } = request
 
-    console.log('🔍 Semantic search request:', { userId, query, preferredGenres, mood })
+    logger.info('Semantic search request:', {
+      userId,
+      hasQuery: !!query,
+      genreCount: preferredGenres?.length || 0,
+      mood: mood || 'none',
+    })
 
     let recommendedMovies: SemanticMovie[] = []
     let insights: RecommendationInsights = {
@@ -94,7 +100,7 @@ export class SemanticRecommendationService {
     limit: number,
     insights: RecommendationInsights
   ): Promise<SemanticMovie[]> {
-    console.log('🧠 Using semantic search for query:', query)
+    logger.info('Using semantic search for query:', { query })
 
     const semanticResults = await embeddingService.searchSimilarMovies(
       query,
@@ -146,7 +152,7 @@ export class SemanticRecommendationService {
     limit: number,
     insights: RecommendationInsights
   ): Promise<SemanticMovie[]> {
-    console.log('📋 Using preference-based fallback')
+    logger.info('📋 Using preference-based fallback')
 
     let query = this.supabase
       .from('movies')
@@ -212,7 +218,7 @@ export class SemanticRecommendationService {
         confidence: 0.7,
       })
     } catch (memoryError) {
-      console.warn('⚠️ Failed to save search memory:', memoryError)
+      logger.warn('⚠️ Failed to save search memory:', { error: String(memoryError) })
     }
   }
 

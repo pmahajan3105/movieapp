@@ -1,43 +1,41 @@
-import { useQuery } from '@tanstack/react-query'
-import type { EnhancedRecommendation } from '@/types'
+import { useState, useEffect } from 'react'
+import { Movie } from '@/types'
 
-const fetchAIRecommendations = async (userId: string): Promise<EnhancedRecommendation[]> => {
-  console.log('🔍 Fetching AI recommendations for user:', userId)
+export function useAIRecommendations(userId: string | undefined) {
+  const [recommendations, setRecommendations] = useState<Movie[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const response = await fetch('/api/ai/recommendations', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      userId: userId,
-      sessionId: `movies-page-${Date.now()}`,
-      message:
-        'I want personalized movie recommendations based on my preferences and viewing history',
-      count: 12,
-    }),
-  })
+  useEffect(() => {
+    if (!userId) return
 
-  console.log('📡 AI recommendations response status:', response.status)
+    const fetchRecommendations = async () => {
+      setLoading(true)
+      setError(null)
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
-    console.error('❌ AI recommendations error:', errorData)
-    throw new Error(errorData.error || 'Failed to fetch AI recommendations')
-  }
+      try {
+        const response = await fetch('/api/ai/recommendations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId }),
+        })
 
-  const data = await response.json()
-  console.log('✅ AI recommendations data:', data)
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || 'Failed to fetch recommendations')
+        }
 
-  // The API returns { recommendations: [...] } structure
-  return data.recommendations || []
-}
+        const data = await response.json()
+        setRecommendations(data.recommendations || [])
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An error occurred')
+      } finally {
+        setLoading(false)
+      }
+    }
 
-export const useAIRecommendations = (userId: string | undefined, options: { enabled: boolean }) => {
-  return useQuery<EnhancedRecommendation[], Error>({
-    queryKey: ['aiRecommendations', userId],
-    queryFn: () => fetchAIRecommendations(userId!),
-    enabled: !!userId && options.enabled,
-    staleTime: 1000 * 60 * 10, // 10 minute stale time for AI recs
-  })
+    fetchRecommendations()
+  }, [userId])
+
+  return { recommendations, loading, error }
 }

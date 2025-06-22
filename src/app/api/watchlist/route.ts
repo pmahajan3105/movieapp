@@ -1,78 +1,30 @@
-import { NextResponse } from 'next/server'
-import { withSupabase, withError } from '@/lib/api/factory'
-import { WatchlistRepository, MovieRepository } from '@/repositories'
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server-client'
+import { WatchlistRepository } from '@/repositories/WatchlistRepository'
+import { MovieRepository } from '@/repositories/MovieRepository'
+import { logger } from '@/lib/logger'
 
-// Helper to parse JSON body
-async function parseJsonBody<T = unknown>(request: Request): Promise<T> {
-  try {
-    return await request.json()
-  } catch {
-    throw new Error('Invalid JSON body')
-  }
-}
-
-// Helper to get query parameters
-function getQueryParams(request: Request) {
-  const { searchParams } = new URL(request.url)
-  return {
-    get: (key: string, defaultValue?: string) => searchParams.get(key) || defaultValue,
-    getNumber: (key: string, defaultValue = 0) => {
-      const value = searchParams.get(key)
-      return value ? parseInt(value, 10) : defaultValue
-    },
-    getBoolean: (key: string, defaultValue = false) => {
-      const value = searchParams.get(key)
-      if (value === null) return defaultValue
-      return value === 'true' || value === '1'
-    },
-  }
-}
-
-// Helper for pagination
-function getPagination(request: Request) {
-  const params = getQueryParams(request)
-  const page = Math.max(1, params.getNumber('page', 1))
-  const limit = Math.max(1, Math.min(100, params.getNumber('limit', 20))) // Cap at 100
-  const offset = (page - 1) * limit
-
-  return {
-    page,
-    limit,
-    offset,
-    range: [offset, offset + limit - 1] as [number, number],
-  }
-}
-
-interface TMDBGenre {
-  id: number
-  name: string
-}
-
-interface TMDBCrewMember {
-  job: string
-  name: string
-}
-
-interface TMDBCredits {
-  crew: TMDBCrewMember[]
-}
-
-interface TMDBMovieResponse {
-  title: string
-  release_date?: string
-  genres?: TMDBGenre[]
-  credits?: TMDBCredits
-  overview?: string
-  poster_path?: string | null
-  vote_average?: number
-  runtime?: number
-  imdb_id?: string | null
-}
-
-// ------------------------------------------------------------------
-// helper – fetch full movie details from TMDB and return a Movie row
+// Helper to fetch movie from TMDB API
 async function fetchTmdbMovie(tmdbId: number) {
   const apiKey = process.env.TMDB_API_KEY
+
+  if (!apiKey) {
+    logger.warn('TMDB API key not found, creating enhanced stub movie', { tmdbId })
+    // Return a better stub with the TMDB ID properly set
+    return {
+      title: `Movie ${tmdbId}`,
+      year: null,
+      genre: [],
+      director: [],
+      plot: 'Movie details will be loaded when TMDB API key is configured.',
+      poster_url: null,
+      rating: null,
+      runtime: null,
+      tmdb_id: tmdbId,
+      imdb_id: null,
+    }
+  }
+
   const resp = await fetch(
     `https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${apiKey}&append_to_response=credits`
   )
@@ -81,180 +33,241 @@ async function fetchTmdbMovie(tmdbId: number) {
     throw new Error(`TMDB API error: ${resp.status} ${resp.statusText}`)
   }
 
-  const m: TMDBMovieResponse = await resp.json()
+  const m = await resp.json()
 
   return {
     title: m.title,
-    year: m.release_date ? new Date(m.release_date).getFullYear() : undefined,
-    genre: (m.genres || []).map(g => g.name),
-    director: (m.credits?.crew || []).filter(c => c.job === 'Director').map(d => d.name),
+    year: m.release_date ? new Date(m.release_date).getFullYear() : null,
+    genre: (m.genres || []).map((g: any) => g.name),
+    director: (m.credits?.crew || [])
+      .filter((c: any) => c.job === 'Director')
+      .map((d: any) => d.name),
     plot: m.overview,
-    poster_url: m.poster_path ? `https://image.tmdb.org/t/p/w500${m.poster_path}` : undefined,
+    poster_url: m.poster_path ? `https://image.tmdb.org/t/p/w500${m.poster_path}` : null,
     rating: m.vote_average,
     runtime: m.runtime,
     tmdb_id: tmdbId,
-    imdb_id: m.imdb_id || undefined,
+    imdb_id: m.imdb_id || null,
   }
 }
-// ------------------------------------------------------------------
 
-// GET /api/watchlist - Get user's watchlist items
-export const GET = withError(
-  withSupabase(async ({ request, supabase }) => {
-    // Check authentication
+export async function GET(request: NextRequest) {
+  try {
+    const supabase = await createClient()
     const {
       data: { user },
       error: authError,
     } = await supabase.auth.getUser()
+
     if (authError || !user) {
+      logger.error('Authentication failed', { error: authError })
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const params = getQueryParams(request)
-    const pagination = getPagination(request)
-    const watched = params.get('watched')
+    // Parse query parameters
+    const { searchParams } = new URL(request.url)
+    const watchedParam = searchParams.get('watched')
+
+    const filters: { watched?: boolean } = {}
+    if (watchedParam !== null) {
+      filters.watched = watchedParam === 'true'
+    }
 
     const watchlistRepo = new WatchlistRepository(supabase)
+    const movieRepo = new MovieRepository(supabase)
 
-    try {
-      const filters = {
-        watched: watched !== null ? watched === 'true' : undefined,
-        limit: pagination.limit,
-        offset: pagination.offset,
-      }
+    logger.info('Fetching watchlist', { userId: user.id, filters })
+    const movies = await watchlistRepo.getUserWatchlist(user.id, filters)
+    logger.info('Watchlist fetched', { userId: user.id, count: movies.length, filters })
 
-      const data = await watchlistRepo.getUserWatchlist(user.id, filters)
-
-      return NextResponse.json({
-        success: true,
-        data: {
-          data: data || [],
-          pagination: {
-            page: pagination.page,
-            limit: pagination.limit,
-            hasMore: data && data.length === pagination.limit,
-          },
-        },
+    // Auto-refresh stub movies with TMDB details
+    const refreshPromises = movies
+      .filter(item => {
+        const movie = item.movies
+        return (
+          movie &&
+          movie.tmdb_id &&
+          (movie.title?.includes('Movie ') ||
+            movie.title?.includes('[Imported') ||
+            !movie.poster_url)
+        )
       })
-    } catch (error) {
-      console.error('Watchlist fetch error:', error)
-      return NextResponse.json(
-        { success: false, error: 'Failed to fetch watchlist' },
-        { status: 500 }
-      )
-    }
-  })
-)
+      .map(async item => {
+        try {
+          const movie = item.movies!
+          logger.info('Auto-refreshing stub movie', { movieId: movie.id, tmdbId: movie.tmdb_id })
+          const tmdbData = await fetchTmdbMovie(movie.tmdb_id!)
+          const movieUpdate = {
+            ...tmdbData,
+            poster_url: tmdbData.poster_url || undefined,
+            plot: tmdbData.plot || undefined,
+            imdb_id: tmdbData.imdb_id || undefined,
+          }
+          const updatedMovie = await movieRepo.update(movie.id, movieUpdate)
+          item.movies = updatedMovie
+          logger.info('Auto-refreshed movie details', {
+            movieId: movie.id,
+            title: updatedMovie.title,
+          })
+        } catch (error) {
+          logger.warn('Failed to auto-refresh movie', {
+            movieId: item.movies?.id,
+            error: String(error),
+          })
+        }
+      })
 
-// POST /api/watchlist - Add movie to watchlist
-export const POST = withError(
-  withSupabase(async ({ request, supabase }) => {
-    // Check authentication
+    // Wait for all refreshes to complete
+    await Promise.all(refreshPromises)
+
+    // Return in the expected format
+    return NextResponse.json({
+      success: true,
+      data: movies,
+    })
+  } catch (error) {
+    logger.error('Error fetching watchlist:', { error: String(error) })
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const supabase = await createClient()
     const {
       data: { user },
       error: authError,
     } = await supabase.auth.getUser()
+
     if (authError || !user) {
+      logger.error('Authentication failed', { error: authError })
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await parseJsonBody<{ movie_id: string; notes?: string }>(request)
-    let { movie_id, notes } = body
+    const body = await request.json()
+    let movieId = body.movie_id || body.movieId // Support both formats
+    const notes = body.notes
 
-    if (!movie_id) {
+    if (!movieId) {
       return NextResponse.json({ success: false, error: 'Movie ID is required' }, { status: 400 })
     }
 
     const movieRepo = new MovieRepository(supabase)
     const watchlistRepo = new WatchlistRepository(supabase)
 
-    try {
-      // First, try to find the movie in our local database
-      let movie = null
+    logger.info('Adding to watchlist', { userId: user.id, movieId })
 
-      if (movie_id.startsWith('tmdb_')) {
-        // For TMDB movies, check by tmdb_id
-        const tmdbId = parseInt(movie_id.replace('tmdb_', ''))
-        movie = await movieRepo.findByTmdbId(tmdbId)
+    // Handle TMDB IDs - find or create the movie in our database
+    if (movieId.startsWith('tmdb_')) {
+      const tmdbId = parseInt(movieId.replace('tmdb_', ''), 10)
 
-        // If not found, create it from TMDB
-        if (!movie) {
-          try {
-            const movieData = await fetchTmdbMovie(tmdbId)
-            movie = await movieRepo.create(movieData)
-          } catch (e) {
-            console.warn('⚠️ TMDB import failed, creating stub:', e)
-            movie = await movieRepo.create({
-              title: '[Imported from TMDB]',
-              tmdb_id: tmdbId,
-            })
-          }
-        }
-        movie_id = movie.id
-      } else if (movie_id.startsWith('tt')) {
-        // For IMDB movies, check by imdb_id
-        movie = await movieRepo.findByImdbId(movie_id)
+      // Try to find existing movie by TMDB ID
+      let movie = await movieRepo.findByTmdbId(tmdbId)
 
-        if (!movie) {
+      if (!movie) {
+        // Movie doesn't exist, create it
+        try {
+          const movieData = await fetchTmdbMovie(tmdbId)
+          movie = await movieRepo.create(movieData)
+          logger.info('Created movie from TMDB', { tmdbId, movieId: movie.id })
+        } catch (error) {
+          // Fallback: create a better stub movie
+          logger.warn('TMDB fetch failed, creating enhanced stub', { tmdbId, error: String(error) })
           movie = await movieRepo.create({
-            title: '[Imported from IMDB]',
-            imdb_id: movie_id,
+            title: `Movie ${tmdbId}`,
+            tmdb_id: tmdbId,
+            genre: [],
+            plot: 'Movie details will be loaded when TMDB API is available.',
           })
         }
-        movie_id = movie.id
-      } else {
-        // For UUID or other formats, check by ID
-        movie = await movieRepo.findById(movie_id)
-
-        if (!movie) {
-          return NextResponse.json({ success: false, error: 'Movie not found' }, { status: 404 })
-        }
       }
 
-      // Check if movie is already in watchlist
-      const isInWatchlist = await watchlistRepo.checkIfInWatchlist(user.id, movie_id)
+      // Use the actual UUID from our database
+      movieId = movie.id
+    }
 
-      if (isInWatchlist) {
-        return NextResponse.json(
-          { success: false, error: 'Movie is already in watchlist' },
-          { status: 400 }
-        )
-      }
-
-      // Add to watchlist
-      const data = await watchlistRepo.addToWatchlist(user.id, movie_id, notes)
-
-      return NextResponse.json({ success: true, data }, { status: 200 })
-    } catch (error) {
-      console.error('Watchlist insert error:', error)
+    // Check if already in watchlist
+    const isInWatchlist = await watchlistRepo.checkIfInWatchlist(user.id, movieId)
+    if (isInWatchlist) {
       return NextResponse.json(
-        { success: false, error: 'Failed to add to watchlist' },
-        { status: 500 }
+        { success: false, error: 'Movie is already in watchlist' },
+        { status: 400 }
       )
     }
-  })
-)
 
-// PATCH /api/watchlist - Update watchlist item (mark as watched, add rating, etc.)
-export const PATCH = withError(
-  withSupabase(async ({ request, supabase }) => {
-    // Check authentication
+    const result = await watchlistRepo.addToWatchlist(user.id, movieId, notes)
+    logger.info('Movie added to watchlist', { userId: user.id, movieId })
+
+    return NextResponse.json({
+      success: true,
+      data: result,
+    })
+  } catch (error) {
+    logger.error('Error adding to watchlist:', { error: String(error) })
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const supabase = await createClient()
     const {
       data: { user },
       error: authError,
     } = await supabase.auth.getUser()
+
     if (authError || !user) {
+      logger.error('Authentication failed', { error: authError })
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await parseJsonBody<{
-      movie_id?: string
-      watchlist_id?: string
-      watched?: boolean
-      rating?: number
-      notes?: string
-    }>(request)
+    const { searchParams } = new URL(request.url)
+    let movieId = searchParams.get('movie_id') || searchParams.get('movieId')
 
+    if (!movieId) {
+      return NextResponse.json({ success: false, error: 'Movie ID is required' }, { status: 400 })
+    }
+
+    const movieRepo = new MovieRepository(supabase)
+    const watchlistRepo = new WatchlistRepository(supabase)
+
+    // Handle TMDB IDs - convert to actual UUID
+    if (movieId.startsWith('tmdb_')) {
+      const tmdbId = parseInt(movieId.replace('tmdb_', ''), 10)
+      const movie = await movieRepo.findByTmdbId(tmdbId)
+      if (movie) {
+        movieId = movie.id
+      }
+    }
+
+    logger.info('Removing from watchlist', { userId: user.id, movieId })
+    await watchlistRepo.removeFromWatchlist(user.id, movieId)
+    logger.info('Movie removed from watchlist', { userId: user.id, movieId })
+
+    return NextResponse.json({
+      success: true,
+      message: 'Removed from watchlist',
+    })
+  } catch (error) {
+    logger.error('Error removing from watchlist:', { error: String(error) })
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      logger.error('Authentication failed', { error: authError })
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const body = await request.json()
     const { movie_id, watchlist_id, watched, rating, notes } = body
 
     if (!movie_id && !watchlist_id) {
@@ -265,86 +278,30 @@ export const PATCH = withError(
     }
 
     const watchlistRepo = new WatchlistRepository(supabase)
-    const movieRepo = new MovieRepository(supabase)
 
-    try {
-      let data
+    // Use the general update method that handles both watched true/false
+    if (watchlist_id) {
+      const updates: { watched?: boolean; rating?: number; notes?: string } = {}
 
-      if (watched === true && watchlist_id) {
-        // Mark as watched with optional rating and notes
-        data = await watchlistRepo.markAsWatched(watchlist_id, user.id, { rating, notes })
-      } else {
-        // General update
-        const itemId = watchlist_id || movie_id!
-        data = await watchlistRepo.updateWatchlistItem(itemId, user.id, {
-          watched,
-          rating,
-          notes,
-        })
-      }
+      if (watched !== undefined) updates.watched = watched
+      if (rating !== undefined) updates.rating = rating
+      if (notes !== undefined) updates.notes = notes
 
-      // If marking as watched and movie is a stub, fetch full TMDB details
-      if (watched === true && data && data.movie) {
-        const movie = data.movie
-        if (movie.tmdb_id && (!movie.poster_url || movie.title.startsWith('[Imported'))) {
-          try {
-            const fullMovieData = await fetchTmdbMovie(movie.tmdb_id)
-            const updatedMovie = await movieRepo.update(movie.id, fullMovieData)
-            // Update the response with enriched movie data
-            data.movie = updatedMovie
-          } catch (e) {
-            console.warn('TMDB enrichment failed:', e)
-          }
-        }
-      }
+      const result = await watchlistRepo.updateWatchlistItem(watchlist_id, user.id, updates)
+      logger.info('Watchlist item updated', { watchlistId: watchlist_id, userId: user.id, updates })
 
       return NextResponse.json({
         success: true,
-        data,
+        data: result,
       })
-    } catch (error) {
-      console.error('Watchlist update error:', error)
-      return NextResponse.json(
-        { success: false, error: 'Failed to update watchlist item' },
-        { status: 500 }
-      )
-    }
-  })
-)
-
-// DELETE /api/watchlist - Remove movie from watchlist
-export const DELETE = withError(
-  withSupabase(async ({ request, supabase }) => {
-    // Check authentication
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const params = getQueryParams(request)
-    const movie_id = params.get('movie_id')
-
-    if (!movie_id) {
-      return NextResponse.json({ success: false, error: 'Movie ID is required' }, { status: 400 })
-    }
-
-    const watchlistRepo = new WatchlistRepository(supabase)
-
-    try {
-      await watchlistRepo.removeFromWatchlist(user.id, movie_id)
-      return NextResponse.json(
-        { success: true, message: 'Removed from watchlist' },
-        { status: 200 }
-      )
-    } catch (error) {
-      console.error('Watchlist delete error:', error)
-      return NextResponse.json(
-        { success: false, error: 'Failed to remove from watchlist' },
-        { status: 500 }
-      )
-    }
-  })
-)
+    return NextResponse.json(
+      { success: false, error: 'Watchlist ID is required for updates' },
+      { status: 400 }
+    )
+  } catch (error) {
+    logger.error('Error updating watchlist:', { error: String(error) })
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
+  }
+}
