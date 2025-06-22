@@ -93,6 +93,7 @@ jest.mock('@supabase/ssr', () => ({
       single: jest.fn(),
       upsert: jest.fn().mockReturnThis(),
     })),
+    rpc: jest.fn().mockResolvedValue({ data: null, error: null }),
   })),
   createServerClient: jest.fn(() => ({
     auth: {
@@ -108,6 +109,7 @@ jest.mock('@supabase/ssr', () => ({
       single: jest.fn(),
       upsert: jest.fn().mockReturnThis(),
     })),
+    rpc: jest.fn().mockResolvedValue({ data: null, error: null }),
   })),
 }))
 

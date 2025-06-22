@@ -184,6 +184,26 @@ src/services/
 
 ---
 
+## 2.5 · Phase 1.5 — Test Infrastructure Overhaul (_1-2 days_)
+
+| #   | Item                                                              | Owner    | Status | Notes / AC                                                                                   |
+| --- | ----------------------------------------------------------------- | -------- | ------ | -------------------------------------------------------------------------------------------- |
+| 1   | **Fix TDZ (Temporal Dead Zone) errors in test files**             | @testing | 🟡     | Fix 4 failing test suites using factory functions. All tests should pass without TDZ errors. |
+| 2   | **Create centralized mock setup (`src/__tests__/setupMocks.ts`)** | @testing | 🟠     | Global Supabase, Next.js, and Lucide mocks. Eliminate per-file mocking patterns.             |
+| 3   | **Add missing mock methods (rpc, storage, realtime)**             | @testing | 🟡     | Complete Supabase client mocks. RLS test should pass with proper `rpc` mocking.              |
+| 4   | **Simple integration tests for working components**               | @testing | 🟠     | Test MovieCard, Button, Badge without complex dependencies. 90%+ pass rate.                  |
+| 5   | **Jest configuration modernization**                              | @testing | 🟠     | Update module resolution, add coverage thresholds, fix path aliases.                         |
+| 6   | **Performance test guards for debounce utility**                  | @testing | 🟠     | Benchmark tests ensure debounce performance < 10ms overhead.                                 |
+| 7   | **E2E smoke tests with Playwright (basic)**                       | @testing | ⏩     | Login flow, movie search, watchlist add/remove. Deferred to Phase 3.                         |
+
+### Current Test Status
+
+- **Test Suites**: 5 failed, 31 skipped (TDZ errors, mock mismatches)
+- **Root Causes**: Inconsistent mocking patterns, Jest hoisting issues, missing mock methods
+- **Immediate Priority**: Fix TDZ errors using factory functions, then add simple component tests
+
+---
+
 ## 3 · Phase 2 — Logging & Error Handling (_2 days_)
 
 | Tasks                                                                                 | Owner    | Status | AC                                                                     |
@@ -221,5 +241,3 @@ src/services/
 | AI cost over-run after refactor   | Add usage logging (Phase 3) before enabling new features.          |
 
 ---
-
-## 7 · Timeline (Gantt-ish)

@@ -438,7 +438,11 @@ export class EmbeddingService {
   }
 
   /**
-   * Batch process movies to generate embeddings
+   * Processes a list of movies in batches to generate and save their embeddings.
+   * Includes a delay between batches to prevent rate-limiting on the embedding service.
+   * @param movies - An array of movie objects to process.
+   * @param batchSize - The number of movies to process in each batch.
+   * @returns A promise that resolves to the number of movies successfully processed.
    */
   async batchProcessMovies(movies: Movie[], batchSize: number = 5): Promise<number> {
     let processed = 0

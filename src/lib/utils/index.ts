@@ -30,14 +30,21 @@ export function generateId(): string {
   return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
 }
 
-export function debounce<T extends (...args: unknown[]) => void>(
+/**
+ * Creates a debounced function that delays invoking `func` until after `delay`
+ * milliseconds have passed since the last time the debounced function was invoked.
+ * @param func The function to debounce.
+ * @param delay The number of milliseconds to delay.
+ * @returns A new debounced function.
+ */
+export function debounce<T extends (...args: any[]) => any>(
   func: T,
-  wait: number
+  delay: number
 ): (...args: Parameters<T>) => void {
-  let timeout: NodeJS.Timeout | null = null
+  let timeout: ReturnType<typeof setTimeout> | null = null
 
-  return (...args: Parameters<T>) => {
+  return function (this: ThisParameterType<T>, ...args: Parameters<T>) {
     if (timeout) clearTimeout(timeout)
-    timeout = setTimeout(() => func(...args), wait)
+    timeout = setTimeout(() => func.apply(this, args), delay)
   }
 }

@@ -130,6 +130,11 @@ export default function SmartMoviesPage() {
   const [showPreferencesSetup, setShowPreferencesSetup] = useState(false)
   const [savingPreferences, setSavingPreferences] = useState(false)
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null)
+  // TODO: Implement filters and scroll restoration
+  // const [showFilters, setShowFilters] = useState(false)
+  // const [appliedFilters, setAppliedFilters] = useState<Record<string, string | number>>({})
+  // const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Infinite scroll query
   const {
@@ -188,8 +193,6 @@ export default function SmartMoviesPage() {
   const totalMovies = data?.pages[0]?.total || 0
 
   // Infinite scroll handler with 200 ms debounce
-  const debounceRef = useRef<NodeJS.Timeout | null>(null)
-
   const handleScroll = useCallback(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
 

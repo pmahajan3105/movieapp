@@ -29,9 +29,12 @@ export function SearchInterface({
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(-1)
+  // TODO: Implement autocomplete and debounce indicators
+  // const [isAutocompleteLoading, setAutocompleteLoading] = useState(false)
+  // const [isDebouncing, setDebouncing] = useState(false)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const inputRef = useRef<HTMLInputElement>(null)
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Debounced autocomplete
   useEffect(() => {

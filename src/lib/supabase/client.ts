@@ -422,15 +422,23 @@ export const db = {
 
 export const rls = {
   /**
-   * Enable RLS on all tables (run this during setup)
+   * Enables Row Level Security on a predefined list of tables.
+   * This function runs the operations in parallel for efficiency.
+   * It is intended to be used during initial application setup.
    */
   async enableAllTables() {
     const tables = ['user_profiles', 'swipes', 'watchlist', 'recommendation_queue']
+    const promises = tables.map(table => supabase.rpc('enable_rls', { table_name: table }))
 
-    for (const table of tables) {
-      const { error } = await supabase.rpc('enable_rls', { table_name: table })
-      if (error) console.error(`Failed to enable RLS on ${table}:`, error)
-    }
+    const results = await Promise.allSettled(promises)
+
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        console.error(`Failed to enable RLS on ${tables[index]}:`, result.reason)
+      } else if (result.value.error) {
+        console.error(`Failed to enable RLS on ${tables[index]}:`, result.value.error)
+      }
+    })
   },
 
   /**
