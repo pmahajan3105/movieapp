@@ -9,9 +9,13 @@ import {
   usePreferenceExtraction,
   useEnhancedRecommendations,
 } from './hooks'
+import type { PreferenceData } from '@/types/chat'
 
 interface ChatInterfaceProps {
-  onPreferencesExtracted?: (preferences: any) => void
+  sessionId?: string
+  onClose?: () => void
+  onPreferencesExtracted?: (preferences: PreferenceData) => void
+  className?: string
 }
 
 export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps = {}) {

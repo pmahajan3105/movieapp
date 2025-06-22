@@ -43,31 +43,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     ? `sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`
     : ''
 
-  const loadUserProfile = async (authUser: User): Promise<AuthUser> => {
-    if (!supabase) return authUser as AuthUser
+  const loadUserProfile = React.useCallback(
+    async (authUser: User): Promise<AuthUser> => {
+      if (!supabase) return authUser as AuthUser
 
-    try {
-      const { data: userProfile, error } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', authUser.id)
-        .single()
+      try {
+        const { data: userProfile, error } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', authUser.id)
+          .single()
 
-      if (error && error.code !== 'PGRST116') {
-        logger.warn('Error loading user profile', { message: error.message })
+        if (error && error.code !== 'PGRST116') {
+          logger.warn('Error loading user profile', { message: error.message })
+        }
+
+        return {
+          ...authUser,
+          profile: userProfile || undefined,
+        }
+      } catch (error) {
+        logger.error('Error loading user profile', {
+          error: error instanceof Error ? error.message : String(error),
+        })
+        return authUser as AuthUser
       }
-
-      return {
-        ...authUser,
-        profile: userProfile || undefined,
-      }
-    } catch (error) {
-      logger.error('Error loading user profile', {
-        error: error instanceof Error ? error.message : String(error),
-      })
-      return authUser as AuthUser
-    }
-  }
+    },
+    [supabase]
+  )
 
   const reloadProfile = async () => {
     if (!user || !supabase) return
@@ -160,7 +163,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       authSubscription?.unsubscribe()
     }
-  }, [supabase])
+  }, [supabase, loadUserProfile, supabaseCookieName])
 
   const value = {
     user,

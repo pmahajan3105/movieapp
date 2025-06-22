@@ -220,7 +220,7 @@ export const db = {
     async upsert(movie: MovieInsert): Promise<Movie> {
       const { data, error } = await supabase
         .from('movies')
-        .upsert(movie, { onConflict: 'omdb_id' })
+        .upsert(movie, { onConflict: 'tmdb_id' })
         .select()
         .single()
 

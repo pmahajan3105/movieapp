@@ -78,10 +78,10 @@ function SearchMovieCard({ movie, onMovieClick, variant = 'card' }: SearchMovieC
                   {movie.runtime}m
                 </div>
               )}
-              {movie.rating && (
+              {movie.rating !== null && movie.rating !== undefined && (
                 <div className="flex items-center gap-1">
                   <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                  {movie.rating}
+                  {Number(movie.rating).toFixed(1)}
                 </div>
               )}
             </div>
@@ -120,9 +120,9 @@ function SearchMovieCard({ movie, onMovieClick, variant = 'card' }: SearchMovieC
             <span className="text-gray-500">No poster</span>
           </div>
         )}
-        {movie.rating && (
+        {movie.rating !== null && movie.rating !== undefined && (
           <div className="absolute top-2 right-2 rounded bg-black/70 px-2 py-1 text-xs text-white">
-            ⭐ {movie.rating}
+            ⭐ {Number(movie.rating).toFixed(1)}
           </div>
         )}
       </div>

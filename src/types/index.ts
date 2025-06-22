@@ -14,7 +14,6 @@ export interface Movie {
   release_date?: string // YYYY-MM-DD (TMDB API)
   rating?: number
   runtime?: number
-  omdb_id?: string
   imdb_id?: string
   tmdb_id?: number
   popularity?: number
@@ -23,7 +22,7 @@ export interface Movie {
   updated_at?: string
 
   // Allow additional nullable DB fields during migration
-  [key: string]: any
+  [key: string]: unknown
 }
 
 // User Types

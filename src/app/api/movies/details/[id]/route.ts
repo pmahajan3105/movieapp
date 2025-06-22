@@ -4,12 +4,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const { id: movieId } = await params
 
-    // OMDb API integration will be implemented here
+    // TMDB API integration will be implemented here
     console.log('Fetching movie details for ID:', movieId)
 
     return NextResponse.json({
       movie: null,
-      message: 'Movie details will be fetched from OMDb API',
+      message: 'Movie details will be fetched from TMDB API',
     })
   } catch (error) {
     console.error('Movie details error:', error)

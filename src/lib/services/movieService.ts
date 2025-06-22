@@ -81,7 +81,7 @@ export async function getMoviesByPreferences({
 
   if (error) {
     console.error('❌ Error with preference-based query:', error)
-    return null // Indicate failure to allow fallback
+    throw new Error(`Failed to fetch preference-based movies: ${error.message}`)
   }
 
   const totalCount = count || 0

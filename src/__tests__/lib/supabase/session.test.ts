@@ -1,4 +1,8 @@
-import { hydrateSessionFromCookie, promiseWithTimeout } from '@/lib/supabase/session'
+import {
+  hydrateSessionFromCookie,
+  promiseWithTimeout,
+  clearAuthCookie,
+} from '@/lib/supabase/session'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 // Utility to create a base64-url string
@@ -50,5 +54,15 @@ describe('supabase session helpers', () => {
   it('promiseWithTimeout rejects when promise exceeds timeout', async () => {
     const slow = new Promise(resolve => setTimeout(() => resolve('late'), 100))
     await expect(promiseWithTimeout(slow, 10)).rejects.toThrow('timeout')
+  })
+
+  it('clearAuthCookie removes auth token', () => {
+    const testCookie = `${cookieName}=value`
+    document.cookie = testCookie
+
+    clearAuthCookie(cookieName)
+
+    // After clearing, cookie string should not include the auth token name
+    expect(document.cookie.includes(cookieName)).toBe(false)
   })
 })

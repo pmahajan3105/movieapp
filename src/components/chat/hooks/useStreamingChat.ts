@@ -1,12 +1,13 @@
 import { useState, useRef, useCallback } from 'react'
 import { logger } from '@/lib/logger'
+import type { PreferenceData } from '@/types/chat'
 
 interface StreamEvent {
   type: 'start' | 'content' | 'complete' | 'error'
   content?: string
   sessionId?: string
   preferencesExtracted?: boolean
-  preferences?: unknown
+  preferences?: PreferenceData
   fullResponse?: string
   error?: string
   timestamp: string
@@ -14,7 +15,7 @@ interface StreamEvent {
 
 interface UseStreamingChatProps {
   onComplete?: (fullResponse: string) => void
-  onPreferencesExtracted?: (preferences: unknown) => void
+  onPreferencesExtracted?: (preferences: PreferenceData) => void
   onSessionStart?: (sessionId: string) => void
 }
 

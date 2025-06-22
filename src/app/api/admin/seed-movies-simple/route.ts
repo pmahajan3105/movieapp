@@ -10,27 +10,13 @@ export async function POST() {
     )
 
     // Check if movies already exist
-    const { data: existingMovies, error: checkError } = await supabase
-      .from('movies')
-      .select('id')
-      .limit(1)
-
-    if (checkError) {
-      console.error('Database check error:', checkError)
-      return NextResponse.json(
-        {
-          error: 'Failed to check existing movies',
-          details: checkError,
-        },
-        { status: 500 }
-      )
-    }
+    const { data: existingMovies } = await supabase.from('movies').select('id').limit(1)
 
     if (existingMovies && existingMovies.length > 0) {
       return NextResponse.json({
         success: true,
         message: 'Movies already exist in database',
-        count: existingMovies.length,
+        skipped: true,
       })
     }
 
@@ -46,8 +32,8 @@ export async function POST() {
           'https://m.media-amazon.com/images/M/MV5BNDE3ODcxYzMtY2YzZC00NmNlLWJiNDMtZDViZWM2MzIxZDYwXkEyXkFqcGdeQXVyNjAwNDUxODI@._V1_SX300.jpg',
         rating: 9.3,
         runtime: 142,
-        omdb_id: 'tt0111161',
         imdb_id: 'tt0111161',
+        tmdb_id: 278,
       },
       {
         title: 'The Godfather',
@@ -59,8 +45,8 @@ export async function POST() {
           'https://m.media-amazon.com/images/M/MV5BM2MyNjYxNmUtYTAwNi00MTYxLWJmNWYtYzZlODY3ZTk3OTFlXkEyXkFqcGdeQXVyNzUwNDM@._V1_SX300.jpg',
         rating: 9.2,
         runtime: 175,
-        omdb_id: 'tt0068646',
         imdb_id: 'tt0068646',
+        tmdb_id: 238,
       },
       {
         title: 'The Dark Knight',
@@ -72,8 +58,8 @@ export async function POST() {
           'https://m.media-amazon.com/images/M/MV5BMTMxNTMwODM0NF5BMl5BanBnXkFtZTcwODAyMTk2Mw@@._V1_SX300.jpg',
         rating: 9.0,
         runtime: 152,
-        omdb_id: 'tt0468569',
         imdb_id: 'tt0468569',
+        tmdb_id: 155,
       },
       {
         title: 'Inception',
@@ -85,8 +71,8 @@ export async function POST() {
           'https://m.media-amazon.com/images/M/MV5BMjAxMzY3NjcxNF5BMl5BanBnXkFtZTcwNTI5OTM0Mw@@._V1_SX300.jpg',
         rating: 8.8,
         runtime: 148,
-        omdb_id: 'tt1375666',
         imdb_id: 'tt1375666',
+        tmdb_id: 27205,
       },
       {
         title: 'Pulp Fiction',
@@ -98,8 +84,8 @@ export async function POST() {
           'https://m.media-amazon.com/images/M/MV5BNGNhMDIzZTUtNTBlZi00MTRlLWFjM2ItYzViMjE3YzI5MjljXkEyXkFqcGdeQXVyNjU0OTQ0OTY@._V1_SX300.jpg',
         rating: 8.9,
         runtime: 154,
-        omdb_id: 'tt0110912',
         imdb_id: 'tt0110912',
+        tmdb_id: 680,
       },
     ]
 

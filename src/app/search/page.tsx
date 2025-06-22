@@ -47,21 +47,15 @@ function SearchPageContent() {
       if (searchFilters.sortBy) params.set('sortBy', searchFilters.sortBy)
       if (searchFilters.sortOrder) params.set('sortOrder', searchFilters.sortOrder)
 
-      console.log('🔍 Performing search with filters:', searchFilters)
-
-      // Use TMDB for search instead of OMDB to ensure consistent movie ID format
-      const response = await fetch(
-        `/api/movies?realtime=true&database=tmdb&query=${encodeURIComponent(searchFilters.query || '')}&limit=${searchFilters.limit || 20}&page=${Math.floor((searchFilters.offset || 0) / (searchFilters.limit || 20)) + 1}`
-      )
+      const response = await fetch(`/api/movies/search?${params.toString()}`)
       const data = await response.json()
 
-      console.log('🔍 Search API response:', data)
-
-      if (data.movies && Array.isArray(data.movies)) {
+      const payload = data.data || data // backward compatibility
+      if (payload.movies && Array.isArray(payload.movies)) {
         // Transform TMDB response to match SearchResponse format
         const searchResponse = {
-          movies: data.movies,
-          totalCount: data.total || data.movies.length,
+          movies: payload.movies,
+          totalCount: payload.total || payload.movies.length,
           facets: {
             genres: [],
             years: [],
@@ -71,15 +65,15 @@ function SearchPageContent() {
           searchMeta: {
             query: searchFilters.query || '',
             appliedFilters: searchFilters as Record<string, unknown>,
-            resultCount: data.movies.length,
+            resultCount: payload.movies.length,
             executionTime: 0,
           },
         }
         setSearchResults(searchResponse)
-        console.log(`🔍 Search successful: ${data.movies.length} movies found`)
+        console.log(`🔍 Search successful: ${payload.movies.length} movies found`)
       } else {
-        console.error('🔍 Search failed - unexpected response format:', data)
-        toast.error(data.error || 'Search failed')
+        console.error('🔍 Search failed - unexpected response format:', payload)
+        toast.error(payload.error || 'Search failed')
         setSearchResults(undefined)
       }
     } catch (error) {
@@ -140,9 +134,9 @@ function SearchPageContent() {
     [addToWatchlist]
   )
 
-  // Initial search on mount
+  // Initial search on mount and when filters change
   useEffect(() => {
-    if (filters.query) {
+    if (filters.query || filters.genres?.length || filters.yearRange || filters.minRating) {
       performSearch(filters)
     }
   }, [filters, performSearch])
@@ -151,14 +145,10 @@ function SearchPageContent() {
   useEffect(() => {
     const queryFromUrl = searchParams.get('q') || ''
     if (queryFromUrl !== filters.query) {
-      const newFilters = { ...filters, query: queryFromUrl, offset: 0 }
-      setFilters(newFilters)
+      setFilters(prev => ({ ...prev, query: queryFromUrl, offset: 0 }))
       setCurrentPage(1)
-      if (queryFromUrl) {
-        performSearch(newFilters)
-      }
     }
-  }, [searchParams, filters, performSearch])
+  }, [searchParams]) // Only depend on searchParams
 
   const currentQuery = filters.query || searchParams.get('q') || ''
 

@@ -13,7 +13,7 @@ describe('Environment Configuration', () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-key'
     process.env.ANTHROPIC_API_KEY = 'test-anthropic-key'
     process.env.GROQ_API_KEY = 'test-groq-key'
-    ;(process.env as any).NODE_ENV = 'test'
+    process.env.NODE_ENV = 'test'
     process.env.NEXT_PUBLIC_APP_ENV = 'development'
 
     // Clear module cache
@@ -45,18 +45,18 @@ describe('Environment Configuration', () => {
 
     it('includes optional database configuration when provided', async () => {
       process.env.MOVIE_DEFAULT_DATABASE = 'tmdb'
-      process.env.MOVIE_SEARCH_DATABASE = 'omdb'
+      process.env.MOVIE_SEARCH_DATABASE = 'tmdb'
       jest.resetModules()
 
       const env = await import('../../lib/env')
       const config = env.getEnv()
 
       expect(config.MOVIE_DEFAULT_DATABASE).toBe('tmdb')
-      expect(config.MOVIE_SEARCH_DATABASE).toBe('omdb')
+      expect(config.MOVIE_SEARCH_DATABASE).toBe('tmdb')
     })
 
     it('handles missing optional SUPABASE_SERVICE_ROLE_KEY', async () => {
-      delete (process.env as any).SUPABASE_SERVICE_ROLE_KEY
+      delete process.env.SUPABASE_SERVICE_ROLE_KEY
       jest.resetModules()
 
       const env = await import('../../lib/env')
@@ -68,7 +68,7 @@ describe('Environment Configuration', () => {
 
   describe('Error Handling', () => {
     it('throws error for missing required TMDB API key', async () => {
-      delete (process.env as any).TMDB_API_KEY
+      delete process.env.TMDB_API_KEY
       jest.resetModules()
 
       const env = await import('../../lib/env')
@@ -105,7 +105,7 @@ describe('Environment Configuration', () => {
     })
 
     it('getSupabaseServiceRoleKey returns undefined when not set', async () => {
-      delete (process.env as any).SUPABASE_SERVICE_ROLE_KEY
+      delete process.env.SUPABASE_SERVICE_ROLE_KEY
       jest.resetModules()
 
       const env = await import('../../lib/env')
@@ -122,7 +122,7 @@ describe('Environment Configuration', () => {
     })
 
     it('isDevelopment returns true for development environment', async () => {
-      ;(process.env as any).NODE_ENV = 'development'
+      process.env.NODE_ENV = 'development'
       jest.resetModules()
 
       const env = await import('../../lib/env')
@@ -132,7 +132,7 @@ describe('Environment Configuration', () => {
     })
 
     it('isProduction returns true for production environment', async () => {
-      ;(process.env as any).NODE_ENV = 'production'
+      process.env.NODE_ENV = 'production'
       jest.resetModules()
 
       const env = await import('../../lib/env')
@@ -181,8 +181,8 @@ describe('Environment Configuration', () => {
 
   describe('Error Message Quality', () => {
     it('provides helpful error message for missing variables', async () => {
-      delete (process.env as any).TMDB_API_KEY
-      delete (process.env as any).ANTHROPIC_API_KEY
+      delete process.env.TMDB_API_KEY
+      delete process.env.ANTHROPIC_API_KEY
       jest.resetModules()
 
       const env = await import('../../lib/env')

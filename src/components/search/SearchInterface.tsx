@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody } from '@/components/ui/card'
 import type { AutocompleteResponse } from '@/types/search'
+import type { Movie } from '@/types'
 import Image from 'next/image'
 
 interface SearchInterfaceProps {
@@ -51,15 +52,20 @@ export function SearchInterface({
         const response = await fetch(
           `/api/movies?realtime=true&database=tmdb&query=${encodeURIComponent(query)}&limit=6`
         )
-        const data = await response.json()
+        const data: { success: boolean; movies: Movie[] } = await response.json()
 
         if (data.success && data.movies) {
           // Transform TMDB response to match AutocompleteResponse format
-          const autocompleteData = {
-            movies: data.movies.slice(0, 6), // Limit to 6 results for autocomplete
+          const autocompleteData: AutocompleteResponse['data'] = {
+            movies: data.movies.slice(0, 6).map(movie => ({
+              id: movie.id,
+              title: movie.title,
+              year: movie.year ?? null,
+              poster_url: movie.poster_url,
+            })),
             directors: [], // TMDB doesn't provide directors in search results
             actors: [], // TMDB doesn't provide actors in search results
-            suggestions: data.movies.slice(0, 3).map((movie: any) => movie.title), // Top 3 titles as suggestions
+            suggestions: data.movies.slice(0, 3).map(movie => movie.title), // Top 3 titles as suggestions
           }
           setAutocompleteData(autocompleteData)
           setShowSuggestions(true)

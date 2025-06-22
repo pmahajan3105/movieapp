@@ -28,6 +28,7 @@ const tsConfig = [
       ...tsPlugin.configs.recommended.rules,
       // You can override or add custom rules here
       '@typescript-eslint/no-explicit-any': 'warn', // Warn instead of error for 'any'
+      'no-console': ['warn', { allow: ['warn', 'error'] }],
     },
   },
 ]

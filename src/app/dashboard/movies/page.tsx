@@ -48,9 +48,9 @@ const MovieCard = ({
           sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
         />
 
-        {movie.rating && (
+        {movie.rating !== null && movie.rating !== undefined && (
           <div className="absolute top-2 right-2 rounded-full bg-black/70 px-2 py-1 text-xs font-medium text-white">
-            ⭐ {movie.rating}
+            ⭐ {Number(movie.rating).toFixed(1)}
           </div>
         )}
       </div>
@@ -233,7 +233,7 @@ export default function SmartMoviesPage() {
     refetch()
   }
 
-  const handleSavePreferences = async (preferences: any) => {
+  const handleSavePreferences = async (preferences: Record<string, unknown>) => {
     setSavingPreferences(true)
     try {
       const response = await fetch('/api/user/preferences', {

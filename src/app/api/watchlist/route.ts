@@ -2,8 +2,6 @@ import { NextResponse } from 'next/server'
 import type { WatchlistInsert } from '@/lib/supabase/types'
 import { withSupabase, withError } from '@/lib/api/factory'
 
-const TMDB_KEY = process.env.TMDB_API_KEY!
-
 // Helper to parse JSON body
 async function parseJsonBody<T = unknown>(request: Request): Promise<T> {
   try {
@@ -45,23 +43,51 @@ function getPagination(request: Request) {
   }
 }
 
+interface TMDBGenre {
+  id: number
+  name: string
+}
+
+interface TMDBCrewMember {
+  job: string
+  name: string
+}
+
+interface TMDBCredits {
+  crew: TMDBCrewMember[]
+}
+
+interface TMDBMovieResponse {
+  title: string
+  release_date?: string
+  genres?: TMDBGenre[]
+  credits?: TMDBCredits
+  overview?: string
+  poster_path?: string | null
+  vote_average?: number
+  runtime?: number
+  imdb_id?: string | null
+}
+
 // ------------------------------------------------------------------
 // helper – fetch full movie details from TMDB and return a Movie row
 async function fetchTmdbMovie(tmdbId: number) {
+  const apiKey = process.env.TMDB_API_KEY
   const resp = await fetch(
-    `https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${TMDB_KEY}&append_to_response=credits`
+    `https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${apiKey}&append_to_response=credits`
   )
-  if (!resp.ok) throw new Error(`TMDB ${resp.status}`)
 
-  const m = await resp.json()
+  if (!resp.ok) {
+    throw new Error(`TMDB API error: ${resp.status} ${resp.statusText}`)
+  }
+
+  const m: TMDBMovieResponse = await resp.json()
 
   return {
     title: m.title,
     year: m.release_date ? new Date(m.release_date).getFullYear() : null,
-    genre: (m.genres || []).map((g: any) => g.name),
-    director: (m.credits?.crew || [])
-      .filter((c: any) => c.job === 'Director')
-      .map((d: any) => d.name),
+    genre: (m.genres || []).map(g => g.name),
+    director: (m.credits?.crew || []).filter(c => c.job === 'Director').map(d => d.name),
     plot: m.overview,
     poster_url: m.poster_path ? `https://image.tmdb.org/t/p/w500${m.poster_path}` : null,
     rating: m.vote_average,
@@ -172,8 +198,8 @@ export const POST = withError(
       const tmdbId = parseInt(movie_id.replace('tmdb_', ''))
       movieQuery = movieQuery.or(`id.eq.${movie_id},tmdb_id.eq.${tmdbId}`)
     } else if (movie_id.startsWith('tt')) {
-      // For IMDB movies, check by imdb_id or omdb_id
-      movieQuery = movieQuery.or(`imdb_id.eq.${movie_id},omdb_id.eq.${movie_id}`)
+      // For IMDB movies, check by imdb_id
+      movieQuery = movieQuery.eq('imdb_id', movie_id)
     } else {
       // For UUID or other formats, check by ID
       movieQuery = movieQuery.eq('id', movie_id)

@@ -31,7 +31,7 @@ const AVAILABLE_GENRES = [
 ]
 
 interface PreferencesSetupProps {
-  onSave: (preferences: any) => void
+  onSave: (preferences: Record<string, unknown>) => void
   onSkip: () => void
   isLoading?: boolean
 }

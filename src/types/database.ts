@@ -9,8 +9,8 @@ export interface DatabaseMovie {
   poster_url?: string
   rating?: number // Changed from imdb_rating
   runtime?: number
-  omdb_id?: string
   imdb_id?: string
+  tmdb_id?: number
   created_at: string
   updated_at: string
 }
