@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { logger } from '@/lib/logger'
+import type { Rating } from '@/types'
 
 interface RatePayload {
   movie_id: string
@@ -26,8 +27,11 @@ export const useRateMovie = () => {
     },
     onMutate: async variables => {
       await queryClient.cancelQueries({ queryKey: ['ratings'] })
-      const previous = queryClient.getQueryData<any[]>(['ratings']) || []
-      queryClient.setQueryData<any[]>(['ratings'], old => [...(old || []), { ...variables }])
+      const previous = queryClient.getQueryData<Rating[] | RatePayload[]>(['ratings']) || []
+      queryClient.setQueryData<Rating[] | RatePayload[]>(['ratings'], old => [
+        ...(old || []),
+        { ...variables },
+      ])
       return { previous }
     },
     onError: (err, vars, context) => {

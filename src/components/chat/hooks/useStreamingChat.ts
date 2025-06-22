@@ -1,11 +1,12 @@
 import { useState, useRef, useCallback } from 'react'
+import { logger } from '@/lib/logger'
 
 interface StreamEvent {
   type: 'start' | 'content' | 'complete' | 'error'
   content?: string
   sessionId?: string
   preferencesExtracted?: boolean
-  preferences?: any
+  preferences?: unknown
   fullResponse?: string
   error?: string
   timestamp: string
@@ -13,7 +14,7 @@ interface StreamEvent {
 
 interface UseStreamingChatProps {
   onComplete?: (fullResponse: string) => void
-  onPreferencesExtracted?: (preferences: any) => void
+  onPreferencesExtracted?: (preferences: unknown) => void
   onSessionStart?: (sessionId: string) => void
 }
 
@@ -118,7 +119,10 @@ export function useStreamingChat({
                     throw new Error(event.error || 'Streaming error occurred')
                 }
               } catch (parseError) {
-                console.warn('Failed to parse stream event:', eventData, parseError)
+                logger.warn('Failed to parse stream event', {
+                  raw: eventData,
+                  error: parseError instanceof Error ? parseError.message : String(parseError),
+                })
               }
             }
           }
