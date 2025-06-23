@@ -47,9 +47,12 @@ jest.mock('../../../lib/env', () => ({
 jest.mock('../../../lib/ai/embedding-service', () => ({
   embeddingService: {
     generateEmbedding: jest.fn(),
+    generateMovieEmbeddings: jest.fn(),
+    saveMovieEmbeddings: jest.fn(),
     searchSimilarMovies: jest.fn(),
     searchUserMemories: jest.fn(),
     saveUserMemory: jest.fn(),
+    batchProcessMovies: jest.fn(),
     getInstance: jest.fn(),
   },
 }))
@@ -129,6 +132,19 @@ describe('SmartRecommenderV2 - Tier 2 Intelligent Recommendations', () => {
     ])
 
     mockedEmbeddingService.saveUserMemory.mockResolvedValue(true)
+
+    mockedEmbeddingService.generateMovieEmbeddings.mockResolvedValue({
+      movieId: 'test-movie',
+      title: 'Test Movie',
+      plotEmbedding: new Array(1536).fill(0.1),
+      metadataEmbedding: new Array(1536).fill(0.1),
+      combinedEmbedding: new Array(1536).fill(0.1),
+      contentText: 'test plot',
+      metadataText: 'test metadata',
+    })
+
+    mockedEmbeddingService.saveMovieEmbeddings.mockResolvedValue(true)
+    mockedEmbeddingService.batchProcessMovies.mockResolvedValue(3)
 
     // Mock movie data from Supabase - set up the chain to return mockMovies
     const chain1 = mockSupabaseClient.from()
