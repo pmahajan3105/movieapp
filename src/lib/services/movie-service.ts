@@ -84,6 +84,50 @@ export interface MovieRecommendation {
   relevanceReason?: string
 }
 
+// Shared genre cache across all instances (singleton pattern)
+class GenreCacheManager {
+  private static instance: GenreCacheManager
+  private cache = new Map<number, string>()
+  private expiry = 0
+
+  private constructor() {}
+
+  static getInstance(): GenreCacheManager {
+    if (!GenreCacheManager.instance) {
+      GenreCacheManager.instance = new GenreCacheManager()
+    }
+    return GenreCacheManager.instance
+  }
+
+  isExpired(): boolean {
+    return this.expiry <= Date.now()
+  }
+
+  getCacheSize(): number {
+    return this.cache.size
+  }
+
+  getGenre(id: number): string | undefined {
+    return this.cache.get(id)
+  }
+
+  setGenre(id: number, name: string): void {
+    this.cache.set(id, name)
+  }
+
+  clear(): void {
+    this.cache.clear()
+  }
+
+  setExpiry(timestamp: number): void {
+    this.expiry = timestamp
+  }
+
+  getExpiry(): number {
+    return this.expiry
+  }
+}
+
 export class MovieService {
   private tmdbApiKey: string
   private tmdbBaseUrl = 'https://api.themoviedb.org/3'
@@ -91,8 +135,7 @@ export class MovieService {
   private supabase: SupabaseClient
   private enableCache: boolean
   private cacheMaxAge: number
-  private genreCache: Map<number, string> = new Map()
-  private genreCacheExpiry = 0
+  private genreCacheManager = GenreCacheManager.getInstance()
 
   constructor(config: MovieServiceConfig) {
     this.tmdbApiKey = config.tmdbApiKey
@@ -109,44 +152,57 @@ export class MovieService {
     this.loadGenres().catch(error => {
       logger.error('Failed to load genres cache during initialization:', error)
       // Set empty cache on failure to prevent undefined access
-      this.genreCache.set(0, 'Unknown')
+      this.genreCacheManager.clear()
     })
   }
 
-  // Fetch and cache movie genres
+  // Fetch and cache movie genres with expiry management
   private async loadGenres(): Promise<void> {
-    try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+    // Check if cache is still valid
+    const now = Date.now()
+    if (this.genreCacheManager.isExpired()) {
+      try {
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
 
-      const response = await fetch(
-        `${this.tmdbBaseUrl}/genre/movie/list?api_key=${this.tmdbApiKey}&language=en-US`,
-        {
-          signal: controller.signal,
-          headers: { Accept: 'application/json' },
-        }
-      )
-
-      clearTimeout(timeoutId)
-
-      if (!response.ok) {
-        logger.warn('Failed to load TMDB genres', { status: response.status })
-        return
-      }
-
-      const data = await response.json()
-      if (data.genres && Array.isArray(data.genres)) {
-        data.genres.forEach((genre: TMDBGenre) => {
-          if (genre.id && genre.name) {
-            this.genreCache.set(genre.id, genre.name)
+        const response = await fetch(
+          `${this.tmdbBaseUrl}/genre/movie/list?api_key=${this.tmdbApiKey}&language=en-US`,
+          {
+            signal: controller.signal,
+            headers: { Accept: 'application/json' },
           }
-        })
-      }
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        logger.warn('TMDB genres request timed out')
-      } else {
-        logger.warn('Error loading TMDB genres:', { error: String(error) })
+        )
+
+        clearTimeout(timeoutId)
+
+        if (!response.ok) {
+          logger.warn('Failed to load TMDB genres', { status: response.status })
+          return
+        }
+
+        const data = await response.json()
+        if (data.genres && Array.isArray(data.genres)) {
+          // Clear existing cache before loading new data
+          this.genreCacheManager.clear()
+
+          data.genres.forEach((genre: TMDBGenre) => {
+            if (genre.id && genre.name) {
+              this.genreCacheManager.setGenre(genre.id, genre.name)
+            }
+          })
+
+          // Set cache expiry using configured max age
+          this.genreCacheManager.setExpiry(now + this.cacheMaxAge * 60 * 1000) // Convert minutes to milliseconds
+          logger.info(
+            `Loaded ${this.genreCacheManager.getCacheSize()} genres, cache expires at ${new Date(this.genreCacheManager.getExpiry()).toISOString()}`
+          )
+        }
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          logger.warn('TMDB genres request timed out')
+        } else {
+          logger.warn('Error loading TMDB genres:', { error: String(error) })
+        }
       }
     }
   }
@@ -163,6 +219,7 @@ export class MovieService {
     totalResults: number
     totalPages: number
     page: number
+    fallbackUsed: boolean
   }> {
     const { limit = 20, page = 1, timeWindow = 'week' } = options
 
@@ -190,15 +247,30 @@ export class MovieService {
       }
 
       const data: TMDBSearchResponse = await response.json()
-      const movies = await Promise.all(
-        data.results.slice(0, safeLimit).map(movie => this.transformTMDBToMovie(movie))
-      )
+      // More efficient: iterate only up to the limit instead of slice then map
+      const results = data.results || []
+      const itemsToProcess = Math.min(safeLimit, results.length)
+      const movies: Movie[] = []
+
+      for (let i = 0; i < itemsToProcess; i++) {
+        try {
+          const movie = results[i]
+          if (movie) {
+            const transformedMovie = await this.transformTMDBToMovie(movie)
+            movies.push(transformedMovie)
+          }
+        } catch (error) {
+          logger.warn(`Failed to transform movie ${results[i]?.title}:`, { error: String(error) })
+          // Continue processing other movies
+        }
+      }
 
       return {
         movies,
-        totalResults: data.total_results,
-        totalPages: data.total_pages,
-        page: data.page,
+        totalResults: data.total_results || 0,
+        totalPages: data.total_pages || 0,
+        page: safePage,
+        fallbackUsed: false, // Indicates primary source was used
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
@@ -207,7 +279,11 @@ export class MovieService {
         logger.error('TMDB trending error:', { error: String(error) })
       }
       // Fallback to local database
-      return this.getLocalMovies({ limit: safeLimit, page: safePage })
+      const fallbackResult = await this.getLocalMovies({ limit: safeLimit, page: safePage })
+      return {
+        ...fallbackResult,
+        fallbackUsed: true, // Indicates fallback was used
+      }
     }
   }
 
@@ -225,6 +301,7 @@ export class MovieService {
     totalResults: number
     totalPages: number
     page: number
+    fallbackUsed: boolean
   }> {
     // Enhanced input validation
     if (typeof query !== 'string') {
@@ -241,7 +318,7 @@ export class MovieService {
       : undefined
 
     if (!query.trim()) {
-      return { movies: [], totalResults: 0, totalPages: 0, page: safePage }
+      return { movies: [], totalResults: 0, totalPages: 0, page: safePage, fallbackUsed: false }
     }
 
     try {
@@ -258,39 +335,91 @@ export class MovieService {
       }
 
       const data: TMDBSearchResponse = await response.json()
-      const movies = await Promise.all(
-        data.results.slice(0, safeLimit).map(movie => this.transformTMDBToMovie(movie))
-      )
+      // More efficient: iterate only up to the limit instead of slice then map
+      const results = data.results || []
+      const itemsToProcess = Math.min(safeLimit, results.length)
+      const movies: Movie[] = []
+
+      for (let i = 0; i < itemsToProcess; i++) {
+        try {
+          const movie = results[i]
+          if (movie) {
+            const transformedMovie = await this.transformTMDBToMovie(movie)
+            movies.push(transformedMovie)
+          }
+        } catch (error) {
+          logger.warn(`Failed to transform movie ${results[i]?.title}:`, { error: String(error) })
+          // Continue processing other movies
+        }
+      }
 
       return {
         movies,
         totalResults: data.total_results,
         totalPages: data.total_pages,
         page: data.page,
+        fallbackUsed: false,
       }
     } catch (error) {
       logger.error('TMDB search error:', { error: String(error) })
       // Fallback to local database search
-      return this.searchLocalMovies(query, { limit: safeLimit, page: safePage })
+      const fallbackResult = await this.searchLocalMovies(query, {
+        limit: safeLimit,
+        page: safePage,
+      })
+      return {
+        ...fallbackResult,
+        fallbackUsed: true,
+      }
     }
   }
 
-  // Get movie details by TMDB ID
-  async getMovieById(tmdbId: number): Promise<Movie | null> {
+  // Get movie by ID from TMDB with local fallback
+  async getMovieById(id: number, detailed: boolean = true): Promise<Movie | null> {
+    if (!id || id <= 0) {
+      logger.warn('Invalid movie ID provided', { id })
+      return null
+    }
+
     try {
-      const response = await fetch(
-        `${this.tmdbBaseUrl}/movie/${tmdbId}?api_key=${this.tmdbApiKey}&append_to_response=credits,videos,similar,keywords`
-      )
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000)
+
+      const appendToResponse = detailed
+        ? 'credits,videos,keywords,recommendations,reviews,similar'
+        : ''
+
+      const url = `${this.tmdbBaseUrl}/movie/${id}?api_key=${this.tmdbApiKey}${
+        appendToResponse ? `&append_to_response=${appendToResponse}` : ''
+      }`
+
+      const response = await fetch(url, {
+        signal: controller.signal,
+        headers: { Accept: 'application/json' },
+      })
+
+      clearTimeout(timeoutId)
 
       if (!response.ok) {
-        throw new Error(`TMDB API error: ${response.status}`)
+        if (response.status === 404) {
+          logger.info(`Movie with ID ${id} not found in TMDB`)
+        } else {
+          logger.warn(`TMDB API error for movie ${id}:`, { status: response.status })
+        }
+        // Fall back to local database
+        return this.getLocalMovieById(id)
       }
 
-      const movie: TMDBMovieDetailed = await response.json()
-      return this.transformTMDBToMovie(movie, true) // detailed = true
+      const data: TMDBMovieDetailed = await response.json()
+      return this.transformTMDBToMovie(data, detailed)
     } catch (error) {
-      logger.error('TMDB movie details error:', { error: String(error) })
-      return null
+      if (error instanceof Error && error.name === 'AbortError') {
+        logger.warn(`TMDB request timed out for movie ${id}`)
+      } else {
+        logger.error(`Error fetching movie ${id} from TMDB:`, { error: String(error) })
+      }
+      // Fall back to local database
+      return this.getLocalMovieById(id)
     }
   }
 
@@ -332,7 +461,7 @@ export class MovieService {
   ): Promise<Movie> {
     const genres =
       tmdbMovie.genre_ids
-        ?.map(id => this.genreCache.get(id))
+        ?.map(id => this.genreCacheManager.getGenre(id))
         .filter((genre): genre is string => genre !== undefined) || []
 
     const movie: Movie = {
@@ -390,6 +519,7 @@ export class MovieService {
     totalResults: number
     totalPages: number
     page: number
+    fallbackUsed: boolean
   }> {
     const { limit = 20, page = 1 } = options
     const offset = (page - 1) * limit
@@ -417,6 +547,7 @@ export class MovieService {
         totalResults,
         totalPages,
         page,
+        fallbackUsed: false,
       }
     } catch (error) {
       logger.error('Local database error:', { error: String(error) })
@@ -425,6 +556,7 @@ export class MovieService {
         totalResults: 0,
         totalPages: 0,
         page: 1,
+        fallbackUsed: true,
       }
     }
   }
@@ -441,6 +573,7 @@ export class MovieService {
     totalResults: number
     totalPages: number
     page: number
+    fallbackUsed: boolean
   }> {
     const { limit = 20, page = 1 } = options
     const offset = (page - 1) * limit
@@ -469,6 +602,7 @@ export class MovieService {
         totalResults,
         totalPages,
         page,
+        fallbackUsed: false,
       }
     } catch (error) {
       logger.error('Local database search error:', { error: String(error) })
@@ -477,6 +611,7 @@ export class MovieService {
         totalResults: 0,
         totalPages: 0,
         page: 1,
+        fallbackUsed: true,
       }
     }
   }
@@ -795,6 +930,48 @@ export class MovieService {
     }
 
     return reasons.length > 0 ? reasons.join('; ') : 'Popular choice'
+  }
+
+  // Force refresh of genre cache
+  async refreshGenreCache(): Promise<void> {
+    this.genreCacheManager.setExpiry(0) // Force cache expiry
+    await this.loadGenres()
+  }
+
+  // Fallback method to get movie from local database
+  private async getLocalMovieById(id: number): Promise<Movie | null> {
+    try {
+      const { data: movie, error } = await this.supabase
+        .from('movies')
+        .select('*')
+        .eq('tmdb_id', id)
+        .single()
+
+      if (error || !movie) {
+        logger.info(`Movie with ID ${id} not found in local database`)
+        return null
+      }
+
+      return {
+        id: movie.id,
+        title: movie.title,
+        overview: movie.overview || '',
+        releaseDate: movie.release_date || '',
+        posterPath: movie.poster_path || '',
+        backdropPath: movie.backdrop_path || '',
+        voteAverage: movie.vote_average || 0,
+        voteCount: movie.vote_count || 0,
+        genreIds: movie.genre_ids || [],
+        adult: movie.adult || false,
+        originalLanguage: movie.original_language || 'en',
+        originalTitle: movie.original_title || movie.title,
+        popularity: movie.popularity || 0,
+        video: movie.video || false,
+      }
+    } catch (error) {
+      logger.error(`Error fetching movie ${id} from local database:`, { error: String(error) })
+      return null
+    }
   }
 }
 
