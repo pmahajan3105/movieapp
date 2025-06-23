@@ -30,36 +30,18 @@ export async function middleware(request: NextRequest) {
   // Check authentication only for dashboard routes
   const pathname = request.nextUrl.pathname
   const isDashboardRoute = pathname.startsWith('/dashboard')
-  const isWatchlistRoute = pathname.startsWith('/watchlist') && pathname !== '/watchlist' // protect dynamic watchlist routes
-
-  console.log('🔐 Middleware check:', {
-    path: pathname,
-    isDashboardRoute,
-    isWatchlistRoute,
-    shouldCheckAuth: isDashboardRoute || isWatchlistRoute,
-  })
+  const isWatchlistRoute = pathname.startsWith('/watchlist') && pathname !== '/watchlist'
 
   // Only check auth for dashboard and specific protected routes
   if (isDashboardRoute || isWatchlistRoute) {
-    console.log('🔒 Protected route, checking authentication...')
-
     // Get user session
     const {
       data: { user },
       error,
     } = await supabase.auth.getUser()
 
-    console.log('🔐 Middleware auth result:', {
-      hasUser: !!user,
-      userId: user?.id,
-      userEmail: user?.email,
-      error: error?.message || 'NONE',
-      cookieCount: request.cookies.getAll().length,
-    })
-
     // If no user, redirect to login
     if (!user || error) {
-      console.log('❌ No authenticated user, redirecting to login')
       const loginUrl = new URL('/auth/login', request.url)
 
       // Add return URL for after login
@@ -69,10 +51,6 @@ export async function middleware(request: NextRequest) {
 
       return NextResponse.redirect(loginUrl)
     }
-
-    console.log('✅ User authenticated in middleware')
-  } else {
-    console.log('📂 Route does not require auth check')
   }
 
   return supabaseResponse
