@@ -522,7 +522,14 @@ export class SmartRecommenderV2 {
     context?: UserInteractionContext
   ): Promise<void> {
     try {
-      const interactionText = `User ${interactionType} movie ${movieId}`
+      const verb =
+        interactionType === 'like'
+          ? 'liked'
+          : interactionType === 'dislike'
+            ? 'disliked'
+            : interactionType
+
+      const interactionText = `User ${verb} movie ${movieId}`
       const confidence = this.getInteractionConfidence(interactionType)
 
       await embeddingService.saveUserMemory({

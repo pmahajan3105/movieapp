@@ -3,8 +3,6 @@
 // Importing this file sets up global mocks for Supabase, Next.js, Lucide icons
 // and common browser APIs so individual test files don't need custom mocks.
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 //---------------------------------------------
 // Mock React Query
 //---------------------------------------------
@@ -33,45 +31,48 @@ export const createMockSupabaseClient = () => {
     select: jest.fn().mockReturnThis(),
     insert: jest.fn().mockReturnThis(),
     update: jest.fn().mockReturnThis(),
+    upsert: jest.fn().mockResolvedValue({ error: null }),
     delete: jest.fn().mockReturnThis(),
     eq: jest.fn().mockReturnThis(),
     order: jest.fn().mockReturnThis(),
+    or: jest.fn().mockReturnThis(),
     overlaps: jest.fn().mockReturnThis(),
     not: jest.fn().mockReturnThis(),
     gte: jest.fn().mockReturnThis(),
     lte: jest.fn().mockReturnThis(),
-    range: jest.fn().mockResolvedValue({ 
-      data: [], 
-      error: null, 
-      count: 0 
+    range: jest.fn().mockResolvedValue({
+      data: [],
+      error: null,
+      count: 0,
     }),
-    single: jest.fn().mockResolvedValue({ 
-      data: { id: 'mock-id' }, 
-      error: null 
+    limit: jest.fn().mockReturnThis(),
+    single: jest.fn().mockResolvedValue({
+      data: { id: 'mock-id', watched: false },
+      error: null,
     }),
   }
 
   return {
     auth: {
-      getUser: jest.fn().mockResolvedValue({ 
-        data: { user: { id: 'uid', email: 'test@example.com' } }, 
-        error: null 
+      getUser: jest.fn().mockResolvedValue({
+        data: { user: { id: 'uid', email: 'test@example.com' } },
+        error: null,
       }),
-      getSession: jest.fn().mockResolvedValue({ 
-        data: { 
-          session: { 
+      getSession: jest.fn().mockResolvedValue({
+        data: {
+          session: {
             user: { id: 'uid', email: 'test@example.com' },
             access_token: 'mock-token',
-            expires_at: Date.now() + 3600000
-          } 
-        }, 
-        error: null 
+            expires_at: Date.now() + 3600000,
+          },
+        },
+        error: null,
       }),
       onAuthStateChange: jest.fn().mockReturnValue({
-        data: { 
-          subscription: { 
-            unsubscribe: jest.fn() 
-          } 
+        data: {
+          subscription: {
+            unsubscribe: jest.fn(),
+          },
         },
       }),
       signOut: jest.fn().mockResolvedValue({ error: null }),
@@ -148,25 +149,25 @@ jest.mock('@/lib/supabase/server-client', () => ({
 jest.mock('@/lib/supabase/browser-client', () => {
   const mockSubscription = { unsubscribe: jest.fn() }
   const mockAuthStateChange = {
-    data: { subscription: mockSubscription }
+    data: { subscription: mockSubscription },
   }
-  
+
   return {
     supabase: {
       auth: {
-        getUser: jest.fn().mockResolvedValue({ 
-          data: { user: { id: 'uid', email: 'test@example.com' } }, 
-          error: null 
+        getUser: jest.fn().mockResolvedValue({
+          data: { user: { id: 'uid', email: 'test@example.com' } },
+          error: null,
         }),
-        getSession: jest.fn().mockResolvedValue({ 
-          data: { 
-            session: { 
+        getSession: jest.fn().mockResolvedValue({
+          data: {
+            session: {
               user: { id: 'uid', email: 'test@example.com' },
               access_token: 'mock-token',
-              expires_at: Date.now() + 3600000
-            } 
-          }, 
-          error: null 
+              expires_at: Date.now() + 3600000,
+            },
+          },
+          error: null,
         }),
         onAuthStateChange: jest.fn().mockReturnValue(mockAuthStateChange),
         signOut: jest.fn().mockResolvedValue({ error: null }),
@@ -174,26 +175,19 @@ jest.mock('@/lib/supabase/browser-client', () => {
       from: jest.fn().mockReturnValue({
         select: jest.fn().mockReturnValue({
           eq: jest.fn().mockReturnValue({
-            single: jest.fn().mockResolvedValue({ data: null, error: null })
-          })
-        })
+            single: jest.fn().mockResolvedValue({ data: null, error: null }),
+          }),
+        }),
       }),
       rpc: jest.fn().mockResolvedValue({ data: null, error: null }),
-    }
+    },
   }
 })
 
-jest.mock('@/lib/supabase/session', () => ({
-  hydrateSessionFromCookie: jest.fn().mockResolvedValue(undefined),
-  promiseWithTimeout: jest.fn().mockImplementation((promise: Promise<any>) => {
-    // Ensure the promise resolves with the expected structure
-    return promise.catch(() => ({ 
-      data: { session: null }, 
-      error: null 
-    }))
-  }),
-  clearAuthCookie: jest.fn().mockResolvedValue(undefined),
-}))
+// Use real supabase session helpers so unit tests validate actual behaviour
+jest.mock('@/lib/supabase/session', () => {
+  return jest.requireActual('@/lib/supabase/session')
+})
 
 // Mock repositories used by API routes
 jest.mock('@/repositories/WatchlistRepository', () => ({
@@ -225,7 +219,7 @@ jest.mock('@/repositories/WatchlistRepository', () => ({
       watched_at: '2024-01-01T00:00:00Z',
     }),
     removeFromWatchlist: jest.fn().mockResolvedValue({ id: 'mock-removed-id' }),
-  }))
+  })),
 }))
 
 jest.mock('@/repositories/MovieRepository', () => ({
@@ -244,7 +238,7 @@ jest.mock('@/repositories/MovieRepository', () => ({
       plot: 'After devastating events, the Avengers assemble once more.',
       poster_url: 'https://example.com/poster1.jpg',
     }),
-    search: jest.fn().mockResolvedValue({ 
+    search: jest.fn().mockResolvedValue({
       movies: [
         {
           id: 'movie-1',
@@ -268,10 +262,10 @@ jest.mock('@/repositories/MovieRepository', () => ({
           plot: 'Two imprisoned men bond over a number of years.',
           poster_url: 'https://example.com/poster2.jpg',
         },
-      ], 
-      totalCount: 2 
+      ],
+      totalCount: 2,
     }),
-    findTrending: jest.fn().mockResolvedValue({ 
+    findTrending: jest.fn().mockResolvedValue({
       movies: [
         {
           id: 'movie-1',
@@ -284,78 +278,89 @@ jest.mock('@/repositories/MovieRepository', () => ({
           plot: 'After devastating events, the Avengers assemble once more.',
           poster_url: 'https://example.com/poster1.jpg',
         },
-      ], 
-      totalCount: 1 
+      ],
+      totalCount: 1,
     }),
-  }))
+  })),
 }))
 
 // Mock movieService functions that API routes actually call
-jest.mock('@/lib/services/movieService', () => ({
-  getMoviesByPreferences: jest.fn().mockResolvedValue({
-    success: true,
-    data: [
-      {
-        id: 'movie-1',
-        title: 'Avengers: Endgame',
-        year: 2019,
-        genre: ['Action', 'Adventure', 'Drama'],
-        rating: 8.4,
-        runtime: 181,
-        director: ['Anthony Russo', 'Joe Russo'],
-        plot: 'After devastating events, the Avengers assemble once more.',
-        poster_url: 'https://example.com/poster1.jpg',
-      },
-      {
-        id: 'movie-3',
-        title: 'Inception',
-        year: 2010,
-        genre: ['Action', 'Sci-Fi', 'Thriller'],
-        rating: 8.8,
-        runtime: 148,
-        director: ['Christopher Nolan'],
-        plot: 'A thief who steals corporate secrets through dream-sharing.',
-        poster_url: 'https://example.com/poster3.jpg',
-      },
-    ],
-    total: 2,
-    page: 1,
-    limit: 12,
-    hasMore: false,
-    source: 'local-preferences',
-  }),
-  getPopularMovies: jest.fn().mockResolvedValue({
-    success: true,
-    data: [
-      {
-        id: 'movie-1',
-        title: 'Avengers: Endgame',
-        year: 2019,
-        genre: ['Action', 'Adventure', 'Drama'],
-        rating: 8.4,
-        runtime: 181,
-        director: ['Anthony Russo', 'Joe Russo'],
-        plot: 'After devastating events, the Avengers assemble once more.',
-        poster_url: 'https://example.com/poster1.jpg',
-      },
-      {
-        id: 'movie-2',
-        title: 'The Shawshank Redemption',
-        year: 1994,
-        genre: ['Drama'],
-        rating: 9.3,
-        runtime: 142,
-        director: ['Frank Darabont'],
-        plot: 'Two imprisoned men bond over a number of years.',
-        poster_url: 'https://example.com/poster2.jpg',
-      },
-    ],
-    total: 3,
-    page: 1,
-    limit: 12,
-    hasMore: false,
-    source: 'local-popular',
-  }),
+jest.mock('@/lib/services/movie-service', () => ({
+  getMovieService: jest.fn(() => ({
+    getMoviesByPreferences: jest.fn().mockImplementation((userId, options) => {
+      const { limit = 12, page = 1 } = options || {}
+      return Promise.resolve({
+        movies: [
+          {
+            id: 'movie-1',
+            title: 'Avengers: Endgame',
+            year: 2019,
+            genre: ['Action', 'Adventure', 'Drama'],
+            rating: 8.4,
+            runtime: 181,
+            director: ['Anthony Russo', 'Joe Russo'],
+            plot: 'After devastating events, the Avengers assemble once more.',
+            poster_url: 'https://example.com/poster1.jpg',
+          },
+          {
+            id: 'movie-3',
+            title: 'Inception',
+            year: 2010,
+            genre: ['Action', 'Sci-Fi', 'Thriller'],
+            rating: 8.8,
+            runtime: 148,
+            director: ['Christopher Nolan'],
+            plot: 'A thief who steals corporate secrets through dream-sharing.',
+            poster_url: 'https://example.com/poster3.jpg',
+          },
+        ],
+        totalResults: 2,
+        totalPages: Math.ceil(2 / limit),
+        page: page,
+        source: 'local-preferences',
+      })
+    }),
+    getPopularMovies: jest.fn().mockImplementation(options => {
+      const { limit = 12, page = 1 } = options || {}
+      return Promise.resolve({
+        movies: [
+          {
+            id: 'movie-1',
+            title: 'Avengers: Endgame',
+            year: 2019,
+            genre: ['Action', 'Adventure', 'Drama'],
+            rating: 8.4,
+            runtime: 181,
+            director: ['Anthony Russo', 'Joe Russo'],
+            plot: 'After devastating events, the Avengers assemble once more.',
+            poster_url: 'https://example.com/poster1.jpg',
+          },
+          {
+            id: 'movie-3',
+            title: 'Inception',
+            year: 2010,
+            genre: ['Action', 'Sci-Fi', 'Thriller'],
+            rating: 8.8,
+            runtime: 148,
+            director: ['Christopher Nolan'],
+            plot: 'A thief who steals corporate secrets through dream-sharing.',
+            poster_url: 'https://example.com/poster3.jpg',
+          },
+        ],
+        totalResults: 3,
+        totalPages: Math.ceil(3 / limit),
+        page: page,
+        source: 'local-popular',
+      })
+    }),
+    getMovieRecommendations: jest.fn().mockResolvedValue([]),
+    calculateMatchScore: jest.fn().mockReturnValue(0.8),
+    generateRelevanceReason: jest.fn().mockReturnValue('Great match for your preferences'),
+    healthCheck: jest.fn().mockResolvedValue({
+      tmdb: { status: 'healthy', message: 'TMDB API is accessible' },
+      local: { status: 'healthy', message: 'Local database is accessible' },
+    }),
+  })),
   movieService: {
     getMovieRecommendations: jest.fn().mockResolvedValue([]),
     getPopularMovies: jest.fn().mockResolvedValue([]),
@@ -466,3 +471,10 @@ describe('setupMocks', () => {
     expect(true).toBe(true)
   })
 })
+
+//---------------------------------------------
+// Supabase packages
+//---------------------------------------------
+jest.mock('@supabase/supabase-js', () => ({
+  createClient: jest.fn(() => createMockSupabaseClient()),
+}))

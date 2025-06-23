@@ -375,21 +375,25 @@ $$
 ## 🎯 Core Features
 
 ### **Authentication System**
+
 - Email + OTP verification
 - Session management with Supabase
 - Protected routes and automatic redirects
 
 ### **AI Chat Interface**
+
 - Natural conversation with Groq AI
 - Preference extraction from chat
 - Real-time messaging with typing indicators
 
 ### **Movie Recommendations**
+
 - AI-powered personalized suggestions
 - Quick rating system (like/dislike)
 - Movie details with ratings and descriptions
 
 ### **Dashboard**
+
 - Clean, modern interface
 - Stats overview and quick actions
 - Integrated chat and recommendations
@@ -397,6 +401,7 @@ $$
 ## 🔧 Development
 
 ### **Running Tests**
+
 ```bash
 npm test              # Run all tests
 npm run test:watch    # Run tests in watch mode
@@ -404,12 +409,14 @@ npm run test:coverage # Generate coverage report
 ```
 
 ### **Code Quality**
+
 ```bash
 npm run lint          # Run ESLint
 npm run format        # Format code with Prettier
 ```
 
 ### **Pre-commit Hooks**
+
 Automatically runs linting and formatting before commits via Husky.
 
 ## 📚 Documentation

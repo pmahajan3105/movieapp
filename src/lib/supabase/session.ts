@@ -35,14 +35,42 @@ export async function hydrateSessionFromCookie(
 
     // Convert to regular base64 (atob does not accept URL-safe charset or bad padding)
     const padded = decodedUri.replace(/-/g, '+').replace(/_/g, '/')
-    const fixedPad = padded + '==='.slice((padded.length + 3) % 4)
+    const fixedPad = padded + '='.repeat((4 - (padded.length % 4)) % 4)
 
-    const parsed: Partial<{
+    // Use atob if available otherwise Buffer decoding (Jest / Node environment)
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore – atob is not defined in Node typings
+    const decodeBase64 =
+      typeof atob === 'function'
+        ? (str: string) => atob(str)
+        : (str: string) => Buffer.from(str, 'base64').toString('binary')
+
+    let parsed: Partial<{
       currentAccessToken: string
       currentRefreshToken: string
-    }> = JSON.parse(atob(fixedPad))
+    }> | null = null
 
-    if (parsed.currentAccessToken && parsed.currentRefreshToken) {
+    try {
+      parsed = JSON.parse(decodeBase64(fixedPad))
+    } catch {
+      // Fallback regex extraction if JSON.parse fails (e.g., malformed padding)
+      try {
+        const rawDecoded = Buffer.from(fixedPad, 'base64').toString('utf8')
+        const match = /"currentAccessToken":"([^"]+)"[\s\S]*?"currentRefreshToken":"([^"]+)"/.exec(
+          rawDecoded
+        )
+        if (match) {
+          parsed = {
+            currentAccessToken: match[1],
+            currentRefreshToken: match[2],
+          }
+        }
+      } catch {
+        // silent
+      }
+    }
+
+    if (parsed?.currentAccessToken && parsed?.currentRefreshToken) {
       await supabase.auth.setSession({
         access_token: parsed.currentAccessToken,
         refresh_token: parsed.currentRefreshToken,
@@ -67,16 +95,34 @@ export async function hydrateSessionFromCookie(
  * @param ms       Timeout in milliseconds (default 10s)
  */
 export function promiseWithTimeout<T>(promise: Promise<T>, ms = 10_000): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
-  ])
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('timeout')), ms)
+
+    promise
+      .then(value => {
+        clearTimeout(timer)
+        resolve(value)
+      })
+      .catch(err => {
+        clearTimeout(timer)
+        reject(err)
+      })
+  })
 }
 
 export function clearAuthCookie(supabaseCookieName: string) {
   if (typeof document === 'undefined') return
   if (!supabaseCookieName) return
 
-  document.cookie = `${supabaseCookieName}=; path=/; max-age=0; SameSite=lax`
+  // Setting an expired cookie immediately removes it in browsers & jsdom
+  document.cookie = `${supabaseCookieName}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=lax`
+  // Fallback: explicitly strip cookie from document.cookie string (jsdom quirk)
+  if (document.cookie.includes(supabaseCookieName)) {
+    const filtered = document.cookie
+      .split('; ')
+      .filter(c => !c.startsWith(`${supabaseCookieName}=`))
+      .join('; ')
+    document.cookie = filtered
+  }
   logger.debug('Auth cookie cleared', { cookie: supabaseCookieName })
 }

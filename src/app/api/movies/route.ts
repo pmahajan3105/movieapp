@@ -1,30 +1,51 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { getDatabaseForTask, getBestDatabaseForCapability } from '@/lib/movie-databases/config'
-import { getMoviesByPreferences, getPopularMovies } from '@/lib/services/movieService'
+import { getMovieService } from '@/lib/services/movie-service'
 import { smartRecommenderV2 } from '@/lib/ai/smart-recommender-v2'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { MovieRepository } from '@/repositories'
 
 async function handleLegacyRequest(request: NextRequest, supabase: SupabaseClient) {
   const { searchParams } = new URL(request.url)
-  const limit = Math.max(1, parseInt(searchParams.get('limit') || '12'))
-  const page = Math.max(1, parseInt(searchParams.get('page') || '1'))
-  const offset = (page - 1) * limit
+  const limit = Math.max(1, parseInt(searchParams.get('limit') || '12') || 12)
+  const page = Math.max(1, parseInt(searchParams.get('page') || '1') || 1)
   const usePreferences = searchParams.get('preferences') === 'true'
 
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
+  const movieService = getMovieService()
   let result = null
+
   if (usePreferences && user) {
-    result = await getMoviesByPreferences({ supabase, userId: user.id, limit, page, offset })
+    const preferencesResult = await movieService.getMoviesByPreferences(user.id, { limit, page })
+    if (preferencesResult) {
+      result = {
+        success: true,
+        data: preferencesResult.movies,
+        total: preferencesResult.totalResults,
+        page: preferencesResult.page,
+        limit,
+        hasMore: preferencesResult.page * limit < preferencesResult.totalResults,
+        source: preferencesResult.source,
+      }
+    }
   }
 
   // Fallback to popular movies if preferences fail or are not requested
   if (!result) {
-    result = await getPopularMovies({ supabase, limit, page, offset })
+    const popularResult = await movieService.getPopularMovies({ limit, page })
+    result = {
+      success: true,
+      data: popularResult.movies,
+      total: popularResult.totalResults,
+      page: popularResult.page,
+      limit,
+      hasMore: popularResult.page * limit < popularResult.totalResults,
+      source: popularResult.source,
+    }
   }
 
   const response = {
@@ -33,9 +54,9 @@ async function handleLegacyRequest(request: NextRequest, supabase: SupabaseClien
     total: result.total,
     pagination: {
       currentPage: result.page,
-      limit: result.limit,
+      limit: limit,
       hasMore: result.hasMore,
-      totalPages: Math.ceil(result.total / result.limit),
+      totalPages: Math.ceil(result.total / limit),
     },
     source: result.source,
   }
@@ -75,8 +96,8 @@ export async function GET(request: NextRequest) {
     const query = searchParams.get('query') || ''
     const mood = searchParams.get('mood') || ''
     const genres = searchParams.get('genres')?.split(',').filter(Boolean) || []
-    const limit = Math.max(1, parseInt(searchParams.get('limit') || '12'))
-    const page = Math.max(1, parseInt(searchParams.get('page') || '1'))
+    const limit = Math.max(1, parseInt(searchParams.get('limit') || '12') || 12)
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1') || 1)
 
     if (realTime || databaseId) {
       return await handleRealTimeMovies(
@@ -259,16 +280,17 @@ async function handleSmartRecommendations(
 
   if (!user) {
     // Fallback to popular movies for logged-out users
-    const result = await getPopularMovies({ supabase, limit, page, offset: (page - 1) * limit })
+    const movieService = getMovieService()
+    const result = await movieService.getPopularMovies({ limit, page })
     return NextResponse.json({
       success: true,
-      data: result.data,
-      total: result.total,
+      data: result.movies,
+      total: result.totalResults,
       pagination: {
         currentPage: result.page,
-        limit: result.limit,
-        hasMore: result.hasMore,
-        totalPages: Math.ceil(result.total / result.limit),
+        limit: limit,
+        hasMore: result.page * limit < result.totalResults,
+        totalPages: Math.ceil(result.totalResults / limit),
       },
       source: 'local-popular',
       vectorEnhanced: false,
@@ -376,24 +398,19 @@ async function handleSmartRecommendations(
       console.error('❌ Smart recommendations V2 error:', error)
 
       // Fallback to standard preference-based recommendations on error
-      const result = await getMoviesByPreferences({
-        supabase,
-        userId: user.id,
-        limit,
-        page,
-        offset: (page - 1) * limit,
-      })
+      const movieService = getMovieService()
+      const preferencesResult = await movieService.getMoviesByPreferences(user.id, { limit, page })
 
-      if (result) {
+      if (preferencesResult) {
         return NextResponse.json({
           success: true,
-          data: result.data,
-          total: result.total,
+          data: preferencesResult.movies,
+          total: preferencesResult.totalResults,
           pagination: {
-            currentPage: result.page,
-            limit: result.limit,
-            hasMore: result.hasMore,
-            totalPages: Math.ceil(result.total / result.limit),
+            currentPage: preferencesResult.page,
+            limit: limit,
+            hasMore: preferencesResult.page * limit < preferencesResult.totalResults,
+            totalPages: Math.ceil(preferencesResult.totalResults / limit),
           },
           source: 'local-preferences-fallback',
           vectorEnhanced: false,
@@ -401,21 +418,16 @@ async function handleSmartRecommendations(
       }
 
       // Final fallback to popular movies
-      const popularResult = await getPopularMovies({
-        supabase,
-        limit,
-        page,
-        offset: (page - 1) * limit,
-      })
+      const popularResult = await movieService.getPopularMovies({ limit, page })
       return NextResponse.json({
         success: true,
-        data: popularResult.data,
-        total: popularResult.total,
+        data: popularResult.movies,
+        total: popularResult.totalResults,
         pagination: {
           currentPage: popularResult.page,
-          limit: popularResult.limit,
-          hasMore: popularResult.hasMore,
-          totalPages: Math.ceil(popularResult.total / popularResult.limit),
+          limit: limit,
+          hasMore: popularResult.page * limit < popularResult.totalResults,
+          totalPages: Math.ceil(popularResult.totalResults / limit),
         },
         source: 'popular-fallback',
         vectorEnhanced: false,
@@ -425,24 +437,19 @@ async function handleSmartRecommendations(
     console.error('❌ Smart recommendations V2 error:', error)
 
     // Fallback to standard preference-based recommendations on error
-    const result = await getMoviesByPreferences({
-      supabase,
-      userId: user.id,
-      limit,
-      page,
-      offset: (page - 1) * limit,
-    })
+    const movieService = getMovieService()
+    const preferencesResult = await movieService.getMoviesByPreferences(user.id, { limit, page })
 
-    if (result) {
+    if (preferencesResult) {
       return NextResponse.json({
         success: true,
-        data: result.data,
-        total: result.total,
+        data: preferencesResult.movies,
+        total: preferencesResult.totalResults,
         pagination: {
-          currentPage: result.page,
-          limit: result.limit,
-          hasMore: result.hasMore,
-          totalPages: Math.ceil(result.total / result.limit),
+          currentPage: preferencesResult.page,
+          limit: limit,
+          hasMore: preferencesResult.page * limit < preferencesResult.totalResults,
+          totalPages: Math.ceil(preferencesResult.totalResults / limit),
         },
         source: 'local-preferences-fallback',
         vectorEnhanced: false,
@@ -450,21 +457,16 @@ async function handleSmartRecommendations(
     }
 
     // Final fallback to popular movies
-    const popularResult = await getPopularMovies({
-      supabase,
-      limit,
-      page,
-      offset: (page - 1) * limit,
-    })
+    const popularResult = await movieService.getPopularMovies({ limit, page })
     return NextResponse.json({
       success: true,
-      data: popularResult.data,
-      total: popularResult.total,
+      data: popularResult.movies,
+      total: popularResult.totalResults,
       pagination: {
         currentPage: popularResult.page,
-        limit: popularResult.limit,
-        hasMore: popularResult.hasMore,
-        totalPages: Math.ceil(popularResult.total / popularResult.limit),
+        limit: limit,
+        hasMore: popularResult.page * limit < popularResult.totalResults,
+        totalPages: Math.ceil(popularResult.totalResults / limit),
       },
       source: 'popular-fallback',
       vectorEnhanced: false,

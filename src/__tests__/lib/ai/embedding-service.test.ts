@@ -7,17 +7,28 @@ import type { Movie } from '@/types'
 
 // Mock Supabase client with proper typing
 const mockSupabaseClient = {
-  from: jest.fn(() => ({
-    insert: jest.fn(() => ({ select: jest.fn(() => Promise.resolve({ data: [], error: null })) })),
-    select: jest.fn(() => ({
-      eq: jest.fn(() => ({
-        single: jest.fn(() =>
-          Promise.resolve({ data: { combined_embedding: new Array(1536).fill(0.1) }, error: null })
-        ),
+  from: jest.fn(() => {
+    const builder = {
+      insert: jest.fn(() => ({
+        select: jest.fn(() => Promise.resolve({ data: [], error: null })),
       })),
-      rpc: jest.fn(),
-    })),
-  })),
+      upsert: jest.fn(() => Promise.resolve({ error: null })),
+      select: jest.fn(() => ({
+        eq: jest.fn(() => ({
+          single: jest.fn(() =>
+            Promise.resolve({
+              data: { combined_embedding: new Array(1536).fill(0.1) },
+              error: null,
+            })
+          ),
+        })),
+        rpc: jest.fn(),
+      })),
+      eq: jest.fn().mockReturnThis(),
+    }
+    return builder
+  }),
+  rpc: jest.fn(),
 }
 
 // Mock environment variables
@@ -160,9 +171,11 @@ describe('EmbeddingService - Tier 2 Vector Embeddings', () => {
         'An award-winning masterpiece'
       )
 
-      // Should detect quality words
-      const qualityFeature = features[features.length - 3] // Quality score is near the end
+      // Should detect quality words (quality feature is at index 38 - after genres, moods, decades)
+      const qualityFeatureIndex = 10 + 10 + 8 // genres + moods + decades
+      const qualityFeature = features[qualityFeatureIndex]
       expect(qualityFeature).toBeGreaterThan(0)
+      expect(qualityFeature).toBeLessThanOrEqual(1)
     })
   })
 
@@ -197,7 +210,7 @@ describe('EmbeddingService - Tier 2 Vector Embeddings', () => {
 
       // Mock the RPC call properly
       const mockRpc = jest.fn(() => Promise.resolve({ data: mockSearchResults, error: null }))
-      mockSupabaseClient.from().select().rpc = mockRpc
+      mockSupabaseClient.rpc = mockRpc
 
       const results = await embeddingService.searchUserMemories(
         'test-user-1',
@@ -225,7 +238,7 @@ describe('EmbeddingService - Tier 2 Vector Embeddings', () => {
 
       // Mock the RPC call properly
       const mockRpc = jest.fn(() => Promise.resolve({ data: mockSearchResults, error: null }))
-      mockSupabaseClient.from().select().rpc = mockRpc
+      mockSupabaseClient.rpc = mockRpc
 
       const results = await embeddingService.searchSimilarMovies('cyberpunk thriller', 0.8, 10)
 
@@ -240,7 +253,7 @@ describe('EmbeddingService - Tier 2 Vector Embeddings', () => {
       const mockRpc = jest.fn(() =>
         Promise.resolve({ data: null, error: new Error('Search failed') })
       )
-      mockSupabaseClient.from().select().rpc = mockRpc
+      mockSupabaseClient.rpc = mockRpc
 
       const results = await embeddingService.searchSimilarMovies('test query')
 

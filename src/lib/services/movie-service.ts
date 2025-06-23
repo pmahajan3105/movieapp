@@ -56,6 +56,34 @@ export interface PaginatedMovieResults {
   total_results: number
 }
 
+export interface MoviePreferences {
+  explicitGenres?: string[]
+  preferredGenres?: string[]
+  moods?: string[]
+  movieRatings?: Record<string, number>
+  likedMovieIds?: string[]
+  dislikedMovieIds?: string[]
+}
+
+export interface MovieRecommendation {
+  id: string
+  title: string
+  year: number | null
+  genre: string | string[] | null
+  director: string | string[] | null
+  actors: string | null
+  plot: string | null
+  poster_url: string | null
+  rating: number | null
+  runtime: number | null
+  imdb_id: string | null
+  tmdb_id: number | null
+  created_at: string
+  updated_at: string
+  matchScore?: number
+  relevanceReason?: string
+}
+
 export class MovieService {
   private tmdbApiKey: string
   private tmdbBaseUrl = 'https://api.themoviedb.org/3'
@@ -446,6 +474,276 @@ export class MovieService {
     }
 
     return results
+  }
+
+  // Get movies by user preferences - consolidated from movieService.ts
+  async getMoviesByPreferences(
+    userId: string,
+    options: {
+      limit?: number
+      page?: number
+    } = {}
+  ): Promise<{
+    movies: Movie[]
+    totalResults: number
+    totalPages: number
+    page: number
+    source: string
+  } | null> {
+    const { limit = 20, page = 1 } = options
+    const offset = (page - 1) * limit
+
+    try {
+      const { data: userProfile } = await this.supabase
+        .from('user_profiles')
+        .select('preferences')
+        .eq('id', userId)
+        .single()
+
+      if (!userProfile?.preferences) {
+        return null // Return null if no preferences found
+      }
+
+      logger.info('Loading preference-based recommendations', {
+        preferences: userProfile.preferences,
+      })
+
+      const preferences = userProfile.preferences as {
+        preferred_genres?: string[]
+        avoid_genres?: string[]
+        yearRange?: { min?: number; max?: number }
+        ratingRange?: { min?: number; max?: number }
+      }
+
+      let dbQuery = this.supabase.from('movies').select('*', { count: 'exact' })
+
+      // Build query based on preferences
+      if (preferences.preferred_genres?.length) {
+        dbQuery = dbQuery.overlaps('genre', preferences.preferred_genres)
+      }
+      if (preferences.avoid_genres?.length) {
+        dbQuery = dbQuery.not('genre', 'ov', `{${preferences.avoid_genres.join(',')}}`)
+      }
+      if (preferences.yearRange?.min) {
+        dbQuery = dbQuery.gte('year', preferences.yearRange.min)
+      }
+      if (preferences.yearRange?.max) {
+        dbQuery = dbQuery.lte('year', preferences.yearRange.max)
+      }
+      if (preferences.ratingRange?.min) {
+        dbQuery = dbQuery.gte('rating', preferences.ratingRange.min)
+      }
+
+      const { data, error, count } = await dbQuery
+        .order('rating', { ascending: false, nullsFirst: false })
+        .order('year', { ascending: false, nullsFirst: false })
+        .range(offset, offset + limit - 1)
+
+      if (error) {
+        logger.error('Error with preference-based query:', { error: error.message })
+        throw new Error(`Failed to fetch preference-based movies: ${error.message}`)
+      }
+
+      const totalResults = count || 0
+      const totalPages = Math.ceil(totalResults / limit)
+
+      return {
+        movies: data || [],
+        totalResults,
+        totalPages,
+        page,
+        source: 'local-preferences',
+      }
+    } catch (error) {
+      logger.error('Error fetching movies by preferences:', { error: String(error) })
+      return null
+    }
+  }
+
+  // Get popular movies - enhanced version
+  async getPopularMovies(
+    options: {
+      limit?: number
+      page?: number
+    } = {}
+  ): Promise<{
+    movies: Movie[]
+    totalResults: number
+    totalPages: number
+    page: number
+    source: string
+  }> {
+    const { limit = 20, page = 1 } = options
+    const offset = (page - 1) * limit
+
+    logger.info('Loading general movie recommendations')
+
+    try {
+      const { data, error, count } = await this.supabase
+        .from('movies')
+        .select('*', { count: 'exact' })
+        .order('rating', { ascending: false, nullsFirst: false })
+        .order('year', { ascending: false, nullsFirst: false })
+        .range(offset, offset + limit - 1)
+
+      if (error) {
+        logger.error('Error fetching popular movies:', { error: error.message })
+        throw new Error(`Failed to fetch popular movies: ${error.message}`)
+      }
+
+      const totalResults = count || 0
+      const totalPages = Math.ceil(totalResults / limit)
+
+      return {
+        movies: data || [],
+        totalResults,
+        totalPages,
+        page,
+        source: 'local-popular',
+      }
+    } catch (error) {
+      logger.error('Error fetching popular movies:', { error: String(error) })
+      // Return empty result instead of throwing
+      return {
+        movies: [],
+        totalResults: 0,
+        totalPages: 0,
+        page,
+        source: 'local-popular',
+      }
+    }
+  }
+
+  // Movie recommendations with preferences support
+  async getMovieRecommendations(userProfile: {
+    preferences?: MoviePreferences
+  }): Promise<MovieRecommendation[]> {
+    try {
+      // Get user preferences if they exist
+      if (userProfile.preferences?.preferredGenres?.length) {
+        logger.info('Loading preference-based recommendations', {
+          hasPreferences: true,
+          genreCount: userProfile.preferences.preferredGenres?.length || 0,
+        })
+
+        // Build a query based on user preferences
+        const genreQueries = userProfile.preferences.preferredGenres.map(
+          genre => `genre.ilike.%${genre}%`
+        )
+
+        const { data: movies, error } = await this.supabase
+          .from('movies')
+          .select('*')
+          .or(genreQueries.join(','))
+          .order('rating', { ascending: false })
+          .limit(20)
+
+        if (error) throw error
+
+        return (
+          movies?.map(movie => this.transformToRecommendation(movie, userProfile.preferences)) || []
+        )
+      }
+
+      // Fallback to popular movies
+      const popularResult = await this.getPopularMovies({ limit: 20 })
+      return popularResult.movies.map(movie => this.transformToRecommendation(movie))
+    } catch (error) {
+      logger.error('Error getting movie recommendations:', { error: String(error) })
+      return []
+    }
+  }
+
+  // Transform movie to recommendation format
+  private transformToRecommendation(
+    movie: Movie,
+    preferences?: MoviePreferences
+  ): MovieRecommendation {
+    let matchScore = 0
+    let relevanceReason = ''
+
+    if (preferences) {
+      matchScore = this.calculateMatchScore(movie, preferences)
+      relevanceReason = this.generateRelevanceReason(movie, preferences)
+    }
+
+    return {
+      id: movie.id,
+      title: movie.title,
+      year: movie.year ?? null,
+      genre: movie.genre ?? null,
+      director: movie.director ?? null,
+      actors: Array.isArray(movie.actors) ? movie.actors.join(', ') : (movie.actors ?? null),
+      plot: movie.plot ?? null,
+      poster_url: movie.poster_url ?? null,
+      rating: movie.rating ?? null,
+      runtime: movie.runtime ?? null,
+      imdb_id: movie.imdb_id ?? null,
+      tmdb_id: movie.tmdb_id ?? null,
+      created_at: movie.created_at || new Date().toISOString(),
+      updated_at: movie.updated_at || new Date().toISOString(),
+      matchScore,
+      relevanceReason,
+    }
+  }
+
+  // Calculate match score based on preferences
+  private calculateMatchScore(movie: Movie, preferences: MoviePreferences): number {
+    let score = 0
+    let factors = 0
+
+    // Genre matching
+    if (preferences.preferredGenres?.length && movie.genre) {
+      const movieGenres = Array.isArray(movie.genre) ? movie.genre : [movie.genre]
+      const genreMatches = movieGenres.filter(genre =>
+        preferences.preferredGenres!.some(pref => genre.toLowerCase().includes(pref.toLowerCase()))
+      ).length
+
+      if (genreMatches > 0) {
+        score += (genreMatches / movieGenres.length) * 0.4
+        factors += 0.4
+      }
+    }
+
+    // Rating preference
+    if (movie.rating && movie.rating >= 7) {
+      score += 0.3
+      factors += 0.3
+    }
+
+    // Popularity/recency
+    if (movie.year && movie.year >= 2000) {
+      score += 0.3
+      factors += 0.3
+    }
+
+    return factors > 0 ? score / factors : 0
+  }
+
+  // Generate relevance reason
+  private generateRelevanceReason(movie: Movie, preferences: MoviePreferences): string {
+    const reasons: string[] = []
+
+    if (preferences.preferredGenres?.length && movie.genre) {
+      const movieGenres = Array.isArray(movie.genre) ? movie.genre : [movie.genre]
+      const matchingGenres = movieGenres.filter(genre =>
+        preferences.preferredGenres!.some(pref => genre.toLowerCase().includes(pref.toLowerCase()))
+      )
+
+      if (matchingGenres.length > 0) {
+        reasons.push(`Matches your preferred genres: ${matchingGenres.join(', ')}`)
+      }
+    }
+
+    if (movie.rating && movie.rating >= 8) {
+      reasons.push('High rating')
+    }
+
+    if (movie.year && movie.year >= 2020) {
+      reasons.push('Recent release')
+    }
+
+    return reasons.length > 0 ? reasons.join('; ') : 'Popular choice'
   }
 }
 

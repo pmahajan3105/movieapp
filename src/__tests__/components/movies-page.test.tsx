@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 import React from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom'
@@ -21,6 +22,10 @@ const getMoviesPage = () => {
   return MoviesPageModule.default || MoviesPageModule
 }
 
+// Provide a single reference for tests that don't need dynamic import
+
+const MoviesPage = getMoviesPage()
+
 // Mock Supabase
 jest.mock('@supabase/ssr', () => ({
   createBrowserClient: jest.fn(() => ({
@@ -32,7 +37,7 @@ jest.mock('@supabase/ssr', () => ({
       getUser: jest.fn(),
       signOut: jest.fn(),
       onAuthStateChange: jest.fn(() => ({
-        data: { subscription: { unsubscribe: jest.fn() } }
+        data: { subscription: { unsubscribe: jest.fn() } },
       })),
     },
   })),
@@ -53,7 +58,7 @@ jest.mock('@tanstack/react-query', () => {
     error: null,
     refetch: jest.fn(),
   }))
-  
+
   const mockUseMutation = jest.fn(() => ({
     mutate: jest.fn(),
     isPending: false,
@@ -63,11 +68,13 @@ jest.mock('@tanstack/react-query', () => {
 
   const mockUseInfiniteQuery = jest.fn(() => ({
     data: {
-      pages: [{
-        data: [],
-        pagination: { hasMore: false, currentPage: 1 }
-      }],
-      pageParams: [1]
+      pages: [
+        {
+          data: [],
+          pagination: { hasMore: false, currentPage: 1 },
+        },
+      ],
+      pageParams: [1],
     },
     isLoading: false,
     error: null,
@@ -76,7 +83,7 @@ jest.mock('@tanstack/react-query', () => {
     isFetchingNextPage: false,
     refetch: jest.fn(),
   }))
-  
+
   return {
     useQuery: mockUseQuery,
     useMutation: mockUseMutation,
@@ -176,11 +183,13 @@ describe('MoviesPage Integration Test', () => {
 
     mockUseInfiniteQuery.mockReturnValue({
       data: {
-        pages: [{
-          data: mockMovies,
-          pagination: { hasMore: false, currentPage: 1, totalPages: 1 }
-        }],
-        pageParams: [1]
+        pages: [
+          {
+            data: mockMovies,
+            pagination: { hasMore: false, currentPage: 1, totalPages: 1 },
+          },
+        ],
+        pageParams: [1],
       },
       isLoading: false,
       error: null,
@@ -194,9 +203,9 @@ describe('MoviesPage Integration Test', () => {
     ;(global.fetch as jest.Mock).mockImplementation(() => {
       return Promise.resolve({
         ok: true,
-        json: jest.fn().mockResolvedValue({ 
-          success: true, 
-          data: mockMovies 
+        json: jest.fn().mockResolvedValue({
+          success: true,
+          data: mockMovies,
         }),
       })
     })
@@ -207,7 +216,6 @@ describe('MoviesPage Integration Test', () => {
   })
 
   it('renders page title successfully', async () => {
-    const MoviesPage = getMoviesPage()
     render(
       <TestWrapper>
         <MoviesPage />
@@ -220,7 +228,6 @@ describe('MoviesPage Integration Test', () => {
   })
 
   it('displays movies when loaded successfully', async () => {
-    const MoviesPage = getMoviesPage()
     render(
       <TestWrapper>
         <MoviesPage />
@@ -234,7 +241,6 @@ describe('MoviesPage Integration Test', () => {
   })
 
   it('handles loading state correctly', async () => {
-    const MoviesPage = getMoviesPage()
     mockUseInfiniteQuery.mockReturnValue({
       data: null,
       isLoading: true,
@@ -256,7 +262,6 @@ describe('MoviesPage Integration Test', () => {
   })
 
   it('handles error state gracefully', async () => {
-    const MoviesPage = getMoviesPage()
     mockUseInfiniteQuery.mockReturnValue({
       data: null,
       isLoading: false,
@@ -298,11 +303,13 @@ describe('MoviesPage Integration Test', () => {
 
     mockUseInfiniteQuery.mockReturnValue({
       data: {
-        pages: [{
-          data: mockMovies,
-          pagination: { hasMore: false, currentPage: 1 }
-        }],
-        pageParams: [1]
+        pages: [
+          {
+            data: mockMovies,
+            pagination: { hasMore: false, currentPage: 1 },
+          },
+        ],
+        pageParams: [1],
       },
       isLoading: false,
       error: null,
@@ -350,11 +357,13 @@ describe('MoviesPage Integration Test', () => {
   it('handles empty movies list gracefully', async () => {
     mockUseInfiniteQuery.mockReturnValue({
       data: {
-        pages: [{
-          data: [],
-          pagination: { hasMore: false, currentPage: 1 }
-        }],
-        pageParams: [1]
+        pages: [
+          {
+            data: [],
+            pagination: { hasMore: false, currentPage: 1 },
+          },
+        ],
+        pageParams: [1],
       },
       isLoading: false,
       error: null,
