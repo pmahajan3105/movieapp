@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import type { ChatMessage } from '@/types/chat'
+import { logger } from '@/lib/logger'
 
 interface EnhancedRecommendation {
   title: string
@@ -17,6 +18,26 @@ interface EnhancedRecommendationsResponse {
 }
 
 export function useEnhancedRecommendations() {
+  const updateRealTimeLearning = useCallback(
+    async (message: string, recommendationCount: number) => {
+      await fetch('/api/ai/recommendations', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'conversation_interaction',
+          data: {
+            message,
+            recommendations_provided: recommendationCount,
+            timestamp: new Date().toISOString(),
+          },
+        }),
+      })
+    },
+    []
+  )
+
   const getEnhancedRecommendations = useCallback(
     async (messageContent: string): Promise<ChatMessage | null> => {
       try {
@@ -64,7 +85,7 @@ Want more recommendations? Just ask! I can suggest movies by genre, mood, or any
 
           // Trigger real-time learning update in the background
           updateRealTimeLearning(messageContent, data.recommendations.length).catch(error => {
-            console.warn('⚠️ Real-time learning update failed:', error)
+            logger.warn('Real-time learning update failed', { error: error.message })
           })
 
           return recommendationsMessage
@@ -79,7 +100,9 @@ Want more recommendations? Just ask! I can suggest movies by genre, mood, or any
           }
         }
       } catch (error) {
-        console.error('❌ Enhanced conversation error:', error)
+        logger.error('Enhanced conversation error', {
+          error: error instanceof Error ? error.message : String(error),
+        })
 
         return {
           id: `error-${Date.now()}`,
@@ -90,27 +113,7 @@ Want more recommendations? Just ask! I can suggest movies by genre, mood, or any
         }
       }
     },
-    []
-  )
-
-  const updateRealTimeLearning = useCallback(
-    async (message: string, recommendationCount: number) => {
-      await fetch('/api/ai/recommendations', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          action: 'conversation_interaction',
-          data: {
-            message,
-            recommendations_provided: recommendationCount,
-            timestamp: new Date().toISOString(),
-          },
-        }),
-      })
-    },
-    []
+    [updateRealTimeLearning]
   )
 
   const isRecommendationRequest = useCallback((message: string) => {
