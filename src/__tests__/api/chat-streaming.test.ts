@@ -12,16 +12,7 @@ jest.mock('@/lib/supabase/client', () => ({
 
 // jest.mock('@/lib/mem0/client') // Removed - package deleted
 
-jest.mock('groq-sdk', () => ({
-  __esModule: true,
-  default: jest.fn().mockImplementation(() => ({
-    chat: {
-      completions: {
-        create: jest.fn(),
-      },
-    },
-  })),
-}))
+// Note: Groq SDK functionality would be mocked here if needed
 
 describe('Chat Streaming API', () => {
   beforeEach(() => {

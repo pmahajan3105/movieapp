@@ -1,6 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-unused-vars */
-
 // Mock external dependencies
 jest.mock('@/lib/supabase/client', () => ({
   createServerClient: jest.fn(() => ({
@@ -21,16 +18,7 @@ jest.mock('@/lib/supabase/client', () => ({
 
 // jest.mock('@/lib/mem0/client') // Removed - package deleted
 
-jest.mock('groq-sdk', () => ({
-  __esModule: true,
-  default: jest.fn().mockImplementation(() => ({
-    chat: {
-      completions: {
-        create: jest.fn(),
-      },
-    },
-  })),
-}))
+// Note: Groq SDK functionality would be mocked here if needed
 
 interface PreferenceData {
   genres?: string[]

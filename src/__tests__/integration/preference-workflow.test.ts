@@ -30,17 +30,7 @@ jest.mock('@/lib/supabase/client', () => ({
   ),
 }))
 
-// Mock Groq
-jest.mock('groq-sdk', () => ({
-  __esModule: true,
-  default: jest.fn().mockImplementation(() => ({
-    chat: {
-      completions: {
-        create: jest.fn(),
-      },
-    },
-  })),
-}))
+// Note: Groq SDK functionality would be mocked here if needed
 
 const mockSupabase = {
   auth: {

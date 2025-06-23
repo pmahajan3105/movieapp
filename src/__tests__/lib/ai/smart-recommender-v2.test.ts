@@ -1,4 +1,3 @@
-/* eslint-disable */
 /**
  * @jest-environment jsdom
  */
@@ -15,24 +14,27 @@ const mockEmbeddingService = {
   getInstance: jest.fn(),
 }
 
-// Mock Supabase client with proper typing
+// Mock Supabase client with proper typing and full chain support
+const createMockChain = () => {
+  const chain = {
+    select: jest.fn().mockReturnThis(),
+    eq: jest.fn().mockReturnThis(),
+    single: jest.fn(),
+    or: jest.fn().mockReturnThis(),
+    not: jest.fn().mockReturnThis(),
+    order: jest.fn().mockReturnThis(),
+    limit: jest.fn(),
+  }
+
+  // Set default return values
+  chain.single.mockResolvedValue({ data: null, error: null })
+  chain.limit.mockResolvedValue({ data: [], error: null })
+
+  return chain
+}
+
 const mockSupabaseClient = {
-  from: jest.fn(() => ({
-    select: jest.fn(() => ({
-      eq: jest.fn(() => ({
-        single: jest.fn(),
-      })),
-      or: jest.fn(() => ({
-        limit: jest.fn(),
-      })),
-      not: jest.fn(() => ({
-        order: jest.fn(() => ({
-          limit: jest.fn(),
-        })),
-      })),
-      limit: jest.fn(),
-    })),
-  })),
+  from: jest.fn(() => createMockChain()),
 } as any
 
 // Mock environment variables
@@ -128,13 +130,15 @@ describe('SmartRecommenderV2 - Tier 2 Intelligent Recommendations', () => {
 
     mockedEmbeddingService.saveUserMemory.mockResolvedValue(true)
 
-    // Mock movie data from Supabase
-    mockSupabaseClient.from().select().or().limit.mockResolvedValue({
+    // Mock movie data from Supabase - set up the chain to return mockMovies
+    const chain1 = mockSupabaseClient.from()
+    chain1.limit.mockResolvedValue({
       data: mockMovies,
       error: null,
     })
 
-    mockSupabaseClient.from().select().not().order().limit.mockResolvedValue({
+    const chain2 = mockSupabaseClient.from()
+    chain2.limit.mockResolvedValue({
       data: mockMovies,
       error: null,
     })
@@ -150,7 +154,7 @@ describe('SmartRecommenderV2 - Tier 2 Intelligent Recommendations', () => {
       }
 
       const result = await smartRecommender.getSmartRecommendations(options)
-      
+
       // Get the mocked embedding service to check calls
       const { embeddingService } = await import('../../../lib/ai/embedding-service')
       const mockedEmbeddingService = embeddingService as jest.Mocked<typeof embeddingService>
@@ -169,7 +173,7 @@ describe('SmartRecommenderV2 - Tier 2 Intelligent Recommendations', () => {
       }
 
       const result = await smartRecommender.getSmartRecommendations(options)
-      
+
       // Get the mocked embedding service to check calls
       const { embeddingService } = await import('../../../lib/ai/embedding-service')
       const mockedEmbeddingService = embeddingService as jest.Mocked<typeof embeddingService>
@@ -187,7 +191,7 @@ describe('SmartRecommenderV2 - Tier 2 Intelligent Recommendations', () => {
       }
 
       const result = await smartRecommender.getSmartRecommendations(options)
-      
+
       // Get the mocked embedding service to check calls
       const { embeddingService } = await import('../../../lib/ai/embedding-service')
       const mockedEmbeddingService = embeddingService as jest.Mocked<typeof embeddingService>
@@ -304,7 +308,7 @@ describe('SmartRecommenderV2 - Tier 2 Intelligent Recommendations', () => {
         rating: 5,
         timestamp: '2023-01-01T00:00:00Z',
       })
-      
+
       // Get the mocked embedding service to check calls
       const { embeddingService } = await import('../../../lib/ai/embedding-service')
       const mockedEmbeddingService = embeddingService as jest.Mocked<typeof embeddingService>
@@ -327,7 +331,7 @@ describe('SmartRecommenderV2 - Tier 2 Intelligent Recommendations', () => {
       for (const interaction of interactions) {
         await smartRecommender.saveUserInteraction('test-user-1', 'movie-1', interaction as any, {})
       }
-      
+
       // Get the mocked embedding service to check calls
       const { embeddingService } = await import('../../../lib/ai/embedding-service')
       const mockedEmbeddingService = embeddingService as jest.Mocked<typeof embeddingService>
@@ -375,10 +379,10 @@ describe('SmartRecommenderV2 - Tier 2 Intelligent Recommendations', () => {
 
   describe('Error Handling', () => {
     it('should handle embedding service errors gracefully', async () => {
-      // Get the mocked embedding service 
+      // Get the mocked embedding service
       const { embeddingService } = await import('../../../lib/ai/embedding-service')
       const mockedEmbeddingService = embeddingService as jest.Mocked<typeof embeddingService>
-      
+
       mockedEmbeddingService.generateEmbedding.mockRejectedValue(new Error('Embedding failed'))
 
       const options = {
@@ -419,10 +423,10 @@ describe('SmartRecommenderV2 - Tier 2 Intelligent Recommendations', () => {
     })
 
     it('should handle user memory save failures', async () => {
-      // Get the mocked embedding service 
+      // Get the mocked embedding service
       const { embeddingService } = await import('../../../lib/ai/embedding-service')
       const mockedEmbeddingService = embeddingService as jest.Mocked<typeof embeddingService>
-      
+
       mockedEmbeddingService.saveUserMemory.mockResolvedValue(false)
 
       // Should not throw error, just log it
@@ -462,7 +466,7 @@ describe('SmartRecommenderV2 - Tier 2 Intelligent Recommendations', () => {
         userId: 'test-user-1',
         userQuery: 'action movies',
       })
-      
+
       // Get the mocked embedding service to check calls
       const { embeddingService } = await import('../../../lib/ai/embedding-service')
       const mockedEmbeddingService = embeddingService as jest.Mocked<typeof embeddingService>
