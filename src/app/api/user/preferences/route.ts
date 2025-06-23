@@ -31,7 +31,7 @@ export const POST = createAuthenticatedApiHandler(async (request, { supabase, us
   // Prepare the profile data
   const profileData = {
     id: user.id,
-    email: user.email || '',
+    ...(user.email ? { email: user.email } : {}),
     preferences: {
       preferred_genres: preferences.preferred_genres || [],
       avoid_genres: preferences.avoid_genres || [],
@@ -40,6 +40,8 @@ export const POST = createAuthenticatedApiHandler(async (request, { supabase, us
       favorite_directors: preferences.favorite_directors || [],
       themes: preferences.themes || [],
       preferred_eras: preferences.preferred_eras || [],
+      preferred_rating_min: preferences.preferred_rating_min ?? null,
+      preferred_year_min: preferences.preferred_year_min ?? null,
       additional_notes: preferences.additional_notes || '',
       updated_at: new Date().toISOString(),
     },

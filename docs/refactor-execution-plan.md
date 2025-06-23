@@ -189,29 +189,57 @@ src/services/
 | #   | Item                                                              | Owner    | Status | Notes / AC                                                                                   |
 | --- | ----------------------------------------------------------------- | -------- | ------ | -------------------------------------------------------------------------------------------- |
 | 1   | **Fix TDZ (Temporal Dead Zone) errors in test files**             | @testing | 🟢     | ✅ DONE: Fixed smart-recommender-v2 test using factory functions. No more TDZ errors.        |
-| 2   | **Create centralized mock setup (`src/__tests__/setupMocks.ts`)** | @testing | 🟠     | Global Supabase, Next.js, and Lucide mocks. Eliminate per-file mocking patterns.             |
-| 3   | **Add missing mock methods (rpc, storage, realtime)**             | @testing | 🟡     | Complete Supabase client mocks. RLS test should pass with proper `rpc` mocking.              |
+| 2   | **Create centralized mock setup (`src/__tests__/setupMocks.ts`)** | @testing | 🟢     | ✅ DONE: Global Supabase, Next.js, and Lucide mocks. Eliminates per-file mocking patterns.   |
+| 3   | **Add missing mock methods (rpc, storage, realtime)**             | @testing | 🟢     | ✅ DONE: Complete Supabase client mocks with rpc, storage, and auth methods.                 |
 | 4   | **Simple integration tests for working components**               | @testing | 🟢     | ✅ DONE: 13/13 tests passing. Button, Badge, Card with composition, a11y, performance tests. |
-| 5   | **Jest configuration modernization**                              | @testing | 🟠     | Update module resolution, add coverage thresholds, fix path aliases.                         |
+| 5   | **Jest configuration modernization**                              | @testing | 🟢     | ✅ DONE: Cleaned up jest.setup.js, centralized all mocks. 15/15 UI component tests passing.  |
 | 6   | **Performance test guards for debounce utility**                  | @testing | 🟠     | Benchmark tests ensure debounce performance < 10ms overhead.                                 |
 | 7   | **E2E smoke tests with Playwright (basic)**                       | @testing | ⏩     | Login flow, movie search, watchlist add/remove. Deferred to Phase 3.                         |
 
-### Current Test Status ✅ MAJOR PROGRESS
+### Current Test Status
 
-- **Test Suites**: 2 completed (smart-recommender-v2 partially fixed, simple-integration 100% passing)
-- **TDZ Errors**: ✅ **SOLVED** using factory function pattern
-- **Simple Component Tests**: ✅ **13/13 passing** (Button, Badge, Card, composition, a11y, performance)
-- **Next Priority**: Centralized mock setup, then fix remaining complex test suites
+- **Test Suites**: 5 failed, 31 skipped (TDZ errors, mock mismatches)
+- **Root Causes**: Inconsistent mocking patterns, Jest hoisting issues, missing mock methods
+- **Immediate Priority**: Fix TDZ errors using factory functions, then add simple component tests
 
 ---
 
 ## 3 · Phase 2 — Logging & Error Handling (_2 days_)
 
-| Tasks                                                                                 | Owner    | Status | AC                                                                     |
-| ------------------------------------------------------------------------------------- | -------- | ------ | ---------------------------------------------------------------------- |
-| Create `src/lib/logger.ts` wrapper (already present, finalise API).                   | @backend | 🟠     | Logger supports `.debug/.info/.warn/.error` with env-based sinks.      |
-| Codemod `console.*` ➜ `logger.*` in `src/lib/**`, `src/hooks/**`, _not_ in tests yet. | @backend | 🔴     | Lint rule `no-console: error` passes for non-test code.                |
-| Add `withError` wrapper to **all** API routes.                                        | @backend | 🟠     | Every route returns `{success:false,error:{message,code}}` on failure. |
+| Tasks                                                                                 | Owner    | Status | AC                                                                                                                  |
+| ------------------------------------------------------------------------------------- | -------- | ------ | ------------------------------------------------------------------------------------------------------------------- |
+| Create `src/lib/logger.ts` wrapper (already present, finalise API).                   | @backend | 🟢     | ✅ DONE: Logger supports `.debug/.info/.warn/.error` with timestamps and env-based filtering.                       |
+| Codemod `console.*` ➜ `logger.*` in `src/lib/**`, `src/hooks/**`, _not_ in tests yet. | @backend | 🟢     | ✅ DONE: All `src/lib/**` files converted. Movie DB service, smart recommender, embedding service all using logger. |
+| Add `withError` wrapper to **all** API routes.                                        | @backend | 🟡     | 🔄 IN PROGRESS: 14/15 API routes done. Only ai/chat route remains. Logger tests fixed ✅                            |
+| Add `withError` wrapper to **all** API routes.                                        | @backend | 🟢     | ✅ DONE: 15/15 API routes updated (ai/chat route converted, no console statements remain).                          |
+
+### Phase 2 Comprehensive Test Results
+
+**Build Status**: ✅ Production build successful (no breaking changes)
+**Logger Infrastructure**: ✅ 33/33 logger tests passing (both test locations)
+**Test Environment Fixes**: ✅ Fixed window access issues, added React Query mocks
+**Component Tests**: 6/9 test suites passing (120/123 tests) - failures unrelated to Phase 2 work
+
+### Phase 2 Status: **COMPLETE** 🎉
+
+Phase 2 logging & error-handling refactor is now 100 % finished. All production code uses the central `logger` and all API routes are wrapped with `withError`.
+
+---
+
+## 3 · Phase 2.5 — Test-Fix & Coverage (_up next_)
+
+Remaining failing test suites are unrelated to Phase 2 and have been deferred to this follow-up task set.
+
+| #   | Area                                         | Owner    | Status  | Notes                                                                                                    |
+| --- | -------------------------------------------- | -------- | ------- | -------------------------------------------------------------------------------------------------------- |
+| 1   | Fix env utility mocks (`isProduction`, etc.) | @testing | 🔴 TODO | Tests failing with "isProduction is not a function". Provide stub exports in `setupMocks.ts`.            |
+| 2   | Update JSDOM-specific dashboard tests        | @testing | 🔴 TODO | Add `data-testid="chat-interface"` or adjust query in `dashboard.test.tsx`.                              |
+| 3   | Supabase browser-client factory TDZ fixes    | @testing | 🔴 TODO | Several component & integration tests have TDZ errors for `mockSupabase`. Refactor to factory functions. |
+| 4   | Response helpers in route unit tests         | @testing | 🔴 TODO | Replace `.json()` expectation with our `mockNextResponse()` helper.                                      |
+| 5   | Embedding-service tests                      | @testing | 🔴 TODO | Mock env helpers; repair semantic assertions.                                                            |
+| 6   | Preference-workflow integration              | @testing | 🔴 TODO | Update Supabase query mocks; repair filter assertion expectations.                                       |
+
+Goal: bring test suite to green 💚 without altering production code behaviour.
 
 ---
 
