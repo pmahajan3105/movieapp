@@ -42,10 +42,10 @@ describe('Watchlist Operations', () => {
       const invalidMovie = {
         title: 'Invalid Movie',
         // missing required fields
-      }
+      } as any
 
       // Test required fields validation
-      const hasRequiredFields = validMovie.id && validMovie.title && validMovie.year
+      const hasRequiredFields = !!(validMovie.id && validMovie.title && validMovie.year)
       const missingRequiredFields = !invalidMovie.id
 
       expect(hasRequiredFields).toBe(true)

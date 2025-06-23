@@ -40,14 +40,41 @@ export const createMockSupabaseClient = () => {
     not: jest.fn().mockReturnThis(),
     gte: jest.fn().mockReturnThis(),
     lte: jest.fn().mockReturnThis(),
-    range: jest.fn().mockReturnThis(),
-    single: jest.fn().mockResolvedValue({ data: { id: 'mock-id' }, error: null }),
+    range: jest.fn().mockResolvedValue({ 
+      data: [], 
+      error: null, 
+      count: 0 
+    }),
+    single: jest.fn().mockResolvedValue({ 
+      data: { id: 'mock-id' }, 
+      error: null 
+    }),
   }
 
   return {
     auth: {
-      getUser: jest.fn().mockResolvedValue({ data: { user: { id: 'uid' } }, error: null }),
-      getSession: jest.fn().mockResolvedValue({ data: { session: null }, error: null }),
+      getUser: jest.fn().mockResolvedValue({ 
+        data: { user: { id: 'uid', email: 'test@example.com' } }, 
+        error: null 
+      }),
+      getSession: jest.fn().mockResolvedValue({ 
+        data: { 
+          session: { 
+            user: { id: 'uid', email: 'test@example.com' },
+            access_token: 'mock-token',
+            expires_at: Date.now() + 3600000
+          } 
+        }, 
+        error: null 
+      }),
+      onAuthStateChange: jest.fn().mockReturnValue({
+        data: { 
+          subscription: { 
+            unsubscribe: jest.fn() 
+          } 
+        },
+      }),
+      signOut: jest.fn().mockResolvedValue({ error: null }),
     },
     from: jest.fn(() => builder),
     rpc: jest.fn().mockResolvedValue({ data: null, error: null }),
@@ -114,6 +141,229 @@ jest.mock('@/lib/supabase/client', () => ({
   createClient: jest.fn(() => createMockSupabaseClient()),
 }))
 
+jest.mock('@/lib/supabase/server-client', () => ({
+  createClient: jest.fn(() => createMockSupabaseClient()),
+}))
+
+jest.mock('@/lib/supabase/browser-client', () => {
+  const mockSubscription = { unsubscribe: jest.fn() }
+  const mockAuthStateChange = {
+    data: { subscription: mockSubscription }
+  }
+  
+  return {
+    supabase: {
+      auth: {
+        getUser: jest.fn().mockResolvedValue({ 
+          data: { user: { id: 'uid', email: 'test@example.com' } }, 
+          error: null 
+        }),
+        getSession: jest.fn().mockResolvedValue({ 
+          data: { 
+            session: { 
+              user: { id: 'uid', email: 'test@example.com' },
+              access_token: 'mock-token',
+              expires_at: Date.now() + 3600000
+            } 
+          }, 
+          error: null 
+        }),
+        onAuthStateChange: jest.fn().mockReturnValue(mockAuthStateChange),
+        signOut: jest.fn().mockResolvedValue({ error: null }),
+      },
+      from: jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnValue({
+            single: jest.fn().mockResolvedValue({ data: null, error: null })
+          })
+        })
+      }),
+      rpc: jest.fn().mockResolvedValue({ data: null, error: null }),
+    }
+  }
+})
+
+jest.mock('@/lib/supabase/session', () => ({
+  hydrateSessionFromCookie: jest.fn().mockResolvedValue(undefined),
+  promiseWithTimeout: jest.fn().mockImplementation((promise: Promise<any>) => {
+    // Ensure the promise resolves with the expected structure
+    return promise.catch(() => ({ 
+      data: { session: null }, 
+      error: null 
+    }))
+  }),
+  clearAuthCookie: jest.fn().mockResolvedValue(undefined),
+}))
+
+// Mock repositories used by API routes
+jest.mock('@/repositories/WatchlistRepository', () => ({
+  WatchlistRepository: jest.fn().mockImplementation(() => ({
+    getUserWatchlist: jest.fn().mockResolvedValue([
+      {
+        id: 'watchlist-1',
+        added_at: '2024-01-01T00:00:00Z',
+        watched: false,
+        movies: {
+          id: 'movie-1',
+          title: 'Test Movie',
+          year: 2024,
+        },
+      },
+    ]),
+    addToWatchlist: jest.fn().mockResolvedValue({
+      id: 'watchlist-2',
+      user_id: 'user-123',
+      movie_id: 'movie-1',
+      watched: false,
+      notes: null,
+      added_at: '2024-01-01T00:00:00Z',
+    }),
+    checkIfInWatchlist: jest.fn().mockResolvedValue(false),
+    updateWatchlistItem: jest.fn().mockResolvedValue({
+      id: 'watchlist-1',
+      watched: true,
+      watched_at: '2024-01-01T00:00:00Z',
+    }),
+    removeFromWatchlist: jest.fn().mockResolvedValue({ id: 'mock-removed-id' }),
+  }))
+}))
+
+jest.mock('@/repositories/MovieRepository', () => ({
+  MovieRepository: jest.fn().mockImplementation(() => ({
+    findByTmdbId: jest.fn().mockResolvedValue(null),
+    create: jest.fn().mockResolvedValue({ id: 'mock-movie-id', title: 'Mock Movie' }),
+    update: jest.fn().mockResolvedValue({ id: 'mock-movie-id', title: 'Updated Mock Movie' }),
+    findById: jest.fn().mockResolvedValue({
+      id: 'movie-1',
+      title: 'Avengers: Endgame',
+      year: 2019,
+      genre: ['Action', 'Adventure', 'Drama'],
+      rating: 8.4,
+      runtime: 181,
+      director: ['Anthony Russo', 'Joe Russo'],
+      plot: 'After devastating events, the Avengers assemble once more.',
+      poster_url: 'https://example.com/poster1.jpg',
+    }),
+    search: jest.fn().mockResolvedValue({ 
+      movies: [
+        {
+          id: 'movie-1',
+          title: 'Avengers: Endgame',
+          year: 2019,
+          genre: ['Action', 'Adventure', 'Drama'],
+          rating: 8.4,
+          runtime: 181,
+          director: ['Anthony Russo', 'Joe Russo'],
+          plot: 'After devastating events, the Avengers assemble once more.',
+          poster_url: 'https://example.com/poster1.jpg',
+        },
+        {
+          id: 'movie-2',
+          title: 'The Shawshank Redemption',
+          year: 1994,
+          genre: ['Drama'],
+          rating: 9.3,
+          runtime: 142,
+          director: ['Frank Darabont'],
+          plot: 'Two imprisoned men bond over a number of years.',
+          poster_url: 'https://example.com/poster2.jpg',
+        },
+      ], 
+      totalCount: 2 
+    }),
+    findTrending: jest.fn().mockResolvedValue({ 
+      movies: [
+        {
+          id: 'movie-1',
+          title: 'Avengers: Endgame',
+          year: 2019,
+          genre: ['Action', 'Adventure', 'Drama'],
+          rating: 8.4,
+          runtime: 181,
+          director: ['Anthony Russo', 'Joe Russo'],
+          plot: 'After devastating events, the Avengers assemble once more.',
+          poster_url: 'https://example.com/poster1.jpg',
+        },
+      ], 
+      totalCount: 1 
+    }),
+  }))
+}))
+
+// Mock movieService functions that API routes actually call
+jest.mock('@/lib/services/movieService', () => ({
+  getMoviesByPreferences: jest.fn().mockResolvedValue({
+    success: true,
+    data: [
+      {
+        id: 'movie-1',
+        title: 'Avengers: Endgame',
+        year: 2019,
+        genre: ['Action', 'Adventure', 'Drama'],
+        rating: 8.4,
+        runtime: 181,
+        director: ['Anthony Russo', 'Joe Russo'],
+        plot: 'After devastating events, the Avengers assemble once more.',
+        poster_url: 'https://example.com/poster1.jpg',
+      },
+      {
+        id: 'movie-3',
+        title: 'Inception',
+        year: 2010,
+        genre: ['Action', 'Sci-Fi', 'Thriller'],
+        rating: 8.8,
+        runtime: 148,
+        director: ['Christopher Nolan'],
+        plot: 'A thief who steals corporate secrets through dream-sharing.',
+        poster_url: 'https://example.com/poster3.jpg',
+      },
+    ],
+    total: 2,
+    page: 1,
+    limit: 12,
+    hasMore: false,
+    source: 'local-preferences',
+  }),
+  getPopularMovies: jest.fn().mockResolvedValue({
+    success: true,
+    data: [
+      {
+        id: 'movie-1',
+        title: 'Avengers: Endgame',
+        year: 2019,
+        genre: ['Action', 'Adventure', 'Drama'],
+        rating: 8.4,
+        runtime: 181,
+        director: ['Anthony Russo', 'Joe Russo'],
+        plot: 'After devastating events, the Avengers assemble once more.',
+        poster_url: 'https://example.com/poster1.jpg',
+      },
+      {
+        id: 'movie-2',
+        title: 'The Shawshank Redemption',
+        year: 1994,
+        genre: ['Drama'],
+        rating: 9.3,
+        runtime: 142,
+        director: ['Frank Darabont'],
+        plot: 'Two imprisoned men bond over a number of years.',
+        poster_url: 'https://example.com/poster2.jpg',
+      },
+    ],
+    total: 3,
+    page: 1,
+    limit: 12,
+    hasMore: false,
+    source: 'local-popular',
+  }),
+  movieService: {
+    getMovieRecommendations: jest.fn().mockResolvedValue([]),
+    getPopularMovies: jest.fn().mockResolvedValue([]),
+    calculateMatchScore: jest.fn().mockReturnValue(0.8),
+    generateRelevanceReason: jest.fn().mockReturnValue('Great match for your preferences'),
+  },
+}))
+
 //---------------------------------------------
 // Mock Lucide React icons
 //---------------------------------------------
@@ -125,6 +375,21 @@ jest.mock('lucide-react', () => {
 //---------------------------------------------
 // Browser API shims (jsdom lacks these)
 //---------------------------------------------
+
+// TextEncoder/TextDecoder polyfill for Node test environment
+if (typeof TextEncoder === 'undefined') {
+  ;(global as any).TextEncoder = class {
+    encode(input: string): Uint8Array {
+      return new Uint8Array(Buffer.from(input, 'utf8'))
+    }
+  }
+  ;(global as any).TextDecoder = class {
+    decode(input: Uint8Array): string {
+      return Buffer.from(input).toString('utf8')
+    }
+  }
+}
+
 ;(global as any).ResizeObserver = jest.fn().mockImplementation(() => ({
   observe: jest.fn(),
   unobserve: jest.fn(),

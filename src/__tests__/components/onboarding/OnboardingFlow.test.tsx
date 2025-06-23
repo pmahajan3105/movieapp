@@ -34,20 +34,46 @@ const mockUser = {
 
 const mockMovies = [
   {
-    id: '1',
+    id: 'movie-1',
     title: 'Test Movie 1',
     poster_url: 'https://example.com/poster1.jpg',
-    year: 2023,
-    rating: 8.5,
+    year: 2021,
     genre: ['Action', 'Adventure'],
   },
   {
-    id: '2',
+    id: 'movie-2',
     title: 'Test Movie 2',
     poster_url: 'https://example.com/poster2.jpg',
     year: 2022,
-    rating: 7.8,
     genre: ['Comedy', 'Romance'],
+  },
+  {
+    id: 'movie-3',
+    title: 'Test Movie 3',
+    poster_url: 'https://example.com/poster3.jpg',
+    year: 2020,
+    genre: ['Drama', 'Thriller'],
+  },
+  {
+    id: 'movie-4',
+    title: 'Test Movie 4',
+    poster_url: 'https://example.com/poster4.jpg',
+    year: 2019,
+    genre: ['Action', 'Sci-Fi'],
+  },
+  {
+    id: 'movie-5',
+    title: 'Test Movie 5',
+    poster_url: 'https://example.com/poster5.jpg',
+    year: 2023,
+    genre: ['Horror', 'Thriller'],
+  },
+  {
+    id: 'movie-6',
+    title: 'Test Movie 6',
+    poster_url: 'https://example.com/poster6.jpg',
+    year: 2018,
+    genre: ['Romance', 'Drama'],
   },
 ]
 
@@ -59,12 +85,36 @@ describe('OnboardingFlow', () => {
     ;(useAuth as jest.Mock).mockReturnValue({
       user: mockUser,
     })
-    ;(global.fetch as jest.Mock).mockResolvedValue({
-      json: () =>
-        Promise.resolve({
+    
+    // Mock fetch with different responses based on URL
+    ;(global.fetch as jest.Mock).mockImplementation((url: string, options?: any) => {
+      if (url.includes('/api/movies')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            success: true,
+            data: mockMovies,
+          }),
+        })
+      }
+      
+      if (url.includes('/api/ratings') && options?.method === 'POST') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            success: true,
+            message: 'Ratings saved successfully',
+          }),
+        })
+      }
+      
+      // Default response for any other API calls
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({
           success: true,
-          data: mockMovies,
         }),
+      })
     })
   })
 

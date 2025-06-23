@@ -150,11 +150,15 @@ describe('SmartRecommenderV2 - Tier 2 Intelligent Recommendations', () => {
       }
 
       const result = await smartRecommender.getSmartRecommendations(options)
+      
+      // Get the mocked embedding service to check calls
+      const { embeddingService } = await import('../../../lib/ai/embedding-service')
+      const mockedEmbeddingService = embeddingService as jest.Mocked<typeof embeddingService>
 
       expect(result.movies).toBeDefined()
       expect(result.recommendations).toBeDefined()
       expect(result.insights).toBeDefined()
-      expect(mockEmbeddingService.generateEmbedding).toHaveBeenCalled()
+      expect(mockedEmbeddingService.generateEmbedding).toHaveBeenCalled()
     })
 
     it('should handle recommendations with preferred genres', async () => {
@@ -165,10 +169,14 @@ describe('SmartRecommenderV2 - Tier 2 Intelligent Recommendations', () => {
       }
 
       const result = await smartRecommender.getSmartRecommendations(options)
+      
+      // Get the mocked embedding service to check calls
+      const { embeddingService } = await import('../../../lib/ai/embedding-service')
+      const mockedEmbeddingService = embeddingService as jest.Mocked<typeof embeddingService>
 
       expect(result.movies).toBeDefined()
       expect(result.recommendations).toBeDefined()
-      expect(mockEmbeddingService.generateEmbedding).toHaveBeenCalled()
+      expect(mockedEmbeddingService.generateEmbedding).toHaveBeenCalled()
     })
 
     it('should incorporate mood into recommendations', async () => {
@@ -179,10 +187,14 @@ describe('SmartRecommenderV2 - Tier 2 Intelligent Recommendations', () => {
       }
 
       const result = await smartRecommender.getSmartRecommendations(options)
+      
+      // Get the mocked embedding service to check calls
+      const { embeddingService } = await import('../../../lib/ai/embedding-service')
+      const mockedEmbeddingService = embeddingService as jest.Mocked<typeof embeddingService>
 
       expect(result.movies).toBeDefined()
       expect(result.recommendations).toBeDefined()
-      expect(mockEmbeddingService.generateEmbedding).toHaveBeenCalled()
+      expect(mockedEmbeddingService.generateEmbedding).toHaveBeenCalled()
     })
 
     it('should handle empty results gracefully', async () => {
@@ -292,8 +304,12 @@ describe('SmartRecommenderV2 - Tier 2 Intelligent Recommendations', () => {
         rating: 5,
         timestamp: '2023-01-01T00:00:00Z',
       })
+      
+      // Get the mocked embedding service to check calls
+      const { embeddingService } = await import('../../../lib/ai/embedding-service')
+      const mockedEmbeddingService = embeddingService as jest.Mocked<typeof embeddingService>
 
-      expect(mockEmbeddingService.saveUserMemory).toHaveBeenCalledWith({
+      expect(mockedEmbeddingService.saveUserMemory).toHaveBeenCalledWith({
         userId: 'test-user-1',
         type: 'interaction',
         content: expect.stringContaining('liked'),
@@ -311,8 +327,12 @@ describe('SmartRecommenderV2 - Tier 2 Intelligent Recommendations', () => {
       for (const interaction of interactions) {
         await smartRecommender.saveUserInteraction('test-user-1', 'movie-1', interaction as any, {})
       }
+      
+      // Get the mocked embedding service to check calls
+      const { embeddingService } = await import('../../../lib/ai/embedding-service')
+      const mockedEmbeddingService = embeddingService as jest.Mocked<typeof embeddingService>
 
-      expect(mockEmbeddingService.saveUserMemory).toHaveBeenCalledTimes(interactions.length)
+      expect(mockedEmbeddingService.saveUserMemory).toHaveBeenCalledTimes(interactions.length)
     })
   })
 
@@ -355,7 +375,11 @@ describe('SmartRecommenderV2 - Tier 2 Intelligent Recommendations', () => {
 
   describe('Error Handling', () => {
     it('should handle embedding service errors gracefully', async () => {
-      mockEmbeddingService.generateEmbedding.mockRejectedValue(new Error('Embedding failed'))
+      // Get the mocked embedding service 
+      const { embeddingService } = await import('../../../lib/ai/embedding-service')
+      const mockedEmbeddingService = embeddingService as jest.Mocked<typeof embeddingService>
+      
+      mockedEmbeddingService.generateEmbedding.mockRejectedValue(new Error('Embedding failed'))
 
       const options = {
         userId: 'test-user-1',
@@ -395,7 +419,11 @@ describe('SmartRecommenderV2 - Tier 2 Intelligent Recommendations', () => {
     })
 
     it('should handle user memory save failures', async () => {
-      mockEmbeddingService.saveUserMemory.mockResolvedValue(false)
+      // Get the mocked embedding service 
+      const { embeddingService } = await import('../../../lib/ai/embedding-service')
+      const mockedEmbeddingService = embeddingService as jest.Mocked<typeof embeddingService>
+      
+      mockedEmbeddingService.saveUserMemory.mockResolvedValue(false)
 
       // Should not throw error, just log it
       await expect(
@@ -434,8 +462,12 @@ describe('SmartRecommenderV2 - Tier 2 Intelligent Recommendations', () => {
         userId: 'test-user-1',
         userQuery: 'action movies',
       })
+      
+      // Get the mocked embedding service to check calls
+      const { embeddingService } = await import('../../../lib/ai/embedding-service')
+      const mockedEmbeddingService = embeddingService as jest.Mocked<typeof embeddingService>
 
-      expect(mockEmbeddingService.searchUserMemories).toHaveBeenCalledWith(
+      expect(mockedEmbeddingService.searchUserMemories).toHaveBeenCalledWith(
         'test-user-1',
         expect.any(String)
       )
