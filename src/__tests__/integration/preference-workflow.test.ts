@@ -5,7 +5,6 @@
 import { NextRequest } from 'next/server'
 import { GET as getMovies } from '../../app/api/movies/route'
 import { createServerClient } from '@/lib/supabase/client'
-import Groq from 'groq-sdk'
 
 // Mock the Supabase client
 jest.mock('@/lib/supabase/client', () => ({
@@ -155,9 +154,8 @@ describe.skip('User Preference Workflow Integration', () => {
         ],
       }
 
-      // Mock Groq response
-      const mockGroqInstance = new Groq({ apiKey: 'test' })
-      mockGroqInstance.chat.completions.create = jest.fn().mockResolvedValue(mockChatResponse)
+      // Mock Groq response (using mocked module)
+      // Note: Groq is mocked at the top of the file
 
       // Step 3: After chat, user profile is updated with preferences
       const mockUserProfileWithPreferences = {
