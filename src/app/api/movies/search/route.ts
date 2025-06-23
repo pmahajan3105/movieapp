@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { SearchFilters, SearchResponse } from '@/types/search'
+import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest): Promise<NextResponse<SearchResponse>> {
   const startTime = Date.now()
@@ -28,7 +29,14 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
       sortOrder: (searchParams.get('sortOrder') as SearchFilters['sortOrder']) || 'desc',
     }
 
-    console.log('🔍 TMDB Search request:', filters)
+    logger.info('TMDB search request received', {
+      query: filters.query,
+      genres: filters.genres,
+      yearRange: filters.yearRange,
+      limit: filters.limit,
+      offset: filters.offset,
+      sortBy: filters.sortBy,
+    })
 
     // Check if TMDB API key is configured
     const apiKey = process.env.TMDB_API_KEY
@@ -53,7 +61,11 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
       tmdbUrl += `&year=${filters.yearRange[0]}`
     }
 
-    console.log('🌐 Calling TMDB API:', tmdbUrl.replace(apiKey, 'API_KEY'))
+    logger.info('Calling TMDB API', {
+      searchTerm,
+      page,
+      hasYearFilter: !!(filters.yearRange && filters.yearRange[0] === filters.yearRange[1]),
+    })
 
     // Fetch from TMDB API
     const tmdbResponse = await fetch(tmdbUrl)
@@ -180,7 +192,11 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
             }
           }
         } catch (error) {
-          console.error('Error fetching movie details:', error)
+          logger.error('Error fetching movie details from TMDB', {
+            movieId: movie.id,
+            movieTitle: movie.title,
+            error: error instanceof Error ? error.message : String(error),
+          })
         }
 
         // Fallback to basic info if detailed fetch fails
@@ -244,13 +260,16 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
 
     const executionTime = Date.now() - startTime
 
-    console.log(
-      '🔍 TMDB Search completed:',
-      paginatedMovies.length,
-      'results in',
+    logger.info('TMDB search completed', {
+      resultCount: paginatedMovies.length,
+      totalResults: tmdbData.total_results,
       executionTime,
-      'ms'
-    )
+      facetCounts: {
+        genres: allGenres.length,
+        years: allYears.length,
+        directors: allDirectors.length,
+      },
+    })
 
     return NextResponse.json({
       success: true,
@@ -283,7 +302,9 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
       },
     })
   } catch (error) {
-    console.error('❌ Search API error:', error)
+    logger.error('Search API error', {
+      error: error instanceof Error ? error.message : String(error),
+    })
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
 }

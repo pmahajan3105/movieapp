@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAuth, withError } from '@/lib/api/factory'
+import { logger } from '@/lib/logger'
 
 export const PATCH = withError(
   requireAuth(async ({ request, supabase, user }) => {
@@ -9,7 +10,7 @@ export const PATCH = withError(
     const body = await request.json()
     const { watched, notes, rating } = body
 
-    console.log('🔄 Updating watchlist item:', {
+    logger.info('Updating watchlist item', {
       watchlistId,
       userId: user.id,
       updates: { watched, notes, rating },
@@ -34,7 +35,11 @@ export const PATCH = withError(
       updateData.notes = notes
     }
 
-    console.log('📝 Update data (without rating):', updateData)
+    logger.info('Preparing watchlist update', {
+      watchlistId,
+      userId: user.id,
+      updateFields: Object.keys(updateData),
+    })
 
     const { data, error } = await supabase
       .from('watchlist')
@@ -45,7 +50,11 @@ export const PATCH = withError(
       .single()
 
     if (error) {
-      console.error('❌ Watchlist update error:', error)
+      logger.dbError('watchlist-update', error, {
+        watchlistId,
+        userId: user.id,
+        errorCode: error.code,
+      })
       return NextResponse.json(
         { success: false, error: 'Failed to update watchlist item' },
         { status: 500 }
@@ -54,9 +63,10 @@ export const PATCH = withError(
 
     // If rating is provided, try to update it using a database function to bypass schema cache
     if (rating !== undefined && typeof rating === 'number') {
-      console.log('📝 Attempting to update rating using database function:', {
+      logger.info('Attempting rating update via database function', {
         rating,
         watchlistId,
+        userId: user.id,
       })
 
       try {
@@ -71,33 +81,53 @@ export const PATCH = withError(
         )
 
         if (ratingError) {
-          console.warn('⚠️ Rating update failed:', ratingError)
-          // Don't fail the entire request since the main update succeeded
-          console.log('✅ Main update succeeded, rating update skipped due to error')
+          logger.warn('Rating update failed, continuing with main update', {
+            watchlistId,
+            userId: user.id,
+            rating,
+            error: ratingError.message,
+          })
         } else if (ratingResult) {
-          console.log('✅ Rating updated successfully via database function')
+          logger.info('Rating updated successfully via database function', {
+            watchlistId,
+            userId: user.id,
+            rating,
+          })
         } else {
-          console.warn('⚠️ Rating update returned false (item not found or not updated)')
+          logger.warn('Rating update returned false - item not found or not updated', {
+            watchlistId,
+            userId: user.id,
+            rating,
+          })
         }
       } catch (ratingErr) {
-        console.warn('⚠️ Rating update error (non-critical):', ratingErr)
+        logger.warn('Rating update error - non-critical', {
+          watchlistId,
+          userId: user.id,
+          rating,
+          error: ratingErr instanceof Error ? ratingErr.message : String(ratingErr),
+        })
         // Continue with success since the main update worked
       }
     }
 
     if (!data) {
-      console.log('⚠️ Watchlist item not found:', { watchlistId, userId: user.id })
+      logger.warn('Watchlist item not found for update', {
+        watchlistId,
+        userId: user.id,
+      })
       return NextResponse.json(
         { success: false, error: 'Watchlist item not found' },
         { status: 404 }
       )
     }
 
-    console.log('✅ Successfully updated watchlist item:', {
+    logger.info('Successfully updated watchlist item', {
       watchlistId,
       userId: user.id,
       watched: data.watched,
       watchedAt: data.watched_at,
+      hasNotes: !!data.notes,
     })
 
     return NextResponse.json({ success: true, data })
@@ -108,7 +138,7 @@ export const DELETE = withError(
   requireAuth(async ({ request, supabase, user }) => {
     const watchlistId = request.nextUrl.pathname.split('/').pop() || ''
 
-    console.log('🗑️ Deleting watchlist item:', {
+    logger.info('Deleting watchlist item', {
       watchlistId,
       userId: user.id,
     })
@@ -127,14 +157,18 @@ export const DELETE = withError(
       .eq('user_id', user.id)
 
     if (error) {
-      console.error('❌ Watchlist delete error:', error)
+      logger.dbError('watchlist-delete', error, {
+        watchlistId,
+        userId: user.id,
+        errorCode: error.code,
+      })
       return NextResponse.json(
         { success: false, error: 'Failed to delete watchlist item' },
         { status: 500 }
       )
     }
 
-    console.log('✅ Successfully deleted watchlist item:', {
+    logger.info('Successfully deleted watchlist item', {
       watchlistId,
       userId: user.id,
     })

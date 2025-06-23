@@ -31,12 +31,17 @@ describe('Watchlist PATCH supports watchlist_id', () => {
 
   it('can unwatch using watchlist_id', async () => {
     // Add to watchlist and mark watched
-    const { data: added } = await supabase
+    const { data: added, error: insertError } = await supabase
       .from('watchlist')
       .insert({ user_id: TEST_USER_ID, movie_id: TEST_MOVIE.id, watched: true })
       .select('id')
       .single()
-    watchlistId = added!.id
+
+    if (insertError || !added) {
+      throw new Error(`Failed to insert watchlist item: ${insertError?.message}`)
+    }
+
+    watchlistId = added.id
 
     // Call PATCH with watchlist_id only
     const { data: updated, error } = await supabase

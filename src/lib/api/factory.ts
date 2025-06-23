@@ -4,6 +4,7 @@ import { createServerClient } from '@/lib/supabase/client'
 import { createClient as createSupabaseClient } from '@/lib/supabase/server-client'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { GeneratedDatabase } from '@/lib/supabase/types'
+import { logger } from '@/lib/logger'
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -132,7 +133,7 @@ export function withAuth<T = unknown>(
 
       return await handler(request, { user, supabase })
     } catch (error) {
-      console.error('Auth middleware error:', error)
+      logger.apiError('auth-middleware', error instanceof Error ? error : new Error(String(error)))
       return NextResponse.json(
         createApiResponse(false, undefined, {
           message: 'Authentication check failed',
@@ -156,7 +157,7 @@ export function withErrorHandling<T = unknown>(
       const supabase = await createServerClient()
       return await handler(request, { supabase })
     } catch (error) {
-      console.error('API handler error:', error)
+      logger.apiError('api-handler', error instanceof Error ? error : new Error(String(error)))
       const supabaseError = handleSupabaseError(error)
 
       return NextResponse.json(
@@ -214,7 +215,7 @@ export const withError = (
     try {
       return await handler(request)
     } catch (err: any) {
-      console.error('API error:', err)
+      logger.apiError('generic-api', err instanceof Error ? err : new Error(String(err)))
       return Response.json(
         { success: false, error: err?.message || 'Internal error' },
         {

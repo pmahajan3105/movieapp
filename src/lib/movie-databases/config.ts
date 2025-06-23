@@ -1,6 +1,8 @@
 // Movie Database Management System
 // Centralized configuration for all movie data providers
 
+import { logger } from '../logger'
+
 export type MovieProvider = 'tmdb' | 'local'
 
 export interface MovieDatabaseConfig {
@@ -123,7 +125,11 @@ export class MovieDatabaseSelector {
     const database = AVAILABLE_MOVIE_DATABASES[databaseId]
 
     if (!database) {
-      console.warn(`Database ${databaseId} not found, falling back to default`)
+      logger.warn(`Database ${databaseId} not found, falling back to default`, {
+        requestedDatabase: databaseId,
+        task,
+        availableDatabases: Object.keys(AVAILABLE_MOVIE_DATABASES),
+      })
       const fallbackDatabase =
         AVAILABLE_MOVIE_DATABASES[this.defaultDatabase] || AVAILABLE_MOVIE_DATABASES['tmdb']
       if (!fallbackDatabase) {

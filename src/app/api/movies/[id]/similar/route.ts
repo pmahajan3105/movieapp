@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { withSupabase, withError } from '@/lib/api/factory'
+import { logger } from '@/lib/logger'
 
 export const GET = withError(
   withSupabase(async ({ request, supabase }) => {
@@ -19,7 +20,10 @@ export const GET = withError(
       .single()
 
     if (currentMovieError) {
-      console.error('Error fetching current movie:', currentMovieError)
+      logger.dbError('fetch-current-movie-for-similar', new Error(currentMovieError.message), {
+        movieId,
+        errorCode: currentMovieError.code,
+      })
       return NextResponse.json({ error: 'Movie not found' }, { status: 404 })
     }
 
@@ -55,7 +59,10 @@ export const GET = withError(
       .limit(limit * 2) // Get more to allow for filtering
 
     if (error) {
-      console.error('Database error:', error)
+      logger.dbError('fetch-similar-movies', new Error(error.message), {
+        movieId,
+        errorCode: error.code,
+      })
       return NextResponse.json({ error: 'Failed to fetch similar movies' }, { status: 500 })
     }
 

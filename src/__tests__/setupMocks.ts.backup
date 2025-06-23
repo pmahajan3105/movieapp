@@ -179,10 +179,7 @@ export { mockRouter, mockSearchParams }
 // next/server exports NextResponse which extends Response but route tests treat returned instance
 // like fetch Response and call .json(). Add a shim when running in Jest.
 import { NextResponse } from 'next/server'
-if (
-  (NextResponse as any)?.prototype &&
-  typeof (NextResponse as any).prototype.json !== 'function'
-) {
+if ((NextResponse as any)?.prototype && typeof (NextResponse as any).prototype.json !== 'function') {
   ;(NextResponse as any).prototype.json = async function () {
     // Work with internal body or fallback to text()
     // body is a ReadableStream in web Response; easiest: use this.text()
@@ -194,6 +191,34 @@ if (
     }
   }
 }
+
+//---------------------------------------------
+// Mock logger to avoid env dependency
+//---------------------------------------------
+jest.mock('@/lib/logger', () => {
+  const log = jest.fn()
+  return {
+    __esModule: true,
+    logger: {
+      debug: log,
+      info: log,
+      warn: log,
+      error: log,
+      apiError: log,
+      authError: log,
+      dbError: log,
+    },
+    default: {
+      debug: log,
+      info: log,
+      warn: log,
+      error: log,
+      apiError: log,
+      authError: log,
+      dbError: log,
+    },
+  }
+})
 
 // Dummy test to prevent Jest "no tests" error
 describe('setupMocks', () => {

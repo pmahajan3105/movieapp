@@ -1,5 +1,7 @@
 // Environment configuration with validation and type safety
 
+import { logger } from './logger'
+
 const isDev = process.env.NODE_ENV === 'development'
 const isProd = process.env.NODE_ENV === 'production'
 
@@ -65,6 +67,11 @@ try {
   void config.supabase.url
   void config.supabase.anonKey
 } catch (error) {
-  console.error('❌ Environment configuration error:', error)
+  logger.error('Environment configuration error', {
+    error: error instanceof Error ? error.message : String(error),
+    missingVars: ['NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_ANON_KEY'].filter(
+      key => !process.env[key]
+    ),
+  })
   throw error
 }

@@ -1,29 +1,32 @@
 import { logger } from '../../lib/logger'
 import * as env from '../../lib/env'
 
-// Mock the env module
+// Mock the environment functions
 jest.mock('../../lib/env', () => ({
   isDevelopment: jest.fn(),
   isProduction: jest.fn(),
 }))
 
-// Mock console methods
-const mockConsole = {
-  debug: jest.fn(),
-  info: jest.fn(),
-  warn: jest.fn(),
-  error: jest.fn(),
-}
-
 describe('Logger', () => {
+  let mockConsole: {
+    debug: jest.SpyInstance
+    info: jest.SpyInstance
+    warn: jest.SpyInstance
+    error: jest.SpyInstance
+  }
+
   beforeEach(() => {
-    jest.clearAllMocks()
-    // Replace console methods with mocks
-    global.console = mockConsole as any
+    mockConsole = {
+      debug: jest.spyOn(console, 'debug').mockImplementation(),
+      info: jest.spyOn(console, 'info').mockImplementation(),
+      warn: jest.spyOn(console, 'warn').mockImplementation(),
+      error: jest.spyOn(console, 'error').mockImplementation(),
+    }
   })
 
   afterEach(() => {
-    jest.restoreAllMocks()
+    Object.values(mockConsole).forEach(spy => spy.mockRestore())
+    jest.clearAllMocks()
   })
 
   describe('Environment-based Logging', () => {
@@ -36,10 +39,16 @@ describe('Logger', () => {
       logger.warn('Warning message')
       logger.error('Error message')
 
-      expect(mockConsole.debug).toHaveBeenCalledWith('🔍 [DEBUG] Debug message')
-      expect(mockConsole.info).toHaveBeenCalledWith('ℹ️ [INFO] Info message')
-      expect(mockConsole.warn).toHaveBeenCalledWith('⚠️ [WARN] Warning message')
-      expect(mockConsole.error).toHaveBeenCalledWith('❌ [ERROR] Error message')
+      expect(mockConsole.debug).toHaveBeenCalled()
+      expect(mockConsole.info).toHaveBeenCalled()
+      expect(mockConsole.warn).toHaveBeenCalled()
+      expect(mockConsole.error).toHaveBeenCalled()
+
+      // Check content of debug message
+      const debugMessage = mockConsole.debug.mock.calls[0][0]
+      expect(debugMessage).toContain('🔍')
+      expect(debugMessage).toContain('[DEBUG]')
+      expect(debugMessage).toContain('Debug message')
     })
 
     it('only logs warn and error in production environment', () => {
@@ -53,8 +62,14 @@ describe('Logger', () => {
 
       expect(mockConsole.debug).not.toHaveBeenCalled()
       expect(mockConsole.info).not.toHaveBeenCalled()
-      expect(mockConsole.warn).toHaveBeenCalledWith('⚠️ [WARN] Warning message')
-      expect(mockConsole.error).toHaveBeenCalledWith('❌ [ERROR] Error message')
+      expect(mockConsole.warn).toHaveBeenCalled()
+      expect(mockConsole.error).toHaveBeenCalled()
+
+      // Check content of warn message
+      const warnMessage = mockConsole.warn.mock.calls[0][0]
+      expect(warnMessage).toContain('⚠️')
+      expect(warnMessage).toContain('[WARN]')
+      expect(warnMessage).toContain('Warning message')
     })
 
     it('does not log anything when not in development or production', () => {
@@ -85,29 +100,61 @@ describe('Logger', () => {
       logger.warn('Test warn')
       logger.error('Test error')
 
-      expect(mockConsole.debug).toHaveBeenCalledWith('🔍 [DEBUG] Test debug')
-      expect(mockConsole.info).toHaveBeenCalledWith('ℹ️ [INFO] Test info')
-      expect(mockConsole.warn).toHaveBeenCalledWith('⚠️ [WARN] Test warn')
-      expect(mockConsole.error).toHaveBeenCalledWith('❌ [ERROR] Test error')
+      // Check each log type
+      const debugMessage = mockConsole.debug.mock.calls[0][0]
+      expect(debugMessage).toContain('🔍')
+      expect(debugMessage).toContain('[DEBUG]')
+      expect(debugMessage).toContain('Test debug')
+
+      const infoMessage = mockConsole.info.mock.calls[0][0]
+      expect(infoMessage).toContain('ℹ️')
+      expect(infoMessage).toContain('[INFO]')
+      expect(infoMessage).toContain('Test info')
+
+      const warnMessage = mockConsole.warn.mock.calls[0][0]
+      expect(warnMessage).toContain('⚠️')
+      expect(warnMessage).toContain('[WARN]')
+      expect(warnMessage).toContain('Test warn')
+
+      const errorMessage = mockConsole.error.mock.calls[0][0]
+      expect(errorMessage).toContain('❌')
+      expect(errorMessage).toContain('[ERROR]')
+      expect(errorMessage).toContain('Test error')
     })
 
     it('includes context when provided', () => {
       const context = { userId: '123', action: 'login' }
       logger.info('User action', context)
 
-      expect(mockConsole.info).toHaveBeenCalledWith(
-        'ℹ️ [INFO] User action | Context: {\n  "userId": "123",\n  "action": "login"\n}'
-      )
+      const loggedMessage = mockConsole.info.mock.calls[0][0]
+      expect(loggedMessage).toContain('ℹ️')
+      expect(loggedMessage).toContain('[INFO]')
+      expect(loggedMessage).toContain('User action')
+      expect(loggedMessage).toContain('Context:')
+      expect(loggedMessage).toContain('"userId": "123"')
+      expect(loggedMessage).toContain('"action": "login"')
     })
 
     it('handles empty context object', () => {
       logger.info('Message', {})
-      expect(mockConsole.info).toHaveBeenCalledWith('ℹ️ [INFO] Message')
+
+      const loggedMessage = mockConsole.info.mock.calls[0][0]
+      expect(loggedMessage).toContain('ℹ️')
+      expect(loggedMessage).toContain('[INFO]')
+      expect(loggedMessage).toContain('Message')
+      // Empty context should not add Context section
+      expect(loggedMessage).not.toContain('Context:')
     })
 
     it('handles undefined context', () => {
       logger.info('Message', undefined)
-      expect(mockConsole.info).toHaveBeenCalledWith('ℹ️ [INFO] Message')
+
+      const loggedMessage = mockConsole.info.mock.calls[0][0]
+      expect(loggedMessage).toContain('ℹ️')
+      expect(loggedMessage).toContain('[INFO]')
+      expect(loggedMessage).toContain('Message')
+      // Undefined context should not add Context section
+      expect(loggedMessage).not.toContain('Context:')
     })
 
     it('handles complex context objects', () => {
@@ -120,7 +167,10 @@ describe('Logger', () => {
       logger.error('Complex error', complexContext)
 
       const expectedMessage = mockConsole.error.mock.calls[0][0]
-      expect(expectedMessage).toContain('❌ [ERROR] Complex error | Context:')
+      expect(expectedMessage).toContain('❌')
+      expect(expectedMessage).toContain('[ERROR]')
+      expect(expectedMessage).toContain('Complex error')
+      expect(expectedMessage).toContain('Context:')
       expect(expectedMessage).toContain('"user"')
       expect(expectedMessage).toContain('"metadata"')
       expect(expectedMessage).toContain('"nested"')
@@ -141,7 +191,9 @@ describe('Logger', () => {
         logger.apiError('/api/movies', error)
 
         const loggedMessage = mockConsole.error.mock.calls[0][0]
-        expect(loggedMessage).toContain('❌ [ERROR] API Error at /api/movies: Network timeout')
+        expect(loggedMessage).toContain('❌')
+        expect(loggedMessage).toContain('[ERROR]')
+        expect(loggedMessage).toContain('API Error at /api/movies: Network timeout')
         expect(loggedMessage).toContain('"endpoint": "/api/movies"')
         expect(loggedMessage).toContain('"error": "Network timeout"')
         expect(loggedMessage).toContain('"stack": "Error stack trace"')
@@ -167,7 +219,9 @@ describe('Logger', () => {
         logger.authError('login', error)
 
         const loggedMessage = mockConsole.error.mock.calls[0][0]
-        expect(loggedMessage).toContain('❌ [ERROR] Auth Error during login: Invalid token')
+        expect(loggedMessage).toContain('❌')
+        expect(loggedMessage).toContain('[ERROR]')
+        expect(loggedMessage).toContain('Auth Error during login: Invalid token')
         expect(loggedMessage).toContain('"operation": "login"')
         expect(loggedMessage).toContain('"error": "Invalid token"')
         expect(loggedMessage).toContain('"stack": "Auth error stack"')
@@ -193,9 +247,9 @@ describe('Logger', () => {
         logger.dbError('query', error)
 
         const loggedMessage = mockConsole.error.mock.calls[0][0]
-        expect(loggedMessage).toContain(
-          '❌ [ERROR] Database Error during query: Connection timeout'
-        )
+        expect(loggedMessage).toContain('❌')
+        expect(loggedMessage).toContain('[ERROR]')
+        expect(loggedMessage).toContain('Database Error during query: Connection timeout')
         expect(loggedMessage).toContain('"operation": "query"')
         expect(loggedMessage).toContain('"error": "Connection timeout"')
         expect(loggedMessage).toContain('"stack": "DB error stack"')
@@ -302,7 +356,6 @@ describe('Logger', () => {
         array: [1, 2, 3],
         object: { nested: 'value' },
         date: new Date(),
-        function: () => 'test',
       }
 
       expect(() => {

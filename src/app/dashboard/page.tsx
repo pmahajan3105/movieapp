@@ -15,7 +15,7 @@ const ChatInterface = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex h-40 items-center justify-center">
+      <div className="flex h-40 items-center justify-center" data-testid="chat-interface">
         <span className="loading loading-spinner text-primary"></span>
       </div>
     ),

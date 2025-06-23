@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { withSupabase, withError } from '@/lib/api/factory'
 import { MovieRepository } from '@/repositories'
+import { logger } from '@/lib/logger'
 
 export const GET = withError(
   withSupabase(async ({ request, supabase }) => {
@@ -24,8 +25,14 @@ export const GET = withError(
         data: movie,
       })
     } catch (error) {
-      console.error('Database error:', error)
-      return NextResponse.json({ error: 'Failed to fetch movie' }, { status: 500 })
+      logger.dbError(
+        'fetch-movie-details',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          movieId: movieId,
+        }
+      )
+      return NextResponse.json({ error: 'Failed to fetch movie details' }, { status: 500 })
     }
   })
 )

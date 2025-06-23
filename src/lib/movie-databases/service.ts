@@ -4,6 +4,7 @@
 import { Movie } from '@/types'
 import type { MovieDatabaseConfig } from './config'
 import { createClient } from '@supabase/supabase-js'
+import { logger } from '../logger'
 
 // Request/Response Interfaces
 export interface MovieSearchOptions {
@@ -68,15 +69,21 @@ export class MovieDatabaseService {
     database: MovieDatabaseConfig,
     options: MovieSearchOptions
   ): Promise<MovieDatabaseResponse> {
-    console.log(`🎬 Searching movies using ${database.name}`)
+    logger.info(`Searching movies using ${database.name}`, {
+      database: database.id,
+      provider: database.provider,
+      query: options.query,
+      limit: options.limit,
+      page: options.page,
+    })
 
     switch (database.provider) {
       case 'tmdb':
         return this.searchTMDB(database, options)
-      
+
       case 'local':
         return this.searchLocal(database, options)
-      
+
       default:
         throw new Error(`Provider ${database.provider} not supported`)
     }
@@ -87,38 +94,44 @@ export class MovieDatabaseService {
     database: MovieDatabaseConfig,
     options: TrendingOptions = {}
   ): Promise<MovieDatabaseResponse> {
-    console.log(`🔥 Getting trending movies from ${database.name}`)
+    logger.info(`Getting trending movies from ${database.name}`, {
+      database: database.id,
+      provider: database.provider,
+      timeWindow: options.timeWindow,
+      limit: options.limit,
+    })
 
     switch (database.provider) {
       case 'tmdb':
         return this.getTrendingTMDB(database, options)
-      
+
       case 'local':
         // Local doesn't have trending, return top rated
-        return this.searchLocal(database, { 
+        return this.searchLocal(database, {
           limit: options.limit,
-          page: options.page 
+          page: options.page,
         })
-      
+
       default:
         throw new Error(`Provider ${database.provider} not supported for trending`)
     }
   }
 
   // Get movie details
-  async getMovieDetails(
-    database: MovieDatabaseConfig,
-    movieId: string
-  ): Promise<Movie | null> {
-    console.log(`🎯 Getting movie details from ${database.name}`)
+  async getMovieDetails(database: MovieDatabaseConfig, movieId: string): Promise<Movie | null> {
+    logger.info(`Getting movie details from ${database.name}`, {
+      database: database.id,
+      provider: database.provider,
+      movieId,
+    })
 
     switch (database.provider) {
       case 'tmdb':
         return this.getMovieDetailsTMDB(database, movieId)
-      
+
       case 'local':
         return this.getMovieDetailsLocal(database, movieId)
-      
+
       default:
         throw new Error(`Provider ${database.provider} not supported for details`)
     }
@@ -140,7 +153,7 @@ export class MovieDatabaseService {
       page = 1,
       year,
       includeAdult = false,
-      language = 'en-US'
+      language = 'en-US',
     } = options
 
     let url: string
@@ -169,7 +182,7 @@ export class MovieDatabaseService {
       total: data.total_results,
       page: data.page,
       totalPages: data.total_pages,
-      source: 'tmdb'
+      source: 'tmdb',
     }
   }
 
@@ -182,11 +195,7 @@ export class MovieDatabaseService {
       throw new Error('TMDB API key not configured')
     }
 
-    const {
-      timeWindow = 'week',
-      limit = 20,
-      page = 1
-    } = options
+    const { timeWindow = 'week', limit = 20, page = 1 } = options
 
     const url = `${database.apiUrl}/trending/movie/${timeWindow}?api_key=${apiKey}&page=${page}`
 
@@ -204,7 +213,7 @@ export class MovieDatabaseService {
       total: data.total_results,
       page: data.page,
       totalPages: data.total_pages,
-      source: 'tmdb'
+      source: 'tmdb',
     }
   }
 
@@ -220,7 +229,7 @@ export class MovieDatabaseService {
     const url = `${database.apiUrl}/movie/${movieId}?api_key=${apiKey}&append_to_response=credits,keywords,videos`
 
     const response = await fetch(url)
-    
+
     if (!response.ok) {
       throw new Error(`TMDB API error: ${response.status}`)
     }
@@ -237,13 +246,17 @@ export class MovieDatabaseService {
       genre: tmdbMovie.genres?.map(g => g.name) || [],
       rating: tmdbMovie.vote_average || 0,
       plot: tmdbMovie.overview || '',
-      poster_url: tmdbMovie.poster_path ? `https://image.tmdb.org/t/p/w500${tmdbMovie.poster_path}` : undefined,
-      backdrop_url: tmdbMovie.backdrop_path ? `https://image.tmdb.org/t/p/w1280${tmdbMovie.backdrop_path}` : undefined,
+      poster_url: tmdbMovie.poster_path
+        ? `https://image.tmdb.org/t/p/w500${tmdbMovie.poster_path}`
+        : undefined,
+      backdrop_url: tmdbMovie.backdrop_path
+        ? `https://image.tmdb.org/t/p/w1280${tmdbMovie.backdrop_path}`
+        : undefined,
       runtime: tmdbMovie.runtime,
       tmdb_id: tmdbMovie.id,
       imdb_id: tmdbMovie.imdb_id,
       popularity: tmdbMovie.vote_count,
-      source: 'tmdb'
+      source: 'tmdb',
     }
   }
 
@@ -257,19 +270,11 @@ export class MovieDatabaseService {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     )
 
-    const {
-      query = '',
-      limit = 20,
-      page = 1,
-      year,
-      genre
-    } = options
+    const { query = '', limit = 20, page = 1, year, genre } = options
 
     const offset = (page - 1) * limit
 
-    let queryBuilder = supabase
-      .from('movies')
-      .select('*', { count: 'exact' })
+    let queryBuilder = supabase.from('movies').select('*', { count: 'exact' })
 
     // Add search filters
     if (query) {
@@ -285,9 +290,11 @@ export class MovieDatabaseService {
       queryBuilder = queryBuilder.overlaps('genre', genre)
     }
 
-    const { data: movies, error, count } = await queryBuilder
-      .order('rating', { ascending: false })
-      .range(offset, offset + limit - 1)
+    const {
+      data: movies,
+      error,
+      count,
+    } = await queryBuilder.order('rating', { ascending: false }).range(offset, offset + limit - 1)
 
     if (error) {
       throw new Error(`Local database error: ${error.message}`)
@@ -301,7 +308,7 @@ export class MovieDatabaseService {
       total,
       page,
       totalPages,
-      source: 'local'
+      source: 'local',
     }
   }
 
@@ -321,7 +328,11 @@ export class MovieDatabaseService {
       .single()
 
     if (error) {
-      console.error('Local database error:', error)
+      logger.dbError('get-movie-details-local', new Error(error.message), {
+        movieId,
+        database: database.id,
+        errorCode: error.code,
+      })
       return null
     }
 
@@ -330,4 +341,4 @@ export class MovieDatabaseService {
 }
 
 // Export singleton instance
-export const movieDatabaseService = MovieDatabaseService.getInstance() 
+export const movieDatabaseService = MovieDatabaseService.getInstance()

@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { logger } from '@/lib/logger'
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+  const movieId = params.id
+  logger.info('Fetching movie details for ID', { movieId })
+
   try {
-    const { id: movieId } = await params
-
     // TMDB API integration will be implemented here
     console.log('Fetching movie details for ID:', movieId)
 
@@ -12,7 +14,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       message: 'Movie details will be fetched from TMDB API',
     })
   } catch (error) {
-    console.error('Movie details error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    logger.error('Movie details error', {
+      movieId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return NextResponse.json({ error: 'Failed to fetch movie details' }, { status: 500 })
   }
 }

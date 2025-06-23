@@ -6,6 +6,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { getSupabaseUrl, getSupabaseServiceRoleKey } from '@/lib/env'
 import type { Movie } from '@/types'
+import { logger } from '../logger'
 
 // Database row types for RPC results
 interface MovieSearchRow {
@@ -84,7 +85,11 @@ export class EmbeddingService {
     type: 'movie' | 'memory' = 'movie'
   ): Promise<EmbeddingResponse> {
     try {
-      console.log(`🧠 Generating ${type} embedding for text: ${text.substring(0, 100)}...`)
+      logger.info(`Generating ${type} embedding for text`, {
+        type,
+        textLength: text.length,
+        textPreview: text.substring(0, 100),
+      })
 
       // For now, we'll create a simple semantic embedding using text analysis
       // In production, you'd use OpenAI's text-embedding-ada-002 or similar
@@ -99,7 +104,11 @@ export class EmbeddingService {
         },
       }
     } catch (error) {
-      console.error('❌ Embedding generation failed:', error)
+      logger.error('Embedding generation failed', {
+        type,
+        textLength: text.length,
+        error: error instanceof Error ? error.message : String(error),
+      })
       // Fallback to a basic embedding
       return {
         embedding: this.createBasicEmbedding(text),
@@ -305,14 +314,18 @@ export class EmbeddingService {
       })
 
       if (error) {
-        console.error('❌ Failed to save movie embeddings:', error)
+        logger.error('Failed to save movie embeddings', {
+          error: error instanceof Error ? error.message : String(error),
+        })
         return false
       }
 
-      console.log(`✅ Saved embeddings for movie: ${embeddingData.title}`)
+      logger.info(`Saved embeddings for movie: ${embeddingData.title}`)
       return true
     } catch (error) {
-      console.error('❌ Error saving movie embeddings:', error)
+      logger.error('Error saving movie embeddings', {
+        error: error instanceof Error ? error.message : String(error),
+      })
       return false
     }
   }
@@ -335,14 +348,18 @@ export class EmbeddingService {
       })
 
       if (error) {
-        console.error('❌ Failed to save user memory:', error)
+        logger.error('Failed to save user memory', {
+          error: error instanceof Error ? error.message : String(error),
+        })
         return false
       }
 
-      console.log(`✅ Saved user memory: ${memory.type} - ${memory.content.substring(0, 50)}...`)
+      logger.info(`Saved user memory: ${memory.type} - ${memory.content.substring(0, 50)}...`)
       return true
     } catch (error) {
-      console.error('❌ Error saving user memory:', error)
+      logger.error('Error saving user memory', {
+        error: error instanceof Error ? error.message : String(error),
+      })
       return false
     }
   }
@@ -366,7 +383,9 @@ export class EmbeddingService {
       })
 
       if (error) {
-        console.error('❌ Semantic search failed:', error)
+        logger.error('Semantic search failed', {
+          error: error instanceof Error ? error.message : String(error),
+        })
         return []
       }
 
@@ -380,7 +399,9 @@ export class EmbeddingService {
         similarity: row.similarity,
       }))
     } catch (error) {
-      console.error('❌ Error in semantic search:', error)
+      logger.error('Error in semantic search', {
+        error: error instanceof Error ? error.message : String(error),
+      })
       return []
     }
   }
@@ -418,7 +439,9 @@ export class EmbeddingService {
       })
 
       if (error) {
-        console.error('❌ Memory search failed:', error)
+        logger.error('Memory search failed', {
+          error: error instanceof Error ? error.message : String(error),
+        })
         return []
       }
 
@@ -432,7 +455,9 @@ export class EmbeddingService {
         createdAt: row.created_at,
       }))
     } catch (error) {
-      console.error('❌ Error in memory search:', error)
+      logger.error('Error in memory search', {
+        error: error instanceof Error ? error.message : String(error),
+      })
       return []
     }
   }
@@ -456,7 +481,9 @@ export class EmbeddingService {
           const saved = await this.saveMovieEmbeddings(embeddingData)
           return saved ? 1 : 0
         } catch (error) {
-          console.error(`❌ Failed to process movie ${movie.title}:`, error)
+          logger.error(`Failed to process movie ${movie.title}`, {
+            error: error instanceof Error ? error.message : String(error),
+          })
           return 0
         }
       })
@@ -470,7 +497,7 @@ export class EmbeddingService {
       }
     }
 
-    console.log(`✅ Processed ${processed}/${movies.length} movies`)
+    logger.info(`Processed ${processed}/${movies.length} movies`)
     return processed
   }
 }

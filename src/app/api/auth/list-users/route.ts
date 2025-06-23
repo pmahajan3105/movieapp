@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { logger } from '@/lib/logger'
 
 export async function GET() {
   try {
@@ -21,7 +22,10 @@ export async function GET() {
     } = await supabase.auth.admin.listUsers()
 
     if (error) {
-      console.error('List users error:', error)
+      logger.error('List users error', {
+        error: error.message,
+        errorCode: error.status,
+      })
       return NextResponse.json({
         success: false,
         error: error.message,
@@ -46,7 +50,9 @@ export async function GET() {
       profilesError: profilesError?.message || null,
     })
   } catch (error) {
-    console.error('List users error:', error)
+    logger.error('List users error', {
+      error: error instanceof Error ? error.message : String(error),
+    })
     return NextResponse.json(
       {
         success: false,

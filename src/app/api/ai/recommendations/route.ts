@@ -4,6 +4,7 @@ import {
   buildEnhancedRecommendationContext,
   buildComprehensivePrompt,
 } from '@/lib/ai/enhanced-context'
+import { logger } from '@/lib/logger'
 // import { addMemories } from '@mem0/vercel-ai-provider' // Package removed
 
 // Types for memory function parameters
@@ -51,11 +52,12 @@ export const POST = withError(
       }
 
       if (process.env.NODE_ENV === 'development') {
-        console.log('🎬 Enhanced AI Recommendations Request:', {
+        logger.info('Enhanced AI recommendations request received', {
           userId: userId.substring(0, 8) + '...',
           messageLength: message?.length || 0,
           count,
           hasMoodContext: !!moodContext,
+          sessionId,
         })
       }
 
@@ -71,7 +73,10 @@ export const POST = withError(
       const comprehensivePrompt = buildComprehensivePrompt(enhancedContext)
 
       if (process.env.NODE_ENV === 'development') {
-        console.log('📝 Comprehensive prompt length:', comprehensivePrompt.length, 'characters')
+        logger.info('Comprehensive prompt prepared', {
+          promptLength: comprehensivePrompt.length,
+          userId: userId.substring(0, 8) + '...',
+        })
       }
 
       // Use Claude with higher token limit for complex recommendations
@@ -105,7 +110,10 @@ CRITICAL: Return ONLY valid JSON in the exact format specified. No markdown, no 
       }
 
       if (process.env.NODE_ENV === 'development') {
-        console.log('🤖 Raw AI Response length:', aiResponse.length, 'characters')
+        logger.info('AI response received', {
+          responseLength: aiResponse.length,
+          userId: userId.substring(0, 8) + '...',
+        })
       }
 
       // Enhanced JSON parsing with multiple strategies
@@ -115,7 +123,9 @@ CRITICAL: Return ONLY valid JSON in the exact format specified. No markdown, no 
         recommendations = JSON.parse(aiResponse)
       } catch {
         if (process.env.NODE_ENV === 'development') {
-          console.log('🔧 Direct JSON parsing failed, trying extraction...')
+          logger.info('Direct JSON parsing failed, attempting extraction', {
+            userId: userId.substring(0, 8) + '...',
+          })
         }
 
         // Extract JSON from markdown blocks or text
@@ -127,18 +137,28 @@ CRITICAL: Return ONLY valid JSON in the exact format specified. No markdown, no 
           try {
             recommendations = JSON.parse(jsonMatch[1] || '')
           } catch (extractError) {
-            console.error('❌ JSON extraction failed:', extractError)
+            logger.error('JSON extraction failed', {
+              userId: userId.substring(0, 8) + '...',
+              error: extractError instanceof Error ? extractError.message : String(extractError),
+            })
             throw new Error('Failed to parse AI response as JSON')
           }
         } else {
-          console.error('❌ No JSON found in response:', aiResponse.substring(0, 500))
+          logger.error('No JSON found in AI response', {
+            userId: userId.substring(0, 8) + '...',
+            responsePreview: aiResponse.substring(0, 500),
+          })
           throw new Error('No valid JSON found in AI response')
         }
       }
 
       // Validate response structure
       if (!recommendations?.recommendations || !Array.isArray(recommendations.recommendations)) {
-        console.error('❌ Invalid response structure:', recommendations)
+        logger.error('Invalid response structure from AI', {
+          userId: userId.substring(0, 8) + '...',
+          hasRecommendations: !!recommendations?.recommendations,
+          isArray: Array.isArray(recommendations?.recommendations),
+        })
         throw new Error('Invalid response structure from AI')
       }
 
@@ -149,10 +169,11 @@ CRITICAL: Return ONLY valid JSON in the exact format specified. No markdown, no 
       )
 
       if (process.env.NODE_ENV === 'development') {
-        console.log(
-          '🔄 Converted AI recommendations to enhanced format:',
-          enhancedRecommendations.length
-        )
+        logger.info('AI recommendations converted to enhanced format', {
+          originalCount: recommendations.recommendations.length,
+          enhancedCount: enhancedRecommendations.length,
+          userId: userId.substring(0, 8) + '...',
+        })
       }
 
       // Store recommendations and learning notes in Mem0 for future intelligence
@@ -219,17 +240,20 @@ CRITICAL: Return ONLY valid JSON in the exact format specified. No markdown, no 
       }
 
       if (process.env.NODE_ENV === 'development') {
-        console.log('✅ Enhanced recommendations generated:', {
-          count: recommendations.recommendations.length,
-          hasContext: !!recommendations.context_summary,
-          hasLearning: !!recommendations.learning_notes,
+        logger.info('Enhanced recommendations generated successfully', {
+          recommendationCount: recommendations.recommendations.length,
+          hasContextSummary: !!recommendations.context_summary,
+          hasLearningNotes: !!recommendations.learning_notes,
           intelligenceFactors: Object.keys(enhancedResponse.intelligence_used).length,
+          userId: userId.substring(0, 8) + '...',
         })
       }
 
       return ok(enhancedResponse)
     } catch (error) {
-      console.error('❌ Enhanced Recommendation Error:', error)
+      logger.error('Enhanced recommendation generation failed', {
+        error: error instanceof Error ? error.message : String(error),
+      })
 
       // Return detailed error information for debugging
       return fail('Failed to generate enhanced recommendations', 500)
@@ -248,7 +272,7 @@ export const PATCH = withError(
       }
 
       if (process.env.NODE_ENV === 'development') {
-        console.log('📈 Real-time learning update:', {
+        logger.info('Real-time learning update received', {
           userId: userId.substring(0, 8) + '...',
           movieId: movieId.substring(0, 8) + '...',
           rating,
@@ -307,7 +331,9 @@ export const PATCH = withError(
         insight: learningInsight,
       })
     } catch (error) {
-      console.error('❌ Real-time learning error:', error)
+      logger.error('Real-time learning update failed', {
+        error: error instanceof Error ? error.message : String(error),
+      })
       return fail('Failed to update real-time learning', 500)
     }
   })
@@ -350,9 +376,19 @@ async function storeRatingPattern(
       },
     })
 
-    console.log('💡 Stored rating pattern insight:', ratingInsight)
+    logger.info('Rating pattern insight stored', {
+      userId: userId.substring(0, 8) + '...',
+      movieId: movieId.substring(0, 8) + '...',
+      rating,
+      insightType: rating >= 4 ? 'LOVES' : rating <= 2 ? 'DISLIKES' : 'MIXED',
+    })
   } catch (error) {
-    console.error('❌ Error storing rating pattern:', error)
+    logger.error('Error storing rating pattern', {
+      userId: userId.substring(0, 8) + '...',
+      movieId: movieId.substring(0, 8) + '...',
+      rating,
+      error: error instanceof Error ? error.message : String(error),
+    })
   }
 }
 
@@ -377,7 +413,9 @@ async function convertToEnhancedRecommendations(
   const enhancedRecommendations = []
 
   if (process.env.NODE_ENV === 'development') {
-    console.log('🔄 Converting AI recommendations to enhanced format:', aiRecommendations.length)
+    logger.info('Converting AI recommendations to enhanced format', {
+      aiRecommendationCount: aiRecommendations.length,
+    })
   }
 
   // First, try to find AI-recommended movies in our database
@@ -426,11 +464,18 @@ async function convertToEnhancedRecommendations(
         })
       } else {
         if (process.env.NODE_ENV === 'development') {
-          console.log(`⚠️ Movie not found in database: ${aiRec.title} (${aiRec.year})`)
+          logger.warn('Movie not found in database', {
+            title: aiRec.title,
+            year: aiRec.year,
+          })
         }
       }
     } catch (error) {
-      console.error('Error finding movie in database:', error)
+      logger.error('Error finding movie in database', {
+        title: aiRec.title,
+        year: aiRec.year,
+        error: error instanceof Error ? error.message : String(error),
+      })
     }
   }
 
@@ -465,14 +510,20 @@ async function convertToEnhancedRecommendations(
         }
       }
     } catch (error) {
-      console.error('Error fetching popular movies fallback:', error)
+      logger.error('Error fetching popular movies fallback', {
+        needed,
+        currentCount: enhancedRecommendations.length,
+        error: error instanceof Error ? error.message : String(error),
+      })
     }
   }
 
   if (process.env.NODE_ENV === 'development') {
-    console.log(
-      `✅ Successfully converted ${enhancedRecommendations.length}/${aiRecommendations.length} recommendations`
-    )
+    logger.info('AI recommendations conversion completed', {
+      successfullyConverted: enhancedRecommendations.length,
+      originalCount: aiRecommendations.length,
+      conversionRate: `${Math.round((enhancedRecommendations.length / aiRecommendations.length) * 100)}%`,
+    })
   }
 
   return enhancedRecommendations

@@ -5,6 +5,7 @@
 import { withSupabase, withError, ok, fail } from '@/lib/api/factory'
 import { SemanticRecommendationService } from '@/lib/services/semantic-recommendations'
 import { z } from 'zod'
+import { logger } from '@/lib/logger'
 
 // Validation schema
 const semanticRequestSchema = z.object({
@@ -32,7 +33,7 @@ export const POST = withError(
 
     // Debug log (dev only)
     if (process.env.NODE_ENV === 'development') {
-      console.log('🔍 Semantic search request:', {
+      logger.info('Semantic search request', {
         userId: body.userId,
         query: body.query,
         preferredGenres: body.preferredGenres,

@@ -6,12 +6,19 @@ import '@testing-library/jest-dom'
 // Mock Supabase browser client
 const mockListeners: Array<(event: string, session: unknown) => void> = []
 
-const mockUser = { id: 'user-1', email: 'test@example.com' }
+let mockUser: any
 
 jest.mock('../../lib/supabase/browser-client', () => {
-  const sessionWrapper: { current: { user: typeof mockUser } | null } = {
-    current: { user: mockUser },
+  const sessionWrapper: { current: { user: any } | null } = {
+    current: null,
   }
+
+  // Will be updated after mockUser is initialized
+  setTimeout(() => {
+    if (mockUser) {
+      sessionWrapper.current = { user: mockUser }
+    }
+  }, 0)
 
   return {
     __esModule: true,
@@ -39,6 +46,9 @@ jest.mock('../../lib/supabase/browser-client', () => {
     },
   }
 })
+
+// Initialize mockUser after jest.mock
+mockUser = { id: 'user-1', email: 'test@example.com' }
 
 // Helper component to expose context for assertions
 function AuthStateViewer() {

@@ -25,8 +25,9 @@ class Logger {
       error: '❌',
     }[level]
 
+    const timestamp = new Date().toISOString()
     const levelStr = level.toUpperCase()
-    let logMessage = `${emoji} [${levelStr}] ${message}`
+    let logMessage = `${emoji} [${timestamp}] [${levelStr}] ${message}`
 
     if (context && Object.keys(context).length > 0) {
       try {
@@ -62,10 +63,15 @@ class Logger {
   private seenObjects?: WeakSet<object>
 
   private shouldLog(level: LogLevel): boolean {
-    if (isProduction()) {
-      return level === 'warn' || level === 'error'
+    try {
+      if (isProduction()) {
+        return level === 'warn' || level === 'error'
+      }
+      return isDevelopment()
+    } catch {
+      // Fallback in case of env import issues (tests)
+      return true
     }
-    return isDevelopment()
   }
 
   debug(message: string, context?: LogContext): void {

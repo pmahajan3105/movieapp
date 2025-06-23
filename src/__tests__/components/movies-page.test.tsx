@@ -9,28 +9,44 @@ import MoviesPage from '@/app/dashboard/movies/page'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { Movie } from '@/types'
+import { createBrowserClient } from '@supabase/ssr'
 
 // Mock Supabase
-const mockSupabase = {
-  auth: {
+jest.mock('@supabase/ssr', () => {
+  const mockAuth = {
     getSession: jest.fn(),
     getUser: jest.fn(),
     signOut: jest.fn(),
     onAuthStateChange: jest.fn(),
-  },
-}
+  }
 
-jest.mock('@supabase/ssr', () => ({
-  createBrowserClient: jest.fn(() => mockSupabase),
-}))
+  return {
+    createBrowserClient: jest.fn(() => ({
+      auth: mockAuth,
+    })),
+  }
+})
+
+// Get the mock instance
+const mockClient = createBrowserClient('', '') as any
+const mockSupabase = mockClient
 
 // Mock toast notifications
-jest.mock('react-hot-toast', () => ({
-  toast: {
-    success: jest.fn(),
-    error: jest.fn(),
-    loading: jest.fn(),
-  },
+jest.mock('@/hooks/useToast', () => ({
+  useToast: () => ({
+    toast: jest.fn(),
+  }),
+}))
+
+// Mock React Query
+const mockUseQuery = jest.fn()
+jest.mock('@tanstack/react-query', () => ({
+  useQuery: mockUseQuery,
+  useQueryClient: jest.fn(() => ({
+    invalidateQueries: jest.fn(),
+  })),
+  QueryClient: jest.fn(),
+  QueryClientProvider: ({ children }: { children: React.ReactNode }) => children,
 }))
 
 // Mock fetch globally
@@ -116,8 +132,15 @@ const mockWatchlistResponse = {
 
 describe('MoviesPage', () => {
   beforeEach(() => {
-    // Reset all mocks before each test
     jest.clearAllMocks()
+
+    // Setup React Query mocks
+    mockUseQuery.mockReturnValue({
+      data: [],
+      isLoading: false,
+      error: null,
+      refetch: jest.fn(),
+    })
 
     // Setup Supabase auth mocks
     mockSupabase.auth.getSession.mockResolvedValue({

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { logger } from '@/lib/logger'
 
 export async function POST() {
   try {
@@ -89,37 +90,40 @@ export async function POST() {
       },
     ]
 
-    console.log('Attempting to seed with test movies...')
+    logger.info('Attempting to seed with test movies')
 
-    // Try inserting the movies
     const { data, error } = await supabase.from('movies').insert(testMovies).select()
 
     if (error) {
-      console.error('Database insertion error:', error)
-      return NextResponse.json(
-        {
-          error: 'Failed to insert movies into database',
-          details: error,
-        },
-        { status: 500 }
-      )
+      logger.dbError('database-insertion', new Error(error.message), {
+        errorCode: error.code,
+        movieCount: testMovies.length,
+      })
+      return NextResponse.json({
+        success: false,
+        error: 'Database insertion failed',
+        details: error.message,
+      })
     }
 
-    console.log(`Successfully seeded ${data.length} test movies`)
+    logger.info('Successfully seeded test movies', {
+      seedCount: data.length,
+      totalMovies: testMovies.length,
+    })
 
     return NextResponse.json({
       success: true,
       message: `Successfully seeded ${data.length} test movies`,
-      inserted: data.length,
+      movies: data,
     })
   } catch (error) {
-    console.error('Seeding error:', error)
-    return NextResponse.json(
-      {
-        error: 'Failed to seed movies',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    )
+    logger.error('Seeding error', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return NextResponse.json({
+      success: false,
+      error: 'Failed to seed database',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    })
   }
 }

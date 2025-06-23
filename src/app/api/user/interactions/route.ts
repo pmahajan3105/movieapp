@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { logger } from '@/lib/logger'
 
 // Create Supabase client for server-side use
 function createSupabaseServerClient(request: NextRequest) {
@@ -61,7 +62,9 @@ export async function POST(request: NextRequest) {
       message: 'Interaction saved successfully',
     })
   } catch (error) {
-    console.error('❌ User interaction API error:', error)
+    logger.error('User interaction API error', {
+      error: error instanceof Error ? error.message : String(error),
+    })
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -96,7 +99,10 @@ export async function GET(request: NextRequest) {
     const { data: interactions, error } = await query
 
     if (error) {
-      console.error('Error fetching user interactions:', error)
+      logger.dbError('fetch-user-interactions', new Error(error.message), {
+        userId: user.id,
+        errorCode: error.code,
+      })
       return NextResponse.json(
         { success: false, error: 'Failed to fetch interactions' },
         { status: 500 }
@@ -109,7 +115,9 @@ export async function GET(request: NextRequest) {
       total: interactions?.length || 0,
     })
   } catch (error) {
-    console.error('❌ User interactions GET API error:', error)
+    logger.error('User interactions GET API error', {
+      error: error instanceof Error ? error.message : String(error),
+    })
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
 }

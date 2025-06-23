@@ -39,40 +39,51 @@ describe('Logger', () => {
     it('logs debug messages', () => {
       logger.debug('Test debug message', { key: 'value' })
 
-      expect(consoleSpy.debug).toHaveBeenCalledWith(
-        expect.stringContaining('🔍 [DEBUG] Test debug message')
-      )
+      expect(consoleSpy.debug).toHaveBeenCalled()
+      const loggedMessage = consoleSpy.debug.mock.calls[0][0]
+      expect(loggedMessage).toContain('🔍')
+      expect(loggedMessage).toContain('[DEBUG]')
+      expect(loggedMessage).toContain('Test debug message')
+      expect(loggedMessage).toContain('"key": "value"')
     })
 
     it('logs info messages', () => {
       logger.info('Test info message')
 
-      expect(consoleSpy.info).toHaveBeenCalledWith(
-        expect.stringContaining('ℹ️ [INFO] Test info message')
-      )
+      expect(consoleSpy.info).toHaveBeenCalled()
+      const loggedMessage = consoleSpy.info.mock.calls[0][0]
+      expect(loggedMessage).toContain('ℹ️')
+      expect(loggedMessage).toContain('[INFO]')
+      expect(loggedMessage).toContain('Test info message')
     })
 
     it('logs warn messages', () => {
       logger.warn('Test warning message')
 
-      expect(consoleSpy.warn).toHaveBeenCalledWith(
-        expect.stringContaining('⚠️ [WARN] Test warning message')
-      )
+      expect(consoleSpy.warn).toHaveBeenCalled()
+      const loggedMessage = consoleSpy.warn.mock.calls[0][0]
+      expect(loggedMessage).toContain('⚠️')
+      expect(loggedMessage).toContain('[WARN]')
+      expect(loggedMessage).toContain('Test warning message')
     })
 
     it('logs error messages', () => {
       logger.error('Test error message')
 
-      expect(consoleSpy.error).toHaveBeenCalledWith(
-        expect.stringContaining('❌ [ERROR] Test error message')
-      )
+      expect(consoleSpy.error).toHaveBeenCalled()
+      const loggedMessage = consoleSpy.error.mock.calls[0][0]
+      expect(loggedMessage).toContain('❌')
+      expect(loggedMessage).toContain('[ERROR]')
+      expect(loggedMessage).toContain('Test error message')
     })
 
     it('includes context in log messages', () => {
       const context = { userId: '123', action: 'login' }
       logger.info('User action', context)
 
-      expect(consoleSpy.info).toHaveBeenCalledWith(expect.stringContaining('"userId": "123"'))
+      expect(consoleSpy.info).toHaveBeenCalled()
+      const loggedMessage = consoleSpy.info.mock.calls[0][0]
+      expect(loggedMessage).toContain('"userId": "123"')
     })
   })
 
@@ -98,12 +109,20 @@ describe('Logger', () => {
       logger.warn('Test warning message')
 
       expect(consoleSpy.warn).toHaveBeenCalled()
+      const loggedMessage = consoleSpy.warn.mock.calls[0][0]
+      expect(loggedMessage).toContain('⚠️')
+      expect(loggedMessage).toContain('[WARN]')
+      expect(loggedMessage).toContain('Test warning message')
     })
 
     it('logs error messages', () => {
       logger.error('Test error message')
 
       expect(consoleSpy.error).toHaveBeenCalled()
+      const loggedMessage = consoleSpy.error.mock.calls[0][0]
+      expect(loggedMessage).toContain('❌')
+      expect(loggedMessage).toContain('[ERROR]')
+      expect(loggedMessage).toContain('Test error message')
     })
   })
 
@@ -112,27 +131,27 @@ describe('Logger', () => {
       const error = new Error('API failed')
       logger.apiError('/api/test', error, { statusCode: 500 })
 
-      expect(consoleSpy.error).toHaveBeenCalledWith(
-        expect.stringContaining('API Error at /api/test')
-      )
+      expect(consoleSpy.error).toHaveBeenCalled()
+      const loggedMessage = consoleSpy.error.mock.calls[0][0]
+      expect(loggedMessage).toContain('API Error at /api/test')
     })
 
     it('logs auth errors with correct context', () => {
       const error = new Error('Auth failed')
       logger.authError('login', error, { email: 'test@example.com' })
 
-      expect(consoleSpy.error).toHaveBeenCalledWith(
-        expect.stringContaining('Auth Error during login')
-      )
+      expect(consoleSpy.error).toHaveBeenCalled()
+      const loggedMessage = consoleSpy.error.mock.calls[0][0]
+      expect(loggedMessage).toContain('Auth Error during login')
     })
 
     it('logs database errors with correct context', () => {
       const error = new Error('DB connection failed')
       logger.dbError('user_insert', error, { table: 'users' })
 
-      expect(consoleSpy.error).toHaveBeenCalledWith(
-        expect.stringContaining('Database Error during user_insert')
-      )
+      expect(consoleSpy.error).toHaveBeenCalled()
+      const loggedMessage = consoleSpy.error.mock.calls[0][0]
+      expect(loggedMessage).toContain('Database Error during user_insert')
     })
   })
 })

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { logger } from '@/lib/logger'
 import { createServerClient } from '@supabase/ssr'
 
 // Create Supabase client for server-side use
@@ -74,7 +75,7 @@ export async function POST(request: NextRequest) {
     const { message, sessionId, stream: requestedStream } = chatRequestSchema.parse(body)
     let stream = requestedStream // Use mutable variable
 
-    console.log('🎬 Claude Chat API request:', {
+    logger.info('🎬 Claude Chat API request:', {
       message: message.substring(0, 50),
       sessionId,
       stream,
@@ -82,7 +83,7 @@ export async function POST(request: NextRequest) {
 
     // Force Anthropic for now – Groq path disabled
     const useGroq = false
-    console.log('🤖 Using AI provider: Anthropic (Claude)')
+    logger.info('🤖 Using AI provider: Anthropic (Claude)')
 
     if (!process.env.ANTHROPIC_API_KEY) {
       return NextResponse.json({ error: 'Anthropic API key missing' }, { status: 500 })
@@ -98,7 +99,7 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser()
 
     if (authError || !user) {
-      console.error('❌ Authentication required for chat:', authError?.message)
+      logger.error(`❌ Authentication required for chat: ${authError?.message}`)
       return NextResponse.json(
         {
           error: 'Authentication required. Please sign in to use the chat feature.',
@@ -108,7 +109,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log('👤 Authenticated user for chat:', user.email)
+    logger.info(`👤 Authenticated user for chat: ${user.email}`)
 
     // Get or create chat session
     let currentSessionId: string
@@ -127,7 +128,7 @@ export async function POST(request: NextRequest) {
 
         if (selectError && selectError.code !== 'PGRST116') {
           // Not a "not found" error - could be table missing
-          console.error('❌ Error accessing chat_sessions table:', selectError)
+          logger.error(`❌ Error accessing chat_sessions table: ${selectError.message}`)
           throw new Error('Chat feature temporarily unavailable. Database table not found.')
         }
 
@@ -158,7 +159,7 @@ export async function POST(request: NextRequest) {
           .single()
 
         if (sessionError) {
-          console.error('❌ Session creation error:', sessionError)
+          logger.error(`❌ Session creation error: ${sessionError.message}`)
 
           // Check if it's a missing table error
           if (sessionError.code === '42P01') {
@@ -182,7 +183,7 @@ export async function POST(request: NextRequest) {
         currentSessionId = newSession.id
       }
     } catch (dbError) {
-      console.error('❌ Database error in chat session handling:', dbError)
+      logger.error(`❌ Database error in chat session handling: ${String(dbError)}`)
       return NextResponse.json(
         {
           error: 'Chat feature temporarily unavailable. Please try again later.',
@@ -207,7 +208,7 @@ export async function POST(request: NextRequest) {
     let movieInfo = ''
 
     if (movieQuery.isMovieQuery && movieQuery.movieTitle) {
-      console.log('🎬 Detected movie query:', movieQuery.movieTitle)
+      logger.info(`🎬 Detected movie query: ${movieQuery.movieTitle}`)
       movieInfo = await movieService.getMovieInfoForChat(movieQuery.movieTitle)
     }
 
@@ -222,20 +223,20 @@ export async function POST(request: NextRequest) {
       content: msg.content,
     }))
 
-    console.log('🤖 Calling Claude API with', claudeMessages.length, 'messages')
+    logger.info(`🤖 Calling Claude API with ${claudeMessages.length} messages`)
 
     // Get the appropriate model for chat task
     const modelId = getBestModelForTask('chat')
-    console.log(`🎯 Using model: ${modelId}`)
+    logger.info(`🎯 Using model: ${modelId}`)
 
     try {
       // Handle streaming vs non-streaming responses
       if (stream) {
-        console.log('📡 Using streaming response')
+        logger.info('📡 Using streaming response')
 
         // Check if model supports extended thinking (simplified check)
         if (!supportsExtendedThinking(modelId)) {
-          console.log('⚠️ Model does not support extended thinking')
+          logger.info('⚠️ Model does not support extended thinking')
         }
       }
 
@@ -375,7 +376,7 @@ export async function POST(request: NextRequest) {
                         fullResponse.toLowerCase().includes('great') ||
                         fullResponse.toLowerCase().includes('excellent')
 
-                      console.log('🔍 Extraction check (streaming):', {
+                      logger.info('🔍 Extraction check (streaming):', {
                         userMessages,
                         userRequestedSave,
                         aiCompletionSignals,
@@ -390,10 +391,10 @@ export async function POST(request: NextRequest) {
 
                       if (shouldExtract) {
                         try {
-                          console.log('🔍 Extracting preferences from conversation (streaming)')
+                          logger.info('🔍 Extracting preferences from conversation (streaming)')
 
                           // Legacy mem0 integration removed - now using direct preference extraction
-                          console.log('💾 Processing conversation for preference extraction')
+                          logger.info('💾 Processing conversation for preference extraction')
 
                           // Use the same enhanced preference extraction logic
                           const conversationText = chatHistory
@@ -452,7 +453,7 @@ export async function POST(request: NextRequest) {
                                 const yearsBack = parseInt(match[1]!, 10)
                                 if (yearsBack && yearsBack > 0 && yearsBack <= 50) {
                                   yearRange = { min: currentYear - yearsBack, max: currentYear }
-                                  console.log(
+                                  logger.info(
                                     `📅 Extracted year range from "last ${yearsBack} years":`,
                                     yearRange
                                   )
@@ -495,7 +496,7 @@ export async function POST(request: NextRequest) {
                                 const minRating = parseFloat(match[1]!)
                                 if (minRating && minRating >= 1 && minRating <= 10) {
                                   ratingRange = { min: minRating, max: 10.0 }
-                                  console.log(
+                                  logger.info(
                                     `⭐ Extracted rating range from "${match[0]}":`,
                                     ratingRange
                                   )
@@ -523,7 +524,7 @@ export async function POST(request: NextRequest) {
                             ratingRange,
                           }
 
-                          console.log(
+                          logger.info(
                             '✅ Extracted preferences (streaming):',
                             extractedPreferenceData
                           )
@@ -540,15 +541,19 @@ export async function POST(request: NextRequest) {
                             })
 
                           if (updateError) {
-                            console.error('❌ Database update error (streaming):', updateError)
+                            logger.error(
+                              `❌ Database update error (streaming): ${updateError.message}`
+                            )
                             throw updateError
                           }
 
-                          console.log('✅ Preferences saved to database successfully (streaming)')
+                          logger.info('✅ Preferences saved to database successfully (streaming)')
                           preferencesExtracted = true
                           extractedPreferences = extractedPreferenceData
                         } catch (error) {
-                          console.error('❌ Preference extraction error (streaming):', error)
+                          logger.error(
+                            `❌ Preference extraction error (streaming): ${String(error)}`
+                          )
                         }
                       }
 
@@ -595,9 +600,8 @@ export async function POST(request: NextRequest) {
                         fullResponse += content
 
                         // Debug logging
-                        console.log(
-                          '📤 Sending content chunk:',
-                          JSON.stringify(content.substring(0, 50))
+                        logger.info(
+                          `📤 Sending content chunk: ${JSON.stringify(content.substring(0, 50))}`
                         )
 
                         // Send content event
@@ -681,9 +685,8 @@ export async function POST(request: NextRequest) {
                               fullResponse += content
 
                               // Debug logging
-                              console.log(
-                                '📤 Sending content chunk (multi):',
-                                JSON.stringify(content.substring(0, 50))
+                              logger.info(
+                                `📤 Sending content chunk (multi): ${JSON.stringify(content.substring(0, 50))}`
                               )
 
                               // Send content event
@@ -701,9 +704,8 @@ export async function POST(request: NextRequest) {
                             processedAnyObject = true
                           } catch {
                             // Skip malformed object
-                            console.log(
-                              '⚠️ Skipping malformed JSON object:',
-                              jsonString.substring(0, 100)
+                            logger.info(
+                              `⚠️ Skipping malformed JSON object: ${jsonString.substring(0, 100)}`
                             )
                           }
 
@@ -722,7 +724,7 @@ export async function POST(request: NextRequest) {
 
                       // Prevent buffer from growing too large
                       if (jsonBuffer.length > 10000) {
-                        console.log('⚠️ JSON buffer too large, resetting to current chunk')
+                        logger.info('⚠️ JSON buffer too large, resetting to current chunk')
                         jsonBuffer = eventData
                       }
                     }
@@ -815,7 +817,7 @@ export async function POST(request: NextRequest) {
               }
             } catch (err) {
               // <-- any error ends up here, but we're still streaming
-              console.error('🔴 chat stream crashed:', err)
+              logger.error(`🔴 chat stream crashed: ${String(err)}`)
 
               controller.enqueue(
                 encoder.encode(
@@ -911,7 +913,7 @@ export async function POST(request: NextRequest) {
         throw new Error('No response from Claude')
       }
 
-      console.log('✅ Got Claude response:', aiResponse.substring(0, 100) + '...')
+      logger.info(`✅ Got Claude response: ${aiResponse.substring(0, 100)}...`)
 
       // Add AI response to history
       const aiMessage: ChatMessage = {
@@ -957,7 +959,7 @@ export async function POST(request: NextRequest) {
         aiResponse.includes('great') ||
         aiResponse.includes('excellent')
 
-      console.log('🔍 Extraction check:', {
+      logger.info('🔍 Extraction check:', {
         userMessages,
         userRequestedSave,
         aiCompletionSignals,
@@ -972,11 +974,11 @@ export async function POST(request: NextRequest) {
 
       if (shouldExtract) {
         try {
-          console.log('🔍 Extracting preferences from conversation')
+          logger.info('🔍 Extracting preferences from conversation')
 
           // Store conversation in Mem0 for advanced memory management
           // Legacy mem0 integration removed - now using direct preference extraction
-          console.log('💾 Processing conversation for preference extraction')
+          logger.info('💾 Processing conversation for preference extraction')
 
           // Enhanced preference extraction from conversation
           const conversationText = chatHistory
@@ -1036,7 +1038,7 @@ export async function POST(request: NextRequest) {
                 const yearsBack = parseInt(match[1]!, 10)
                 if (yearsBack && yearsBack > 0 && yearsBack <= 50) {
                   yearRange = { min: currentYear - yearsBack, max: currentYear }
-                  console.log(`📅 Extracted year range from "last ${yearsBack} years":`, yearRange)
+                  logger.info(`📅 Extracted year range from "last ${yearsBack} years":`, yearRange)
                   break
                 }
               } else if (pattern.source.includes('from.*to|between.*and|\\d{4}-\\d{4}')) {
@@ -1051,7 +1053,7 @@ export async function POST(request: NextRequest) {
                   startYear <= endYear
                 ) {
                   yearRange = { min: startYear, max: endYear }
-                  console.log(`📅 Extracted year range:`, yearRange)
+                  logger.info(`📅 Extracted year range:`, yearRange)
                   break
                 }
               } else if (pattern.source.includes('after|since|from')) {
@@ -1059,7 +1061,7 @@ export async function POST(request: NextRequest) {
                 const year = parseInt(match[1]!, 10)
                 if (year && year >= 1900 && year <= currentYear) {
                   yearRange = { min: year, max: currentYear }
-                  console.log(`📅 Extracted year range from "after ${year}":`, yearRange)
+                  logger.info(`📅 Extracted year range from "after ${year}":`, yearRange)
                   break
                 }
               } else if (pattern.source.includes('before|until')) {
@@ -1067,7 +1069,7 @@ export async function POST(request: NextRequest) {
                 const year = parseInt(match[1]!, 10)
                 if (year && year >= 1900 && year <= currentYear) {
                   yearRange = { min: 1980, max: year }
-                  console.log(`📅 Extracted year range from "before ${year}":`, yearRange)
+                  logger.info(`📅 Extracted year range from "before ${year}":`, yearRange)
                   break
                 }
               } else if (pattern.source.includes('\\d{4}s')) {
@@ -1075,7 +1077,7 @@ export async function POST(request: NextRequest) {
                 const decade = parseInt(match[1]!, 10)
                 if (decade && decade >= 1900 && decade <= currentYear) {
                   yearRange = { min: decade, max: decade + 9 }
-                  console.log(`📅 Extracted year range from "${decade}s":`, yearRange)
+                  logger.info(`📅 Extracted year range from "${decade}s":`, yearRange)
                   break
                 }
               }
@@ -1111,7 +1113,7 @@ export async function POST(request: NextRequest) {
                 const minRating = parseFloat(match[1]!)
                 if (minRating && minRating >= 1 && minRating <= 10) {
                   ratingRange = { min: minRating, max: 10.0 }
-                  console.log(`⭐ Extracted rating range from "${match[0]}":`, ratingRange)
+                  logger.info(`⭐ Extracted rating range from "${match[0]}":`, ratingRange)
                   break
                 }
               } else if (pattern.source.includes('-|between.*and')) {
@@ -1126,7 +1128,7 @@ export async function POST(request: NextRequest) {
                   minRating <= maxRating
                 ) {
                   ratingRange = { min: minRating, max: maxRating }
-                  console.log(`⭐ Extracted rating range:`, ratingRange)
+                  logger.info(`⭐ Extracted rating range:`, ratingRange)
                   break
                 }
               } else if (pattern.source.includes('under|below|less.*than')) {
@@ -1134,7 +1136,7 @@ export async function POST(request: NextRequest) {
                 const maxRating = parseFloat(match[1]!)
                 if (maxRating && maxRating >= 1 && maxRating <= 10) {
                   ratingRange = { min: 1.0, max: maxRating }
-                  console.log(`⭐ Extracted rating range from "under ${maxRating}":`, ratingRange)
+                  logger.info(`⭐ Extracted rating range from "under ${maxRating}":`, ratingRange)
                   break
                 }
               }
@@ -1179,7 +1181,7 @@ export async function POST(request: NextRequest) {
             ratingRange,
           }
 
-          console.log('✅ Extracted preferences:', extractedPreferenceData)
+          logger.info('✅ Extracted preferences:', extractedPreferenceData)
 
           // Save to database
           const { error: updateError } = await supabase.from('user_profiles').upsert({
@@ -1191,15 +1193,15 @@ export async function POST(request: NextRequest) {
           })
 
           if (updateError) {
-            console.error('❌ Database update error:', updateError)
+            logger.error(`❌ Database update error: ${updateError.message}`)
             throw updateError
           }
 
-          console.log('✅ Preferences saved to database successfully')
+          logger.info('✅ Preferences saved to database successfully')
           preferencesExtracted = true
           extractedPreferences = extractedPreferenceData
         } catch (error) {
-          console.error('❌ Preference extraction error:', error)
+          logger.error(`❌ Preference extraction error: ${String(error)}`)
         }
       }
 
@@ -1214,10 +1216,10 @@ export async function POST(request: NextRequest) {
         .eq('id', currentSessionId)
 
       if (updateError) {
-        console.error('❌ Failed to update chat session:', updateError)
+        logger.error(`❌ Failed to update chat session: ${updateError.message}`)
       }
 
-      console.log('✅ Claude Chat API success - returning response')
+      logger.info('✅ Claude Chat API success - returning response')
 
       return NextResponse.json({
         success: true,
@@ -1228,7 +1230,7 @@ export async function POST(request: NextRequest) {
         movieInfo: movieInfo ? 'Movie information included in response' : undefined,
       })
     } catch (claudeError: unknown) {
-      console.error('❌ Claude API error:', claudeError)
+      logger.error(`❌ Claude API error: ${String(claudeError)}`)
 
       // Handle specific Claude API errors
       const error = claudeError as { error?: { type?: string } }
@@ -1249,7 +1251,7 @@ export async function POST(request: NextRequest) {
       throw claudeError
     }
   } catch (error) {
-    console.error('❌ Chat API error:', error)
+    logger.error(`❌ Chat API error: ${String(error)}`)
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -1266,7 +1268,7 @@ export async function POST(request: NextRequest) {
     }
 
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    console.error('❌ Chat API final error:', errorMessage)
+    logger.error(`❌ Chat API final error: ${errorMessage}`)
 
     return NextResponse.json(
       {

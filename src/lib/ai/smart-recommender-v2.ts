@@ -7,6 +7,7 @@ import { embeddingService } from './embedding-service'
 import { createClient } from '@supabase/supabase-js'
 import { getSupabaseUrl, getSupabaseServiceRoleKey } from '@/lib/env'
 import type { Movie } from '@/types'
+import { logger } from '../logger'
 
 // Extended Movie type with recommendation properties
 interface EnhancedMovie extends Movie {
@@ -91,7 +92,12 @@ export class SmartRecommenderV2 {
   async getSmartRecommendations(
     options: SmartRecommendationOptions
   ): Promise<SmartRecommendationResult> {
-    console.log('🧠 Generating vector-enhanced recommendations for user:', options.userId)
+    logger.info('Generating vector-enhanced recommendations for user', {
+      userId: options.userId,
+      userQuery: options.userQuery,
+      preferredGenres: options.preferredGenres,
+      limit: options.limit,
+    })
 
     // Initialize candidates variable
     let candidates: Movie[] = []
@@ -128,7 +134,11 @@ export class SmartRecommenderV2 {
         insights,
       }
     } catch (error) {
-      console.error('❌ Smart recommendations failed:', error)
+      logger.error('Smart recommendations failed', {
+        userId: options.userId,
+        error: error instanceof Error ? error.message : String(error),
+        candidatesCount: candidates.length,
+      })
 
       // Fallback to basic recommendations
       return {
@@ -227,7 +237,15 @@ export class SmartRecommenderV2 {
         return data || []
       }
     } catch (error) {
-      console.error('❌ Failed to get candidate movies:', error)
+      logger.dbError(
+        'get-candidate-movies',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          userId: options.userId,
+          userQuery: options.userQuery,
+          limit,
+        }
+      )
       return []
     }
   }
@@ -276,7 +294,11 @@ export class SmartRecommenderV2 {
 
         return enhancedMovie
       } catch (error) {
-        console.error(`❌ Failed to process movie ${movie.title}:`, error)
+        logger.error(`Failed to process movie ${movie.title}`, {
+          movieId: movie.id,
+          movieTitle: movie.title,
+          error: error instanceof Error ? error.message : String(error),
+        })
         // Include movie without enhancement
         const basicEnhancedMovie: EnhancedMovie = {
           ...movie,
@@ -516,9 +538,20 @@ export class SmartRecommenderV2 {
         confidence,
       })
 
-      console.log(`💾 Saved user interaction: ${userId} ${interactionType} ${movieId}`)
+      logger.info(`Saved user interaction`, {
+        userId,
+        movieId,
+        interactionType,
+        confidence,
+        context: context ? Object.keys(context) : [],
+      })
     } catch (error) {
-      console.error('❌ Failed to save user interaction:', error)
+      logger.error('Failed to save user interaction', {
+        userId,
+        movieId,
+        interactionType,
+        error: error instanceof Error ? error.message : String(error),
+      })
     }
   }
 

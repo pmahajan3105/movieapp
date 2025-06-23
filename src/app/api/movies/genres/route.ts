@@ -1,23 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createClient as createSupabaseClient } from '@/lib/supabase/server-client'
-import type { GenreOption } from '@/types/search'
-
-interface GenresResponse {
-  success: boolean
-  data?: GenreOption[]
-  error?: string
-}
+import { NextResponse } from 'next/server'
+import { withSupabase, withError } from '@/lib/api/factory'
+import { logger } from '@/lib/logger'
 
 interface MovieWithGenre {
   genre: string[] | null
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export async function GET(_request: NextRequest): Promise<NextResponse<GenresResponse>> {
-  try {
-    const supabase = await createSupabaseClient()
-
-    console.log('🎭 Fetching movie genres...')
+export const GET = withError(
+  withSupabase(async ({ supabase }) => {
+    logger.info('Fetching movie genres')
 
     // Get all movies with genres
     const { data: moviesData, error: moviesError } = await supabase
@@ -26,8 +17,10 @@ export async function GET(_request: NextRequest): Promise<NextResponse<GenresRes
       .not('genre', 'is', null)
 
     if (moviesError) {
-      console.error('Genres query error:', moviesError)
-      return NextResponse.json({ success: false, error: 'Failed to fetch genres' }, { status: 500 })
+      logger.dbError('fetch-movies-for-genres', new Error(moviesError.message), {
+        errorCode: moviesError.code,
+      })
+      return NextResponse.json({ error: 'Failed to fetch movies' }, { status: 500 })
     }
 
     // Count genre occurrences
@@ -50,14 +43,14 @@ export async function GET(_request: NextRequest): Promise<NextResponse<GenresRes
       .sort((a, b) => b.count - a.count)
       .filter(genre => genre.count > 0) // Only include genres with movies
 
-    console.log(`🎭 Genres calculated: ${genres.length} unique genres`)
+    logger.info(`Genres calculated`, {
+      genreCount: genres.length,
+      totalMovies: moviesData?.length || 0,
+    })
 
     return NextResponse.json({
       success: true,
       data: genres,
     })
-  } catch (error) {
-    console.error('Genres API error:', error)
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
-  }
-}
+  })
+)

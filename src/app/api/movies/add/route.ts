@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient as createSupabaseClient } from '@/lib/supabase/server-client'
+import { logger } from '@/lib/logger'
 
 const popularMovies = [
   {
@@ -278,14 +279,16 @@ export async function POST() {
   try {
     const supabase = await createSupabaseClient()
 
-    console.log('🎬 Adding popular movies to database...')
+    logger.info('Adding popular movies to database')
 
     // Check current movie count
     const { count: currentCount } = await supabase
       .from('movies')
       .select('*', { count: 'exact', head: true })
 
-    console.log(`📊 Current movies in database: ${currentCount}`)
+    logger.info('Current movies in database', {
+      currentCount: currentCount || 0,
+    })
 
     // Add movies in batches to avoid conflicts
     let addedCount = 0
@@ -301,7 +304,11 @@ export async function POST() {
         .single()
 
       if (existing) {
-        console.log(`⏭️  Skipping "${movie.title}" (${movie.year}) - already exists`)
+        logger.info('Skipping existing movie', {
+          title: movie.title,
+          year: movie.year,
+          reason: 'already exists',
+        })
         results.push({ movie: movie.title, status: 'skipped', reason: 'already exists' })
         continue
       }
@@ -310,10 +317,17 @@ export async function POST() {
       const { error } = await supabase.from('movies').insert([movie])
 
       if (error) {
-        console.error(`❌ Error adding "${movie.title}":`, error.message)
+        logger.dbError('add-movie-insertion', new Error(error.message), {
+          title: movie.title,
+          year: movie.year,
+          errorCode: error.code,
+        })
         results.push({ movie: movie.title, status: 'error', reason: error.message })
       } else {
-        console.log(`✅ Added "${movie.title}" (${movie.year})`)
+        logger.info('Successfully added movie', {
+          title: movie.title,
+          year: movie.year,
+        })
         results.push({ movie: movie.title, status: 'added' })
         addedCount++
       }
@@ -324,9 +338,11 @@ export async function POST() {
       .from('movies')
       .select('*', { count: 'exact', head: true })
 
-    console.log(`\n🎉 Successfully added ${addedCount} new movies!`)
-    console.log(`📊 Total movies in database: ${finalCount}`)
-    console.log(`🚀 Your infinite scroll will now have ${finalCount} movies to browse!`)
+    logger.info('Movie addition completed', {
+      addedCount,
+      totalMovies: finalCount || 0,
+      totalCandidates: popularMovies.length,
+    })
 
     return NextResponse.json({
       success: true,
@@ -336,7 +352,9 @@ export async function POST() {
       results,
     })
   } catch (error) {
-    console.error('❌ Error adding movies:', error)
+    logger.error('Error adding movies', {
+      error: error instanceof Error ? error.message : String(error),
+    })
     return NextResponse.json({ success: false, error: 'Failed to add movies' }, { status: 500 })
   }
 }
