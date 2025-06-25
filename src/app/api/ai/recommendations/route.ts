@@ -47,8 +47,25 @@ export const POST = withError(
     try {
       const { userId, sessionId, message, count = 10, moodContext } = await request.json()
 
+      // Enhanced input validation
       if (!userId) {
-        return fail('User ID is required', 400)
+        return fail('User ID is required for personalized recommendations', 400)
+      }
+
+      if (typeof userId !== 'string' || userId.length < 10) {
+        return fail('Invalid user ID format', 400)
+      }
+
+      if (count && (typeof count !== 'number' || count < 1 || count > 50)) {
+        return fail('Count must be a number between 1 and 50', 400)
+      }
+
+      if (message && typeof message !== 'string') {
+        return fail('Message must be a text string', 400)
+      }
+
+      if (message && message.length > 1000) {
+        return fail('Message too long. Please keep under 1000 characters.', 400)
       }
 
       if (process.env.NODE_ENV === 'development') {
@@ -80,12 +97,14 @@ export const POST = withError(
       }
 
       // Use Claude with higher token limit for complex recommendations
-      const response = await anthropic.messages.create({
-        model: claudeConfig.model,
-        max_tokens: 4000, // Increased for complex responses
-        temperature: 0.3, // Lower temperature for more consistent JSON
-        system: `You are CineAI, the world's most intelligent movie recommendation system. 
-        
+      let response
+      try {
+        response = await anthropic.messages.create({
+          model: claudeConfig.model,
+          max_tokens: 4000, // Increased for complex responses
+          temperature: 0.3, // Lower temperature for more consistent JSON
+          system: `You are CineAI, the world's most intelligent movie recommendation system. 
+          
 You have access to complete behavioral intelligence about this user including:
 - All their movie ratings and patterns
 - Complete viewing history and watchlist behavior
@@ -96,13 +115,28 @@ You have access to complete behavioral intelligence about this user including:
 Use ALL this data to provide incredibly personalized recommendations. Reference specific behavioral patterns, ratings, and insights in your reasoning.
 
 CRITICAL: Return ONLY valid JSON in the exact format specified. No markdown, no additional text, just the JSON object.`,
-        messages: [
-          {
-            role: 'user',
-            content: comprehensivePrompt,
-          },
-        ],
-      })
+          messages: [
+            {
+              role: 'user',
+              content: comprehensivePrompt,
+            },
+          ],
+        })
+      } catch (error) {
+        logger.error('Claude API error', {
+          userId: userId.substring(0, 8) + '...',
+          error: error instanceof Error ? error.message : String(error),
+        })
+
+        const errorMessage =
+          error instanceof Error && error.message.includes('rate_limit')
+            ? 'AI service is currently busy. Please try again in a few moments.'
+            : error instanceof Error && error.message.includes('max_tokens')
+              ? 'Your request is too complex. Please try with simpler preferences.'
+              : 'AI recommendation service is temporarily unavailable. Please try again later.'
+
+        return fail(errorMessage, 503)
+      }
 
       const aiResponse = response.content[0]?.type === 'text' ? response.content[0].text : ''
       if (!aiResponse) {

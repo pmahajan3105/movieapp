@@ -38,12 +38,50 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
       sortBy: filters.sortBy,
     })
 
+    // Validate search parameters
+    if (filters.limit && (filters.limit < 1 || filters.limit > 100)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Invalid limit parameter. Must be between 1 and 100.',
+          code: 'VALIDATION_ERROR',
+        },
+        { status: 400 }
+      )
+    }
+
+    if (filters.offset && filters.offset < 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Invalid offset parameter. Must be 0 or greater.',
+          code: 'VALIDATION_ERROR',
+        },
+        { status: 400 }
+      )
+    }
+
+    if (filters.query && filters.query.length < 2) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Search query must be at least 2 characters long.',
+          code: 'VALIDATION_ERROR',
+        },
+        { status: 400 }
+      )
+    }
+
     // Check if TMDB API key is configured
     const apiKey = process.env.TMDB_API_KEY
     if (!apiKey) {
       return NextResponse.json(
-        { success: false, error: 'TMDB API key not configured' },
-        { status: 500 }
+        {
+          success: false,
+          error: 'Movie database service is temporarily unavailable. Please try again later.',
+          code: 'SERVICE_UNAVAILABLE',
+        },
+        { status: 503 }
       )
     }
 
@@ -71,9 +109,20 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
     const tmdbResponse = await fetch(tmdbUrl)
 
     if (!tmdbResponse.ok) {
+      const errorMessage =
+        tmdbResponse.status === 429
+          ? 'Too many search requests. Please wait a moment and try again.'
+          : tmdbResponse.status === 404
+            ? 'No movies found matching your search criteria.'
+            : 'Movie database service is temporarily unavailable. Please try again later.'
+
       return NextResponse.json(
-        { success: false, error: 'Failed to fetch from TMDB' },
-        { status: 500 }
+        {
+          success: false,
+          error: errorMessage,
+          code: tmdbResponse.status === 429 ? 'RATE_LIMIT_ERROR' : 'SERVICE_ERROR',
+        },
+        { status: tmdbResponse.status >= 500 ? 503 : tmdbResponse.status }
       )
     }
 

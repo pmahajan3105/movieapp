@@ -2,8 +2,18 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { getAuthCallbackURL } from '@/lib/utils/url-helper'
+import { withRateLimit } from '@/lib/api/middleware/rate-limiter'
 
-export async function POST(request: NextRequest) {
+// Apply rate limiting: 3 requests per minute to prevent abuse
+export const POST = withRateLimit({
+  maxRequests: 3,
+  windowMs: 60000, // 1 minute
+  keyGenerator: request => {
+    // Rate limit by IP address for better security
+    const ip = request.headers.get('x-forwarded-for') || 'unknown'
+    return `otp-request:${ip}`
+  },
+})(async (request: NextRequest) => {
   try {
     const { email } = await request.json()
 
@@ -96,4 +106,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

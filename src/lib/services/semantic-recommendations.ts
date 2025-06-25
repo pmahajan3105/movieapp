@@ -135,7 +135,25 @@ export class SemanticRecommendationService {
           ...movie,
           semanticSimilarity: semanticMatch?.similarity || 0,
 
-          recommendationReason: this.generateReason(movie as any, semanticMatch?.similarity || 0),
+          recommendationReason: this.generateReason(
+            {
+              id: movie.id,
+              title: movie.title,
+              poster_url: movie.poster_url || undefined,
+              rating: movie.rating || undefined,
+              year: movie.year || undefined,
+              runtime: movie.runtime || undefined,
+              plot: movie.plot || undefined,
+              imdb_id: movie.imdb_id || undefined,
+              tmdb_id: movie.tmdb_id || undefined,
+              director: movie.director || [],
+              genre: movie.genre || [],
+              actors: [], // Default empty array
+              created_at: movie.created_at || '',
+              updated_at: movie.updated_at || '',
+            },
+            semanticMatch?.similarity || 0
+          ),
           confidence: Math.min(0.9, (semanticMatch?.similarity || 0) * 1.2),
           year: movie.year,
         }

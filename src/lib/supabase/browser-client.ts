@@ -2,39 +2,73 @@ import { createBrowserClient } from '@supabase/ssr'
 import { isDev } from '@/lib/env'
 import { logger } from '@/lib/logger'
 
-// Simple Database interface for Supabase client typing
+// Import proper database types
+import type { DatabaseMovie, DatabaseWatchlistItem, DatabaseRating } from '@/types/database'
+
+// Additional database table interfaces
+interface DatabaseUserProfile {
+  id: string
+  user_id: string
+  favorite_movies: string[]
+  preferred_genres: string[]
+  preferred_decades: string[]
+  preferred_languages: string[]
+  streaming_services: string[]
+  content_preferences: string[]
+  created_at: string
+  updated_at: string
+}
+
+interface DatabaseChatSession {
+  id: string
+  user_id: string
+  title?: string
+  created_at: string
+  updated_at: string
+}
+
+interface DatabaseRecommendation {
+  id: string
+  user_id: string
+  movie_id: string
+  recommendation_reason: string
+  similarity_score: number
+  created_at: string
+}
+
+// Proper Database interface for Supabase client typing
 interface Database {
   public: {
     Tables: {
       movies: {
-        Row: any
-        Insert: any
-        Update: any
+        Row: DatabaseMovie
+        Insert: Omit<DatabaseMovie, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<DatabaseMovie, 'id' | 'created_at' | 'updated_at'>>
       }
       watchlist: {
-        Row: any
-        Insert: any
-        Update: any
+        Row: DatabaseWatchlistItem
+        Insert: Omit<DatabaseWatchlistItem, 'id' | 'added_at'>
+        Update: Partial<Omit<DatabaseWatchlistItem, 'id' | 'user_id' | 'movie_id' | 'added_at'>>
       }
       ratings: {
-        Row: any
-        Insert: any
-        Update: any
+        Row: DatabaseRating
+        Insert: Omit<DatabaseRating, 'id' | 'rated_at'>
+        Update: Partial<Omit<DatabaseRating, 'id' | 'user_id' | 'movie_id' | 'rated_at'>>
       }
       user_profiles: {
-        Row: any
-        Insert: any
-        Update: any
+        Row: DatabaseUserProfile
+        Insert: Omit<DatabaseUserProfile, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<DatabaseUserProfile, 'id' | 'user_id' | 'created_at' | 'updated_at'>>
       }
       chat_sessions: {
-        Row: any
-        Insert: any
-        Update: any
+        Row: DatabaseChatSession
+        Insert: Omit<DatabaseChatSession, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<DatabaseChatSession, 'id' | 'user_id' | 'created_at' | 'updated_at'>>
       }
       recommendations: {
-        Row: any
-        Insert: any
-        Update: any
+        Row: DatabaseRecommendation
+        Insert: Omit<DatabaseRecommendation, 'id' | 'created_at'>
+        Update: Partial<Omit<DatabaseRecommendation, 'id' | 'user_id' | 'movie_id' | 'created_at'>>
       }
     }
   }
@@ -50,37 +84,34 @@ export function createClient() {
     // Attach a cookie adapter so Supabase-JS v2 can load the session that
     // our `/auth/callback` route sets via HTTP cookies.
     cookies: {
-      get(name: string) {
-        if (typeof document === 'undefined') return undefined
+      getAll() {
+        if (typeof document === 'undefined') return []
 
-        if (isDev()) logger.debug('Browser cookie get', { name })
-
-        const match = document.cookie.split('; ').find(row => row.startsWith(name + '='))
-        if (!match) return undefined
-        return decodeURIComponent(match.split('=')[1] || '')
+        return document.cookie
+          .split('; ')
+          .filter(Boolean)
+          .map(cookie => {
+            const [name, ...rest] = cookie.split('=')
+            return {
+              name: name || '',
+              value: decodeURIComponent(rest.join('=') || ''),
+            }
+          })
+          .filter(cookie => cookie.name) // Filter out cookies without names
       },
-      set(name: string, value: string, options: any) {
+      setAll(cookiesToSet) {
         if (typeof document === 'undefined') return
 
-        if (isDev()) logger.debug('Browser cookie set', { name, length: value?.length || 0 })
+        cookiesToSet.forEach(({ name, value, options }) => {
+          if (isDev()) logger.debug('Browser cookie set', { name, length: value?.length || 0 })
 
-        let cookie = `${name}=${encodeURIComponent(value)}`
-        if (options?.maxAge) cookie += `; max-age=${options.maxAge}`
-        if (options?.path) cookie += `; path=${options.path}`
-        if (options?.sameSite) cookie += `; samesite=${options.sameSite}`
-        if (options?.secure) cookie += '; secure'
-        document.cookie = cookie
-      },
-      remove(name: string, options: any) {
-        if (typeof document === 'undefined') return
-
-        if (isDev()) logger.debug('Browser cookie remove', { name })
-
-        let cookie = `${name}=; max-age=0`
-        if (options?.path) cookie += `; path=${options.path}`
-        if (options?.sameSite) cookie += `; samesite=${options.sameSite}`
-        if (options?.secure) cookie += '; secure'
-        document.cookie = cookie
+          let cookie = `${name}=${encodeURIComponent(value)}`
+          if (options?.maxAge) cookie += `; max-age=${options.maxAge}`
+          if (options?.path) cookie += `; path=${options.path}`
+          if (options?.sameSite) cookie += `; samesite=${options.sameSite}`
+          if (options?.secure) cookie += '; secure'
+          document.cookie = cookie
+        })
       },
     },
   })

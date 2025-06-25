@@ -61,15 +61,35 @@ export function createApiResponse<T>(
   }
 }
 
+// Proper interface for Supabase errors
+interface SupabaseError {
+  message: string
+  code: string
+  details?: string
+  hint?: string
+}
+
+// Type guard to check if error is a Supabase error
+function isSupabaseError(error: unknown): error is SupabaseError {
+  return (
+    error != null &&
+    typeof error === 'object' &&
+    'code' in error &&
+    'message' in error &&
+    typeof (error as any).code === 'string' &&
+    typeof (error as any).message === 'string'
+  )
+}
+
 export function handleSupabaseError(error: unknown): {
   message: string
   code: string
   details?: unknown
 } {
-  if (error && typeof error === 'object' && 'code' in error && 'message' in error) {
+  if (isSupabaseError(error)) {
     return {
-      message: (error as any).message,
-      code: (error as any).code,
+      message: error.message,
+      code: error.code,
       details: error,
     }
   }
@@ -214,14 +234,12 @@ export const withError = (
   return async request => {
     try {
       return await handler(request)
-    } catch (err: any) {
-      logger.apiError('generic-api', err instanceof Error ? err : new Error(String(err)))
-      return Response.json(
-        { success: false, error: err?.message || 'Internal error' },
-        {
-          status: 500,
-        }
-      )
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err : new Error(String(err))
+      logger.apiError('generic-api', error)
+
+      const errorMessage = err instanceof Error ? err.message : 'Internal error'
+      return Response.json({ success: false, error: errorMessage }, { status: 500 })
     }
   }
 }

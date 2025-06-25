@@ -350,10 +350,19 @@ async function getConversationHistory(userId: string) {
     .order('created_at', { ascending: false })
     .limit(5)
 
+  // Interface for chat session with messages
+  interface ChatSessionWithMessages {
+    chat_messages?: Array<{
+      role: string
+      content: string
+      created_at: string
+    }>
+  }
+
   const allMessages =
     sessions?.flatMap(
-      (session: any) =>
-        session.chat_messages?.map((msg: any) => ({
+      (session: ChatSessionWithMessages) =>
+        session.chat_messages?.map(msg => ({
           role: msg.role as 'user' | 'assistant',
           content: msg.content,
           timestamp: msg.created_at,
@@ -393,17 +402,31 @@ async function getAllWatchedMovies(userId: string) {
 
   if (!data) return []
 
+  // Interface for watchlist item with movie relation
+  interface WatchlistItemWithMovie {
+    movie_id: string
+    watched_at: string
+    notes?: string
+    movies: unknown // Movie data from join
+  }
+
+  // Interface for rating data
+  interface RatingData {
+    movie_id: string
+    rating: number
+  }
+
   // Get ratings for these movies from separate ratings table
-  const movieIds = data.map((item: any) => item.movie_id)
+  const movieIds = data.map((item: WatchlistItemWithMovie) => item.movie_id)
   const { data: ratingsData } = await supabase
     .from('ratings')
     .select('movie_id, rating')
     .eq('user_id', userId)
     .in('movie_id', movieIds)
 
-  const ratingsMap = new Map(ratingsData?.map((r: any) => [r.movie_id, r.rating]) || [])
+  const ratingsMap = new Map(ratingsData?.map((r: RatingData) => [r.movie_id, r.rating]) || [])
 
-  return data.map((item: any) => ({
+  return data.map((item: WatchlistItemWithMovie) => ({
     ...item,
     movie: item.movies as unknown as Movie,
     rating: ratingsMap.get(item.movie_id),
@@ -430,8 +453,14 @@ async function getAllWatchlistMovies(userId: string) {
     return [] // Return empty array instead of throwing to prevent app crash
   }
 
+  // Interface for watchlist item with movie relation
+  interface WatchlistItemWithMovieData {
+    added_at: string
+    movies: unknown // Movie data from join
+  }
+
   return (
-    data?.map((item: any) => ({
+    data?.map((item: WatchlistItemWithMovieData) => ({
       ...item,
       movie: item.movies as unknown as Movie,
     })) || []
