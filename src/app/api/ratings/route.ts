@@ -1,4 +1,5 @@
-import { requireAuth, withError, ok, fail } from '@/lib/api/factory'
+import { NextRequest, NextResponse } from 'next/server'
+import { createAuthenticatedApiHandler, parseJsonBody } from '@/lib/api/factory'
 import { z } from 'zod'
 
 const ratingSchema = z.object({
@@ -8,13 +9,13 @@ const ratingSchema = z.object({
 })
 
 // POST /api/ratings – insert/update rating by movie/user
-export const POST = withError(
-  requireAuth(async ({ request, supabase, user }) => {
-    const json = await request.json().catch(() => null)
+export const POST = createAuthenticatedApiHandler(
+  async (request: NextRequest, { supabase, user }) => {
+    const json = await parseJsonBody<unknown>(request)
     const parsed = ratingSchema.safeParse(json)
 
     if (!parsed.success) {
-      return fail(parsed.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', '), 400)
+      throw new Error(parsed.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', '))
     }
 
     const { movie_id, interested, rating } = parsed.data
@@ -36,9 +37,12 @@ export const POST = withError(
       .single()
 
     if (error) {
-      return fail(error.message, 500)
+      throw new Error(error.message)
     }
 
-    return ok(data)
-  })
+    return NextResponse.json({
+      success: true,
+      data,
+    })
+  }
 )

@@ -1,13 +1,17 @@
-import { NextResponse } from 'next/server'
-import { requireAuth, withError } from '@/lib/api/factory'
+import { NextRequest, NextResponse } from 'next/server'
+import { createAuthenticatedApiHandler, parseJsonBody } from '@/lib/api/factory'
 import { logger } from '@/lib/logger'
 
-export const PATCH = withError(
-  requireAuth(async ({ request, supabase, user }) => {
+export const PATCH = createAuthenticatedApiHandler(
+  async (request: NextRequest, { supabase, user }) => {
     // Extract watchlist ID from URL path (last segment)
     const watchlistId = request.nextUrl.pathname.split('/').pop() || ''
 
-    const body = await request.json()
+    const body = await parseJsonBody<{
+      watched?: boolean
+      notes?: string
+      rating?: number
+    }>(request)
     const { watched, notes, rating } = body
 
     logger.info('Updating watchlist item', {
@@ -17,10 +21,7 @@ export const PATCH = withError(
     })
 
     if (!watchlistId) {
-      return NextResponse.json(
-        { success: false, error: 'Watchlist ID is required' },
-        { status: 400 }
-      )
+      throw new Error('Watchlist ID is required')
     }
 
     // First, update without rating to avoid schema cache issues
@@ -55,10 +56,7 @@ export const PATCH = withError(
         userId: user.id,
         errorCode: error.code,
       })
-      return NextResponse.json(
-        { success: false, error: 'Failed to update watchlist item' },
-        { status: 500 }
-      )
+      throw new Error('Failed to update watchlist item')
     }
 
     // If rating is provided, try to update it using a database function to bypass schema cache
@@ -116,10 +114,7 @@ export const PATCH = withError(
         watchlistId,
         userId: user.id,
       })
-      return NextResponse.json(
-        { success: false, error: 'Watchlist item not found' },
-        { status: 404 }
-      )
+      throw new Error('Watchlist item not found')
     }
 
     logger.info('Successfully updated watchlist item', {
@@ -131,11 +126,11 @@ export const PATCH = withError(
     })
 
     return NextResponse.json({ success: true, data })
-  })
+  }
 )
 
-export const DELETE = withError(
-  requireAuth(async ({ request, supabase, user }) => {
+export const DELETE = createAuthenticatedApiHandler(
+  async (request: NextRequest, { supabase, user }) => {
     const watchlistId = request.nextUrl.pathname.split('/').pop() || ''
 
     logger.info('Deleting watchlist item', {
@@ -144,10 +139,7 @@ export const DELETE = withError(
     })
 
     if (!watchlistId) {
-      return NextResponse.json(
-        { success: false, error: 'Watchlist ID is required' },
-        { status: 400 }
-      )
+      throw new Error('Watchlist ID is required')
     }
 
     const { error } = await supabase
@@ -162,10 +154,7 @@ export const DELETE = withError(
         userId: user.id,
         errorCode: error.code,
       })
-      return NextResponse.json(
-        { success: false, error: 'Failed to delete watchlist item' },
-        { status: 500 }
-      )
+      throw new Error('Failed to delete watchlist item')
     }
 
     logger.info('Successfully deleted watchlist item', {
@@ -174,5 +163,5 @@ export const DELETE = withError(
     })
 
     return NextResponse.json({ success: true, message: 'Watchlist item deleted' })
-  })
+  }
 )

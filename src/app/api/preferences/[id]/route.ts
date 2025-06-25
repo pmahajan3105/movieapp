@@ -1,16 +1,13 @@
-import { NextResponse } from 'next/server'
-import { requireAuth, withError } from '@/lib/api/factory'
+import { NextRequest, NextResponse } from 'next/server'
+import { createAuthenticatedApiHandler } from '@/lib/api/factory'
 
 // DELETE - Delete a specific preference by ID
-export const DELETE = withError(
-  requireAuth(async ({ request, supabase, user }) => {
+export const DELETE = createAuthenticatedApiHandler(
+  async (request: NextRequest, { supabase, user }) => {
     const preferenceId = request.nextUrl.pathname.split('/').pop() || ''
 
     if (!preferenceId) {
-      return NextResponse.json(
-        { error: 'Preference ID is required', success: false },
-        { status: 400 }
-      )
+      throw new Error('Preference ID is required')
     }
 
     // Get current preferences
@@ -33,5 +30,5 @@ export const DELETE = withError(
       success: true,
       message: `Preference ${preferenceId} deleted successfully`,
     })
-  })
+  }
 )

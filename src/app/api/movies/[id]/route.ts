@@ -1,38 +1,27 @@
-import { NextResponse } from 'next/server'
-import { withSupabase, withError } from '@/lib/api/factory'
+import { NextRequest, NextResponse } from 'next/server'
+import { withErrorHandling } from '@/lib/api/factory'
 import { MovieRepository } from '@/repositories'
 import { logger } from '@/lib/logger'
 
-export const GET = withError(
-  withSupabase(async ({ request, supabase }) => {
-    const movieId = request.nextUrl.pathname.split('/').pop() || ''
+export const GET = withErrorHandling(async (request: NextRequest, { supabase }) => {
+  const movieId = request.nextUrl.pathname.split('/').pop() || ''
 
-    if (!movieId) {
-      return NextResponse.json({ error: 'Movie ID is required' }, { status: 400 })
-    }
+  if (!movieId) {
+    throw new Error('Movie ID is required')
+  }
 
-    const movieRepo = new MovieRepository(supabase)
+  const movieRepo = new MovieRepository(supabase)
 
-    try {
-      const movie = await movieRepo.findById(movieId)
+  const movie = await movieRepo.findById(movieId)
 
-      if (!movie) {
-        return NextResponse.json({ error: 'Movie not found' }, { status: 404 })
-      }
+  if (!movie) {
+    throw new Error('Movie not found')
+  }
 
-      return NextResponse.json({
-        success: true,
-        data: movie,
-      })
-    } catch (error) {
-      logger.dbError(
-        'fetch-movie-details',
-        error instanceof Error ? error : new Error(String(error)),
-        {
-          movieId: movieId,
-        }
-      )
-      return NextResponse.json({ error: 'Failed to fetch movie details' }, { status: 500 })
-    }
+  logger.info('Movie details retrieved successfully', { movieId })
+
+  return NextResponse.json({
+    success: true,
+    data: movie,
   })
-)
+})

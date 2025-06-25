@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient as createClient } from '@/lib/supabase/client'
+import { createAuthenticatedApiHandler, parseJsonBody } from '@/lib/api/factory'
 import { WatchlistRepository } from '@/repositories/WatchlistRepository'
 import { MovieRepository } from '@/repositories/MovieRepository'
 import { logger } from '@/lib/logger'
@@ -51,19 +51,8 @@ async function fetchTmdbMovie(tmdbId: number) {
   }
 }
 
-export async function GET(request: NextRequest) {
-  try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-      logger.error('Authentication failed', { error: authError })
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
-    }
-
+export const GET = createAuthenticatedApiHandler(
+  async (request: NextRequest, { supabase, user }) => {
     // Parse query parameters
     const { searchParams } = new URL(request.url)
     const watchedParam = searchParams.get('watched')
@@ -125,31 +114,22 @@ export async function GET(request: NextRequest) {
       success: true,
       data: movies,
     })
-  } catch (error) {
-    logger.error('Error fetching watchlist:', { error: String(error) })
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
-}
+)
 
-export async function POST(request: NextRequest) {
-  try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
+export const POST = createAuthenticatedApiHandler(
+  async (request: NextRequest, { supabase, user }) => {
+    const body = await parseJsonBody<{
+      movie_id?: string
+      movieId?: string
+      notes?: string
+    }>(request)
 
-    if (authError || !user) {
-      logger.error('Authentication failed', { error: authError })
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const body = await request.json()
     let movieId = body.movie_id || body.movieId // Support both formats
     const notes = body.notes
 
     if (!movieId) {
-      return NextResponse.json({ success: false, error: 'Movie ID is required' }, { status: 400 })
+      throw new Error('Movie ID is required')
     }
 
     const movieRepo = new MovieRepository(supabase)
@@ -189,10 +169,7 @@ export async function POST(request: NextRequest) {
     // Check if already in watchlist
     const isInWatchlist = await watchlistRepo.checkIfInWatchlist(user.id, movieId)
     if (isInWatchlist) {
-      return NextResponse.json(
-        { success: false, error: 'Movie is already in watchlist' },
-        { status: 400 }
-      )
+      throw new Error('Movie is already in watchlist')
     }
 
     const result = await watchlistRepo.addToWatchlist(user.id, movieId, notes)
@@ -202,106 +179,72 @@ export async function POST(request: NextRequest) {
       success: true,
       data: result,
     })
-  } catch (error) {
-    logger.error('Error adding to watchlist:', { error: String(error) })
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
-}
+)
 
-export async function DELETE(request: NextRequest) {
-  try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-      logger.error('Authentication failed', { error: authError })
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
-    }
-
+export const DELETE = createAuthenticatedApiHandler(
+  async (request: NextRequest, { supabase, user }) => {
     const { searchParams } = new URL(request.url)
-    let movieId = searchParams.get('movie_id') || searchParams.get('movieId')
+    const movieId = searchParams.get('movie_id')
 
     if (!movieId) {
-      return NextResponse.json({ success: false, error: 'Movie ID is required' }, { status: 400 })
+      throw new Error('Movie ID is required')
     }
 
-    const movieRepo = new MovieRepository(supabase)
     const watchlistRepo = new WatchlistRepository(supabase)
 
-    // Handle TMDB IDs - convert to actual UUID
-    if (movieId.startsWith('tmdb_')) {
-      const tmdbId = parseInt(movieId.replace('tmdb_', ''), 10)
-      const movie = await movieRepo.findByTmdbId(tmdbId)
-      if (movie) {
-        movieId = movie.id
-      }
+    logger.info('Removing from watchlist', { userId: user.id, movieId })
+
+    const isInWatchlist = await watchlistRepo.checkIfInWatchlist(user.id, movieId)
+    if (!isInWatchlist) {
+      throw new Error('Movie not found in watchlist')
     }
 
-    logger.info('Removing from watchlist', { userId: user.id, movieId })
     await watchlistRepo.removeFromWatchlist(user.id, movieId)
     logger.info('Movie removed from watchlist', { userId: user.id, movieId })
 
-    return NextResponse.json({
-      success: true,
-      message: 'Removed from watchlist',
-    })
-  } catch (error) {
-    logger.error('Error removing from watchlist:', { error: String(error) })
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ success: true })
   }
-}
+)
 
-export async function PATCH(request: NextRequest) {
-  try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
+export const PATCH = createAuthenticatedApiHandler(
+  async (request: NextRequest, { supabase, user }) => {
+    const body = await parseJsonBody<{
+      movie_id?: string
+      movieId?: string
+      watched?: boolean
+      rating?: number
+      notes?: string
+    }>(request)
 
-    if (authError || !user) {
-      logger.error('Authentication failed', { error: authError })
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
-    }
+    const movieId = body.movie_id || body.movieId
+    const { watched, rating, notes } = body
 
-    const body = await request.json()
-    const { movie_id, watchlist_id, watched, rating, notes } = body
-
-    if (!movie_id && !watchlist_id) {
-      return NextResponse.json(
-        { success: false, error: 'Movie ID or Watchlist ID is required' },
-        { status: 400 }
-      )
+    if (!movieId) {
+      throw new Error('Movie ID is required')
     }
 
     const watchlistRepo = new WatchlistRepository(supabase)
 
-    // Use the general update method that handles both watched true/false
-    if (watchlist_id) {
-      const updates: { watched?: boolean; rating?: number; notes?: string } = {}
+    logger.info('Updating watchlist item', { userId: user.id, movieId, watched, rating })
 
-      if (watched !== undefined) updates.watched = watched
-      if (rating !== undefined) updates.rating = rating
-      if (notes !== undefined) updates.notes = notes
-
-      const result = await watchlistRepo.updateWatchlistItem(watchlist_id, user.id, updates)
-      logger.info('Watchlist item updated', { watchlistId: watchlist_id, userId: user.id, updates })
-
-      return NextResponse.json({
-        success: true,
-        data: result,
-      })
+    // Check if movie is in watchlist
+    const isInWatchlist = await watchlistRepo.checkIfInWatchlist(user.id, movieId)
+    if (!isInWatchlist) {
+      throw new Error('Movie not found in watchlist')
     }
 
-    return NextResponse.json(
-      { success: false, error: 'Watchlist ID is required for updates' },
-      { status: 400 }
-    )
-  } catch (error) {
-    logger.error('Error updating watchlist:', { error: String(error) })
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
+    const result = await watchlistRepo.updateWatchlistItem(user.id, movieId, {
+      watched,
+      rating,
+      notes,
+    })
+
+    logger.info('Watchlist item updated', { userId: user.id, movieId })
+
+    return NextResponse.json({
+      success: true,
+      data: result,
+    })
   }
-}
+)

@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server'
-import { requireAuth, withError } from '@/lib/api/factory'
+import { NextRequest, NextResponse } from 'next/server'
+import { createAuthenticatedApiHandler, parseJsonBody } from '@/lib/api/factory'
 import { z } from 'zod'
 
 const preferenceSchema = z.object({
@@ -28,8 +28,8 @@ const preferenceSchema = z.object({
 // ---------------------------------------------------------------------------
 // GET – Retrieve preferences
 // ---------------------------------------------------------------------------
-export const GET = withError(
-  requireAuth(async ({ supabase, user }) => {
+export const GET = createAuthenticatedApiHandler(
+  async (_request: NextRequest, { supabase, user }) => {
     const { data: userProfile, error } = await supabase
       .from('user_profiles')
       .select('preferences, onboarding_completed, updated_at')
@@ -46,15 +46,15 @@ export const GET = withError(
       onboardingCompleted: userProfile?.onboarding_completed || false,
       lastUpdated: userProfile?.updated_at || null,
     })
-  })
+  }
 )
 
 // ---------------------------------------------------------------------------
 // PUT – Update preferences
 // ---------------------------------------------------------------------------
-export const PUT = withError(
-  requireAuth(async ({ request, supabase, user }) => {
-    const body = await request.json()
+export const PUT = createAuthenticatedApiHandler(
+  async (request: NextRequest, { supabase, user }) => {
+    const body = await parseJsonBody<Record<string, unknown>>(request)
     const preferences = preferenceSchema.parse(body)
 
     const { data, error } = await supabase
@@ -75,19 +75,24 @@ export const PUT = withError(
       preferences: data.preferences,
       message: 'Preferences updated successfully',
     })
-  })
+  }
 )
 
 // ---------------------------------------------------------------------------
 // PATCH – Partially update preferences
 // ---------------------------------------------------------------------------
-export const PATCH = withError(
-  requireAuth(async ({ request, supabase, user }) => {
-    const body = await request.json()
+export const PATCH = createAuthenticatedApiHandler(
+  async (request: NextRequest, { supabase, user }) => {
+    const body = await parseJsonBody<{
+      field: string
+      value: unknown
+      operation?: 'set' | 'add' | 'remove'
+    }>(request)
+
     const { field, value, operation = 'set' } = body
 
     if (!field) {
-      return NextResponse.json({ error: 'Field is required', success: false }, { status: 400 })
+      throw new Error('Field is required')
     }
 
     // Get current preferences
@@ -112,9 +117,10 @@ export const PATCH = withError(
         break
       case 'add':
         if (Array.isArray((updatedPreferences as Record<string, unknown>)[field])) {
+          const arrayValue = Array.isArray(value) ? value : [value]
           ;(updatedPreferences as Record<string, unknown>)[field] = [
             ...((updatedPreferences as Record<string, unknown>)[field] as string[]),
-            ...value,
+            ...arrayValue,
           ]
         } else {
           ;(updatedPreferences as Record<string, unknown>)[field] = value
@@ -122,13 +128,14 @@ export const PATCH = withError(
         break
       case 'remove':
         if (Array.isArray((updatedPreferences as Record<string, unknown>)[field])) {
+          const removeValues = Array.isArray(value) ? value : [value]
           ;(updatedPreferences as Record<string, unknown>)[field] = (
             (updatedPreferences as Record<string, unknown>)[field] as string[]
-          ).filter((item: string) => !value.includes(item))
+          ).filter((item: string) => !removeValues.includes(item))
         }
         break
       default:
-        return NextResponse.json({ error: 'Invalid operation', success: false }, { status: 400 })
+        throw new Error('Invalid operation')
     }
 
     // Validate the updated preferences
@@ -155,14 +162,14 @@ export const PATCH = withError(
       preferences: data.preferences,
       message: `Preference ${field} ${operation}ed successfully`,
     })
-  })
+  }
 )
 
 // ---------------------------------------------------------------------------
 // DELETE – Reset preferences
 // ---------------------------------------------------------------------------
-export const DELETE = withError(
-  requireAuth(async ({ supabase, user }) => {
+export const DELETE = createAuthenticatedApiHandler(
+  async (_request: NextRequest, { supabase, user }) => {
     const { error } = await supabase
       .from('user_profiles')
       .update({
@@ -178,5 +185,5 @@ export const DELETE = withError(
       success: true,
       message: 'Preferences reset successfully',
     })
-  })
+  }
 )

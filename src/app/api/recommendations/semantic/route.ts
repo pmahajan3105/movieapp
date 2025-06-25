@@ -2,7 +2,8 @@
  * Semantic Recommendations API – migrated to new api/factory wrappers
  */
 
-import { withSupabase, withError, ok, fail } from '@/lib/api/factory'
+import { NextRequest, NextResponse } from 'next/server'
+import { withErrorHandling, parseJsonBody } from '@/lib/api/factory'
 import { SemanticRecommendationService } from '@/lib/services/semantic-recommendations'
 import { z } from 'zod'
 import { logger } from '@/lib/logger'
@@ -18,39 +19,40 @@ const semanticRequestSchema = z.object({
 })
 
 // POST /api/recommendations/semantic – Generate semantic recommendations
-export const POST = withError(
-  withSupabase(async ({ request, supabase }) => {
-    // Attempt to parse & validate the request body
-    const bodyJson = await request.json().catch(() => null)
+export const POST = withErrorHandling(async (request: NextRequest, { supabase }) => {
+  // Parse and validate the request body
+  const bodyJson = await parseJsonBody<unknown>(request)
 
-    const parsed = semanticRequestSchema.safeParse(bodyJson)
-    if (!parsed.success) {
-      const errorMsg = parsed.error.errors.map(e => e.message).join(', ')
-      return fail(`Validation error: ${errorMsg}`, 400)
-    }
+  const parsed = semanticRequestSchema.safeParse(bodyJson)
+  if (!parsed.success) {
+    const errorMsg = parsed.error.errors.map(e => e.message).join(', ')
+    throw new Error(`Validation error: ${errorMsg}`)
+  }
 
-    const body = parsed.data
+  const body = parsed.data
 
-    // Debug log (dev only)
-    if (process.env.NODE_ENV === 'development') {
-      logger.info('Semantic search request', {
-        userId: body.userId,
-        query: body.query,
-        preferredGenres: body.preferredGenres,
-        mood: body.mood,
-      })
-    }
-
-    const service = new SemanticRecommendationService(supabase)
-    const result = await service.generateRecommendations({
+  // Debug log (dev only)
+  if (process.env.NODE_ENV === 'development') {
+    logger.info('Semantic search request', {
       userId: body.userId,
       query: body.query,
       preferredGenres: body.preferredGenres,
       mood: body.mood,
-      limit: body.limit,
-      semanticThreshold: body.semanticThreshold,
     })
+  }
 
-    return ok(result)
+  const service = new SemanticRecommendationService(supabase)
+  const result = await service.generateRecommendations({
+    userId: body.userId,
+    query: body.query,
+    preferredGenres: body.preferredGenres,
+    mood: body.mood,
+    limit: body.limit,
+    semanticThreshold: body.semanticThreshold,
   })
-)
+
+  return NextResponse.json({
+    success: true,
+    data: result,
+  })
+})

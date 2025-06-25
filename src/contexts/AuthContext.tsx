@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { User } from '@supabase/supabase-js'
-import { createBrowserSupabaseClient } from '@/lib/supabase/client'
+import { createBrowserSupabaseClient } from '@/lib/supabase/browser-client'
 import {
   hydrateSessionFromCookie,
   promiseWithTimeout,

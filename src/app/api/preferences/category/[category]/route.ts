@@ -1,13 +1,13 @@
-import { NextResponse } from 'next/server'
-import { requireAuth, withError } from '@/lib/api/factory'
+import { NextRequest, NextResponse } from 'next/server'
+import { createAuthenticatedApiHandler } from '@/lib/api/factory'
 
 // DELETE - Clear all preferences in a specific category
-export const DELETE = withError(
-  requireAuth(async ({ request, supabase, user }) => {
+export const DELETE = createAuthenticatedApiHandler(
+  async (request: NextRequest, { supabase, user }) => {
     const category = request.nextUrl.pathname.split('/').pop() || ''
 
     if (!category) {
-      return NextResponse.json({ error: 'Category is required', success: false }, { status: 400 })
+      throw new Error('Category is required')
     }
 
     // Get current preferences
@@ -48,5 +48,5 @@ export const DELETE = withError(
       message: `All preferences in category "${category}" have been cleared`,
       preferences: data.preferences,
     })
-  })
+  }
 )

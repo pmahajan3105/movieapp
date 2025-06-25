@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient as createClient } from '@/lib/supabase/client'
+import { createAuthenticatedApiHandler, parseJsonBody } from '@/lib/api/factory'
 import { MovieRepository } from '@/repositories/MovieRepository'
 import { logger } from '@/lib/logger'
 
@@ -37,75 +37,59 @@ async function fetchTmdbMovie(tmdbId: number) {
   }
 }
 
-export async function POST(request: NextRequest) {
-  try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
+export const POST = createAuthenticatedApiHandler(async (request: NextRequest, { supabase }) => {
+  const body = await parseJsonBody<{
+    movieId: string
+  }>(request)
 
-    if (authError || !user) {
-      logger.error('Authentication failed', { error: authError })
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
-    }
+  const { movieId } = body
 
-    const body = await request.json()
-    const { movieId } = body
-
-    if (!movieId) {
-      return NextResponse.json({ success: false, error: 'Movie ID is required' }, { status: 400 })
-    }
-
-    const movieRepo = new MovieRepository(supabase)
-
-    // Get the movie from database
-    const movie = await movieRepo.findById(movieId)
-    if (!movie) {
-      return NextResponse.json({ success: false, error: 'Movie not found' }, { status: 404 })
-    }
-
-    // Check if it has a TMDB ID and needs refreshing
-    if (!movie.tmdb_id) {
-      return NextResponse.json(
-        { success: false, error: 'Movie does not have a TMDB ID' },
-        { status: 400 }
-      )
-    }
-
-    // Check if it's a stub movie (has placeholder title or no poster)
-    const isStub =
-      movie.title?.includes('Movie ') || movie.title?.includes('[Imported') || !movie.poster_url
-
-    if (!isStub) {
-      return NextResponse.json({ success: true, message: 'Movie already has complete details' })
-    }
-
-    logger.info('Refreshing movie details from TMDB', { movieId, tmdbId: movie.tmdb_id })
-
-    // Fetch fresh data from TMDB
-    const tmdbData = await fetchTmdbMovie(movie.tmdb_id)
-
-    // Convert null values to undefined for Movie type compatibility
-    const movieUpdate = {
-      ...tmdbData,
-      poster_url: tmdbData.poster_url || undefined,
-      plot: tmdbData.plot || undefined,
-      imdb_id: tmdbData.imdb_id || undefined,
-    }
-
-    // Update the movie in database
-    const updatedMovie = await movieRepo.update(movieId, movieUpdate)
-
-    logger.info('Movie details refreshed successfully', { movieId, title: updatedMovie.title })
-
-    return NextResponse.json({
-      success: true,
-      data: updatedMovie,
-      message: 'Movie details refreshed successfully',
-    })
-  } catch (error) {
-    logger.error('Error refreshing movie:', { error: String(error) })
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
+  if (!movieId) {
+    throw new Error('Movie ID is required')
   }
-}
+
+  const movieRepo = new MovieRepository(supabase)
+
+  // Get the movie from database
+  const movie = await movieRepo.findById(movieId)
+  if (!movie) {
+    throw new Error('Movie not found')
+  }
+
+  // Check if it has a TMDB ID and needs refreshing
+  if (!movie.tmdb_id) {
+    throw new Error('Movie does not have a TMDB ID')
+  }
+
+  // Check if it's a stub movie (has placeholder title or no poster)
+  const isStub =
+    movie.title?.includes('Movie ') || movie.title?.includes('[Imported') || !movie.poster_url
+
+  if (!isStub) {
+    return NextResponse.json({ success: true, message: 'Movie already has complete details' })
+  }
+
+  logger.info('Refreshing movie details from TMDB', { movieId, tmdbId: movie.tmdb_id })
+
+  // Fetch fresh data from TMDB
+  const tmdbData = await fetchTmdbMovie(movie.tmdb_id)
+
+  // Convert null values to undefined for Movie type compatibility
+  const movieUpdate = {
+    ...tmdbData,
+    poster_url: tmdbData.poster_url || undefined,
+    plot: tmdbData.plot || undefined,
+    imdb_id: tmdbData.imdb_id || undefined,
+  }
+
+  // Update the movie in database
+  const updatedMovie = await movieRepo.update(movieId, movieUpdate)
+
+  logger.info('Movie details refreshed successfully', { movieId, title: updatedMovie.title })
+
+  return NextResponse.json({
+    success: true,
+    data: updatedMovie,
+    message: 'Movie details refreshed successfully',
+  })
+})

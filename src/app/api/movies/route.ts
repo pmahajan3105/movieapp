@@ -1,118 +1,101 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { movieService } from '@/lib/services/movie-service'
+import { withErrorHandling } from '@/lib/api/factory'
+import { getMovieService } from '@/lib/services/movie-service'
 
-export async function GET(request: NextRequest) {
-  try {
-    // Input validation with detailed error messages
-    const { searchParams } = new URL(request.url)
-    const query = searchParams.get('query')
-    const limit = parseInt(searchParams.get('limit') || '20')
-    const page = Math.max(1, parseInt(searchParams.get('page') || '1') || 1)
+export const GET = withErrorHandling(async (request: NextRequest, { supabase }) => {
+  const { searchParams } = new URL(request.url)
+  const query = searchParams.get('query')
+  const limit = Math.max(1, parseInt(searchParams.get('limit') || '12') || 12)
+  const page = Math.max(1, parseInt(searchParams.get('page') || '1') || 1)
+  const usePreferences = searchParams.get('preferences') === 'true'
 
-    // Enhanced validation with specific error messages
-    if (!query || query.trim().length === 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Search query is required and cannot be empty',
-          error_code: 'VALIDATION_ERROR',
-        },
-        { status: 400 }
-      )
-    }
-
-    if (query.trim().length < 2) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Search query must be at least 2 characters long',
-          error_code: 'VALIDATION_ERROR',
-        },
-        { status: 400 }
-      )
-    }
-
-    if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Limit must be an integer between 1 and 100',
-          error_code: 'VALIDATION_ERROR',
-        },
-        { status: 400 }
-      )
-    }
-
-    if (!Number.isInteger(page) || page < 1) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Page must be a positive integer',
-          error_code: 'VALIDATION_ERROR',
-        },
-        { status: 400 }
-      )
-    }
-
-    try {
-      // Search for movies using the movie service
-      const result = await movieService.searchMovies(query.trim(), { limit, page })
-
-      return NextResponse.json({
-        success: true,
-        data: result.movies,
-        pagination: {
-          limit,
-          page,
-          query: query.trim(),
-          count: result.movies.length,
-          totalResults: result.totalResults,
-          totalPages: result.totalPages,
-          hasMore: page < result.totalPages,
-        },
-      })
-    } catch (serviceError) {
-      console.error('Movie service error:', serviceError)
-
-      // Check for rate limiting from external APIs
-      if (serviceError instanceof Error && serviceError.message.includes('rate limit')) {
-        return NextResponse.json(
-          {
-            success: false,
-            error:
-              'Movie search service is temporarily rate limited. Please try again in a moment.',
-            error_code: 'RATE_LIMIT_ERROR',
-          },
-          { status: 429 }
-        )
-      }
-
-      // Check for service availability
-      if (
-        serviceError instanceof Error &&
-        (serviceError.message.includes('timeout') || serviceError.message.includes('ECONNREFUSED'))
-      ) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'Movie search service is temporarily unavailable. Please try again later.',
-            error_code: 'SERVICE_UNAVAILABLE',
-          },
-          { status: 503 }
-        )
-      }
-
-      throw serviceError // Re-throw if it's not a handled error type
-    }
-  } catch (error) {
-    console.error('GET /api/movies error:', error)
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Internal server error occurred while searching movies',
-        error_code: 'INTERNAL_ERROR',
-      },
-      { status: 500 }
-    )
+  // Validate pagination parameters
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+    throw new Error('Limit must be an integer between 1 and 100')
   }
-}
+
+  if (!Number.isInteger(page) || page < 1) {
+    throw new Error('Page must be a positive integer')
+  }
+
+  const movieService = getMovieService()
+  let result = null
+
+  // Search Mode: If query is provided
+  if (query && query.trim().length > 0) {
+    if (query.trim().length < 2) {
+      throw new Error('Search query must be at least 2 characters long')
+    }
+
+    const searchResult = await movieService.searchMovies(query.trim(), { limit, page })
+
+    return NextResponse.json({
+      success: true,
+      data: searchResult.movies,
+      pagination: {
+        limit,
+        page,
+        query: query.trim(),
+        count: searchResult.movies.length,
+        totalResults: searchResult.totalResults,
+        totalPages: searchResult.totalPages,
+        hasMore: page < searchResult.totalPages,
+      },
+    })
+  }
+
+  // Browse Mode: No query provided - return popular/recommended movies
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  // Try preference-based recommendations if user is authenticated and preferences are requested
+  if (usePreferences && user) {
+    try {
+      const preferencesResult = await movieService.getMoviesByPreferences(user.id, { limit, page })
+      if (preferencesResult && preferencesResult.movies.length > 0) {
+        result = {
+          success: true,
+          data: preferencesResult.movies,
+          total: preferencesResult.totalResults,
+          page: preferencesResult.page,
+          limit,
+          hasMore: preferencesResult.page * limit < preferencesResult.totalResults,
+          source: preferencesResult.source,
+        }
+      }
+    } catch (error) {
+      console.warn(
+        'Preference-based recommendations failed, falling back to popular movies:',
+        error
+      )
+    }
+  }
+
+  // Fallback to popular movies if preferences fail or are not requested
+  if (!result) {
+    const popularResult = await movieService.getPopularMovies({ limit, page })
+    result = {
+      success: true,
+      data: popularResult.movies,
+      total: popularResult.totalResults,
+      page: popularResult.page,
+      limit,
+      hasMore: popularResult.page * limit < popularResult.totalResults,
+      source: popularResult.source,
+    }
+  }
+
+  return NextResponse.json({
+    success: result.success,
+    data: result.data,
+    total: result.total,
+    pagination: {
+      currentPage: result.page,
+      limit: limit,
+      hasMore: result.hasMore,
+      totalPages: Math.ceil(result.total / limit),
+    },
+    source: result.source,
+  })
+})
