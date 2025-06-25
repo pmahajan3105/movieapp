@@ -1,123 +1,86 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
-import { logger } from '@/lib/logger'
-
-// Create Supabase client for server-side use
-function createSupabaseServerClient(request: NextRequest) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value
-        },
-        set() {
-          // API routes don't set cookies
-        },
-        remove() {
-          // API routes don't remove cookies
-        },
-      },
-    }
-  )
-}
-import { smartRecommenderV2 } from '@/lib/ai/smart-recommender-v2'
+import { createServerClient } from '@/lib/supabase/client'
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createSupabaseServerClient(request)
+    const supabase = await createServerClient()
+
+    // Get the authenticated user
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser()
 
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const { movieId, interactionType, context } = body
+    const { movieId, action, rating } = await request.json()
 
-    if (!movieId || !interactionType) {
-      return NextResponse.json(
-        { success: false, error: 'Missing required fields: movieId, interactionType' },
-        { status: 400 }
-      )
+    if (!movieId || !action) {
+      return NextResponse.json({ error: 'Movie ID and action are required' }, { status: 400 })
     }
 
-    // Validate interaction type
-    const validInteractionTypes = ['view', 'like', 'dislike', 'rate', 'search', 'search-query']
-    if (!validInteractionTypes.includes(interactionType)) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid interaction type' },
-        { status: 400 }
-      )
-    }
-
-    // Save the interaction using SmartRecommenderV2
-    await smartRecommenderV2.saveUserInteraction(user.id, movieId, interactionType, context)
-
-    return NextResponse.json({
-      success: true,
-      message: 'Interaction saved successfully',
+    // Record the interaction
+    const { data, error } = await supabase.from('ratings').insert({
+      user_id: user.id,
+      movie_id: movieId,
+      interested: action === 'like',
+      rating: rating || null,
+      interaction_type: action,
+      source: 'web',
     })
+
+    if (error) {
+      console.error('Failed to record interaction:', error)
+      return NextResponse.json({ error: 'Failed to record interaction' }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true, data })
   } catch (error) {
-    logger.error('User interaction API error', {
-      error: error instanceof Error ? error.message : String(error),
-    })
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
+    console.error('POST /api/user/interactions error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createSupabaseServerClient(request)
+    const supabase = await createServerClient()
+
+    // Get the authenticated user
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser()
 
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { searchParams } = new URL(request.url)
     const limit = parseInt(searchParams.get('limit') || '50')
-    const interactionType = searchParams.get('type')
 
-    // Build query
-    let query = supabase
-      .from('user_memories')
-      .select('*')
+    // Get user's interaction history
+    const { data, error } = await supabase
+      .from('ratings')
+      .select(
+        `
+        *,
+        movies (*)
+      `
+      )
       .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
+      .order('rated_at', { ascending: false })
       .limit(limit)
 
-    if (interactionType) {
-      query = query.eq('interaction_type', interactionType)
-    }
-
-    const { data: interactions, error } = await query
-
     if (error) {
-      logger.dbError('fetch-user-interactions', new Error(error.message), {
-        userId: user.id,
-        errorCode: error.code,
-      })
-      return NextResponse.json(
-        { success: false, error: 'Failed to fetch interactions' },
-        { status: 500 }
-      )
+      console.error('Failed to fetch interactions:', error)
+      return NextResponse.json({ error: 'Failed to fetch interactions' }, { status: 500 })
     }
 
-    return NextResponse.json({
-      success: true,
-      data: interactions || [],
-      total: interactions?.length || 0,
-    })
+    return NextResponse.json({ success: true, interactions: data || [] })
   } catch (error) {
-    logger.error('User interactions GET API error', {
-      error: error instanceof Error ? error.message : String(error),
-    })
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
+    console.error('GET /api/user/interactions error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

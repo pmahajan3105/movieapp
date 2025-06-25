@@ -1,11 +1,12 @@
-import { createServerClient } from '@supabase/ssr'
+import { createServerClient } from '@/lib/supabase/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { getSiteURL } from '@/lib/utils/url-helper'
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
+  const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
   const error = searchParams.get('error')
+  const next = searchParams.get('next') ?? '/dashboard'
 
   const baseUrl = getSiteURL()
 
@@ -18,43 +19,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Determine redirect URL early
-    const next = searchParams.get('next') || '/dashboard'
-    const redirectUrl = `${baseUrl}${next}`
-
-    // Create the final response object once
-    const response = NextResponse.redirect(redirectUrl)
-
     // Create Supabase client with simplified cookie management
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return request.cookies.get(name)?.value
-          },
-          set(name: string, value: string, options) {
-            // Set cookie directly on the response with client-accessible options
-            response.cookies.set(name, value, {
-              httpOnly: false, // Allow client-side access for Supabase auth
-              secure: process.env.NODE_ENV === 'production',
-              sameSite: 'lax',
-              path: '/',
-              maxAge: 60 * 60 * 24 * 7, // 7 days
-              ...options,
-            })
-          },
-          remove(name: string, options) {
-            response.cookies.set(name, '', {
-              path: '/',
-              maxAge: 0,
-              ...options,
-            })
-          },
-        },
-      }
-    )
+    const supabase = await createServerClient()
 
     const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
 
@@ -85,7 +51,7 @@ export async function GET(request: NextRequest) {
       // Continue with auth flow even if profile fails
     }
 
-    return response
+    return NextResponse.redirect(`${origin}${next}`)
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Authentication failed'
     return NextResponse.redirect(`${baseUrl}/auth/login?error=${encodeURIComponent(errorMessage)}`)

@@ -4,7 +4,7 @@
  */
 
 import { handleSupabaseError } from '@/lib/api/factory'
-import { createClient } from '@/lib/supabase/browser-client'
+import { createBrowserSupabaseClient } from '@/lib/supabase/client'
 
 describe('Type Safety Improvements', () => {
   describe('Error Handling', () => {
@@ -51,7 +51,7 @@ describe('Type Safety Improvements', () => {
 
   describe('Database Types', () => {
     it('should create Supabase client with proper typing', () => {
-      const client = createClient()
+      const client = createBrowserSupabaseClient()
 
       // This test ensures the client is typed properly
       expect(client).toBeDefined()

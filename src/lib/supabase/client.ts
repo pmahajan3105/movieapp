@@ -2,25 +2,56 @@ import { createBrowserClient } from '@supabase/ssr'
 import { createServerClient as createSSRServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { cache } from 'react'
-import { Database } from './types'
+import { Database } from '../../types/supabase-generated'
 import type {
   UserProfile,
+  Movie,
+  WatchlistItem,
+  Rating,
+  Recommendation,
   UserProfileInsert,
   UserProfileUpdate,
-  Movie,
   MovieInsert,
-  Swipe,
-  SwipeInsert,
-  WatchlistItem,
-  RecommendationQueueItem,
-  RecommendationQueueInsert,
+  RatingInsert,
+  RecommendationInsert,
 } from './types'
 
 // Browser client for client components
 export function createBrowserSupabaseClient() {
   return createBrowserClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          if (typeof document === 'undefined') return []
+
+          return document.cookie
+            .split('; ')
+            .filter(Boolean)
+            .map(cookie => {
+              const [name, ...rest] = cookie.split('=')
+              return {
+                name: name || '',
+                value: decodeURIComponent(rest.join('=') || ''),
+              }
+            })
+            .filter(cookie => cookie.name) // Filter out cookies without names
+        },
+        setAll(cookiesToSet) {
+          if (typeof document === 'undefined') return
+
+          cookiesToSet.forEach(({ name, value, options }) => {
+            let cookie = `${name}=${encodeURIComponent(value)}`
+            if (options?.maxAge) cookie += `; max-age=${options.maxAge}`
+            if (options?.path) cookie += `; path=${options.path}`
+            if (options?.sameSite) cookie += `; samesite=${options.sameSite}`
+            if (options?.secure) cookie += '; secure'
+            document.cookie = cookie
+          })
+        },
+      },
+    }
   )
 }
 
@@ -172,7 +203,9 @@ export const db = {
     /**
      * Update user preferences
      */
-    async updatePreferences(preferences: Record<string, unknown>): Promise<UserProfile> {
+    async updatePreferences(
+      preferences: Database['public']['Tables']['user_profiles']['Row']['preferences']
+    ): Promise<UserProfile> {
       const { data, error } = await supabase
         .from('user_profiles')
         .update({
@@ -201,7 +234,7 @@ export const db = {
     },
 
     /**
-     * Get movie by OMDb ID
+     * Get movie by OMDB ID
      */
     async getByOmdbId(omdbId: string): Promise<Movie | null> {
       const { data, error } = await supabase
@@ -220,7 +253,7 @@ export const db = {
     async upsert(movie: MovieInsert): Promise<Movie> {
       const { data, error } = await supabase
         .from('movies')
-        .upsert(movie, { onConflict: 'tmdb_id' })
+        .upsert(movie, { onConflict: 'omdb_id' })
         .select()
         .single()
 
@@ -243,26 +276,31 @@ export const db = {
     },
   },
 
-  // SWIPES
-  swipes: {
+  // RATINGS (formerly SWIPES)
+  ratings: {
     /**
-     * Record a swipe action
+     * Create a rating/interaction
      */
-    async create(swipe: SwipeInsert): Promise<Swipe> {
-      const { data, error } = await supabase.from('swipes').insert(swipe).select().single()
+    async create(rating: RatingInsert): Promise<Rating> {
+      const { data, error } = await supabase.from('ratings').insert(rating).select().single()
 
       if (error) throw error
       return data
     },
 
     /**
-     * Get user's swipe history
+     * Get rating history for current user
      */
-    async getHistory(limit = 100): Promise<Swipe[]> {
+    async getHistory(limit = 100): Promise<Rating[]> {
       const { data, error } = await supabase
-        .from('swipes')
-        .select('*, movies(*)')
-        .order('swiped_at', { ascending: false })
+        .from('ratings')
+        .select(
+          `
+          *,
+          movies (*)
+        `
+        )
+        .order('rated_at', { ascending: false })
         .limit(limit)
 
       if (error) throw error
@@ -270,11 +308,11 @@ export const db = {
     },
 
     /**
-     * Check if user has swiped on a movie
+     * Check if user has rated a specific movie
      */
-    async checkSwipe(movieId: string): Promise<Swipe | null> {
+    async checkRating(movieId: string): Promise<Rating | null> {
       const { data, error } = await supabase
-        .from('swipes')
+        .from('ratings')
         .select('*')
         .eq('movie_id', movieId)
         .single()
@@ -287,12 +325,17 @@ export const db = {
   // WATCHLIST
   watchlist: {
     /**
-     * Get user's watchlist
+     * Get current user's watchlist
      */
     async get(): Promise<WatchlistItem[]> {
       const { data, error } = await supabase
         .from('watchlist')
-        .select('*, movies(*)')
+        .select(
+          `
+          *,
+          movies (*)
+        `
+        )
         .order('added_at', { ascending: false })
 
       if (error) throw error
@@ -302,11 +345,11 @@ export const db = {
     /**
      * Add movie to watchlist
      */
-    async add(movieId: string): Promise<WatchlistItem> {
+    async add(movieId: string, userId: string): Promise<WatchlistItem> {
       const { data, error } = await supabase
         .from('watchlist')
-        .insert({ movie_id: movieId })
-        .select('*, movies(*)')
+        .insert({ movie_id: movieId, user_id: userId })
+        .select()
         .single()
 
       if (error) throw error
@@ -323,19 +366,19 @@ export const db = {
     },
 
     /**
-     * Mark movie as watched
+     * Mark movie as watched with optional rating and notes
      */
     async markWatched(movieId: string, rating?: number, notes?: string): Promise<WatchlistItem> {
       const { data, error } = await supabase
         .from('watchlist')
         .update({
           watched: true,
+          watched_at: new Date().toISOString(),
           rating,
           notes,
-          watched_at: new Date().toISOString(),
         })
         .eq('movie_id', movieId)
-        .select('*, movies(*)')
+        .select()
         .single()
 
       if (error) throw error
@@ -350,7 +393,7 @@ export const db = {
         .from('watchlist')
         .update(updates)
         .eq('movie_id', movieId)
-        .select('*, movies(*)')
+        .select()
         .single()
 
       if (error) throw error
@@ -358,17 +401,21 @@ export const db = {
     },
   },
 
-  // RECOMMENDATION QUEUE
+  // RECOMMENDATIONS
   recommendations: {
     /**
-     * Get user's recommendation queue
+     * Get recommendation queue for current user
      */
-    async getQueue(limit = 20): Promise<RecommendationQueueItem[]> {
+    async getQueue(limit = 20): Promise<Recommendation[]> {
       const { data, error } = await supabase
-        .from('recommendation_queue')
-        .select('*, movies(*)')
-        .is('consumed_at', null)
-        .order('position', { ascending: true })
+        .from('recommendations')
+        .select(
+          `
+          *,
+          movies (*)
+        `
+        )
+        .order('created_at', { ascending: false })
         .limit(limit)
 
       if (error) throw error
@@ -376,104 +423,41 @@ export const db = {
     },
 
     /**
-     * Add recommendations to queue
+     * Add batch of recommendations
      */
-    async addBatch(
-      recommendations: RecommendationQueueInsert[]
-    ): Promise<RecommendationQueueItem[]> {
+    async addBatch(recommendations: RecommendationInsert[]): Promise<Recommendation[]> {
       const { data, error } = await supabase
-        .from('recommendation_queue')
+        .from('recommendations')
         .insert(recommendations)
-        .select('*, movies(*)')
+        .select()
 
       if (error) throw error
       return data || []
     },
 
     /**
-     * Mark recommendation as consumed
+     * Remove recommendation by id
      */
-    async markConsumed(id: string): Promise<void> {
-      const { error } = await supabase
-        .from('recommendation_queue')
-        .update({ consumed_at: new Date().toISOString() })
-        .eq('id', id)
+    async remove(id: string): Promise<void> {
+      const { error } = await supabase.from('recommendations').delete().eq('id', id)
 
       if (error) throw error
     },
 
     /**
-     * Clear old consumed recommendations
+     * Clear old recommendations (older than 7 days)
      */
-    async clearConsumed(): Promise<void> {
+    async clearOld(): Promise<void> {
+      const sevenDaysAgo = new Date()
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+
       const { error } = await supabase
-        .from('recommendation_queue')
+        .from('recommendations')
         .delete()
-        .not('consumed_at', 'is', null)
+        .lt('created_at', sevenDaysAgo.toISOString())
 
       if (error) throw error
     },
-  },
-}
-
-// ============================================================================
-// ROW LEVEL SECURITY HELPERS
-// ============================================================================
-
-export const rls = {
-  /**
-   * Enables Row Level Security on a predefined list of tables.
-   * This function runs the operations in parallel for efficiency.
-   * It is intended to be used during initial application setup.
-   */
-  async enableAllTables() {
-    const tables = ['user_profiles', 'swipes', 'watchlist', 'recommendation_queue']
-    const promises = tables.map(table => supabase.rpc('enable_rls', { table_name: table }))
-
-    const results = await Promise.allSettled(promises)
-
-    results.forEach((result, index) => {
-      if (result.status === 'rejected') {
-        console.error(`Failed to enable RLS on ${tables[index]}:`, result.reason)
-      } else if (result.value.error) {
-        console.error(`Failed to enable RLS on ${tables[index]}:`, result.value.error)
-      }
-    })
-  },
-
-  /**
-   * Create RLS policies for user data isolation
-   */
-  async createPolicies() {
-    // This would typically be done via SQL migrations
-    // But we can provide the SQL here for reference
-    const policies = `
-      -- User profiles: users can only access their own profile
-      CREATE POLICY "Users can view own profile" ON user_profiles
-        FOR SELECT USING (auth.uid() = id);
-      
-      CREATE POLICY "Users can update own profile" ON user_profiles
-        FOR UPDATE USING (auth.uid() = id);
-      
-      -- Swipes: users can only access their own swipes
-      CREATE POLICY "Users can view own swipes" ON swipes
-        FOR ALL USING (auth.uid() = user_id);
-      
-      -- Watchlist: users can only access their own watchlist
-      CREATE POLICY "Users can manage own watchlist" ON watchlist
-        FOR ALL USING (auth.uid() = user_id);
-      
-      -- Recommendations: users can only access their own recommendations
-      CREATE POLICY "Users can view own recommendations" ON recommendation_queue
-        FOR ALL USING (auth.uid() = user_id);
-      
-      -- Movies: readable by all authenticated users
-      CREATE POLICY "Movies are viewable by authenticated users" ON movies
-        FOR SELECT USING (auth.role() = 'authenticated');
-    `
-
-    console.log('RLS Policies SQL:', policies)
-    return policies
   },
 }
 
@@ -486,36 +470,33 @@ export const utils = {
    * Check if user is authenticated
    */
   async isAuthenticated(): Promise<boolean> {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
-    return !!session
+    try {
+      const user = await auth.getUser()
+      return !!user
+    } catch {
+      return false
+    }
   },
 
   /**
-   * Get current user ID
+   * Get current user ID or null if not authenticated
    */
   async getCurrentUserId(): Promise<string | null> {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    return user?.id || null
+    try {
+      const user = await auth.getUser()
+      return user?.id || null
+    } catch {
+      return null
+    }
   },
 
   /**
-   * Handle Supabase errors
+   * Handle and format Supabase errors consistently
    */
   handleError(error: unknown): string {
-    const err = error as { code?: string; message?: string }
-    if (err?.code === 'PGRST116') {
-      return 'No data found'
+    if (error && typeof error === 'object' && 'message' in error) {
+      return (error as Error).message
     }
-    if (err?.code === '23505') {
-      return 'This record already exists'
-    }
-    if (err?.code === '23503') {
-      return 'Referenced record does not exist'
-    }
-    return err?.message || 'An unknown error occurred'
+    return 'An unexpected error occurred'
   },
 }

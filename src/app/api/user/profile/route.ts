@@ -1,99 +1,63 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
-import { z } from 'zod'
+import { createServerClient } from '@/lib/supabase/client'
 
-// Create Supabase client for server-side use
-function createSupabaseServerClient(request: NextRequest) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value
-        },
-        set() {
-          // API routes don't set cookies
-        },
-        remove() {
-          // API routes don't remove cookies
-        },
-      },
-    }
-  )
-}
-
-const profileUpdateSchema = z.object({
-  fullName: z.string().optional(),
-})
-
-// GET - Get user profile information
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const supabase = createSupabaseServerClient(request)
+    const supabase = await createServerClient()
+
+    // Get the authenticated user
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser()
 
-    if (!user) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    console.log('🔍 Checking profile for user:', {
-      userId: user.id,
-      email: user.email,
-      userMetadata: user.user_metadata,
-    })
-
-    const { data: userProfile, error } = await supabase
+    // Get user profile
+    const { data: profile, error } = await supabase
       .from('user_profiles')
       .select('*')
       .eq('id', user.id)
       .single()
 
-    console.log('👤 Profile query result:', {
-      found: !!userProfile,
-      profile: userProfile,
-      error: error?.message,
-    })
+    if (error && error.code !== 'PGRST116') {
+      console.error('Failed to fetch profile:', error)
+      return NextResponse.json({ error: 'Failed to fetch profile' }, { status: 500 })
+    }
 
     return NextResponse.json({
       success: true,
-      user: {
-        id: user.id,
-        email: user.email,
-        metadata: user.user_metadata,
-      },
-      profile: userProfile,
-      hasProfile: !!userProfile,
-      error: error?.message,
+      profile: profile || null,
     })
   } catch (error) {
-    console.error('❌ Error fetching user profile:', error)
-    return NextResponse.json({ error: 'Failed to fetch profile' }, { status: 500 })
+    console.error('GET /api/user/profile error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-// PUT - Update user profile information
 export async function PUT(request: NextRequest) {
   try {
-    const supabase = createSupabaseServerClient(request)
+    const supabase = await createServerClient()
+
+    // Get the authenticated user
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser()
 
-    if (!user) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    profileUpdateSchema.parse(body) // Validate input format
+    const updates = await request.json()
 
     // Update user profile
-    const { data, error } = await supabase
+    const { data: profile, error } = await supabase
       .from('user_profiles')
       .update({
-        full_name: body.fullName,
+        ...updates,
         updated_at: new Date().toISOString(),
       })
       .eq('id', user.id)
@@ -101,69 +65,38 @@ export async function PUT(request: NextRequest) {
       .single()
 
     if (error) {
-      console.error('❌ Supabase error updating profile:', error)
-      throw error
+      console.error('Failed to update profile:', error)
+      return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 })
     }
-
-    console.log('✅ Profile updated successfully:', { userId: user.id, fullName: body.fullName })
 
     return NextResponse.json({
       success: true,
-      profile: data,
-      message: 'Profile updated successfully',
+      profile,
     })
   } catch (error) {
-    console.error('❌ Error updating user profile:', error)
-
-    if (error instanceof Error && error.message === 'Authentication required') {
-      return NextResponse.json(
-        { error: 'Authentication required', success: false },
-        { status: 401 }
-      )
-    }
-
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        {
-          error: 'Invalid profile data',
-          details: error.errors,
-          success: false,
-        },
-        { status: 400 }
-      )
-    }
-
-    return NextResponse.json(
-      {
-        error: 'Failed to update profile',
-        success: false,
-      },
-      { status: 500 }
-    )
+    console.error('PUT /api/user/profile error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-// PATCH - Update user profile information (alternative to PUT)
 export async function PATCH(request: NextRequest) {
   try {
-    const supabase = createSupabaseServerClient(request)
+    const supabase = await createServerClient()
+
+    // Get the authenticated user
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser()
 
-    if (!user) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const body = await request.json()
 
-    console.log('🔄 PATCH request to update profile:', {
-      userId: user.id,
-      updates: body,
-    })
-
     // Build update object dynamically
-    const updateData: any = {
+    const updateData: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
     }
 
@@ -171,8 +104,16 @@ export async function PATCH(request: NextRequest) {
       updateData.full_name = body.full_name
     }
 
+    if (body.preferences !== undefined) {
+      updateData.preferences = body.preferences
+    }
+
+    if (body.onboarding_completed !== undefined) {
+      updateData.onboarding_completed = body.onboarding_completed
+    }
+
     // Update user profile
-    const { data, error } = await supabase
+    const { data: profile, error } = await supabase
       .from('user_profiles')
       .update(updateData)
       .eq('id', user.id)
@@ -180,55 +121,34 @@ export async function PATCH(request: NextRequest) {
       .single()
 
     if (error) {
-      console.error('❌ Supabase error updating profile:', error)
-      return NextResponse.json(
-        {
-          success: false,
-          error: error.message || 'Failed to update profile',
-        },
-        { status: 500 }
-      )
+      console.error('Failed to update profile:', error)
+      return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 })
     }
-
-    console.log('✅ Profile updated successfully via PATCH:', {
-      userId: user.id,
-      updates: updateData,
-    })
 
     return NextResponse.json({
       success: true,
-      profile: data,
+      profile,
       message: 'Profile updated successfully',
     })
   } catch (error) {
-    console.error('❌ Error updating user profile via PATCH:', error)
-
-    return NextResponse.json(
-      {
-        error: 'Failed to update profile',
-        success: false,
-      },
-      { status: 500 }
-    )
+    console.error('PATCH /api/user/profile error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
-    const supabase = createSupabaseServerClient(request)
+    const supabase = await createServerClient()
+
+    // Get the authenticated user
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser()
 
-    if (!user) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    console.log('🔧 Creating/fixing profile for user:', {
-      userId: user.id,
-      email: user.email,
-      userMetadata: user.user_metadata,
-    })
 
     // Try to create or update the profile
     const profileData = {
@@ -244,8 +164,6 @@ export async function POST(request: NextRequest) {
       updated_at: new Date().toISOString(),
     }
 
-    console.log('📋 Profile data to upsert:', profileData)
-
     const { data: profile, error } = await supabase
       .from('user_profiles')
       .upsert(profileData, {
@@ -255,24 +173,9 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) {
-      console.error('❌ Error creating/updating profile:', {
-        error,
-        code: error.code,
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-      })
-      return NextResponse.json(
-        {
-          success: false,
-          error: error.message,
-          details: error,
-        },
-        { status: 500 }
-      )
+      console.error('Failed to create/update profile:', error)
+      return NextResponse.json({ error: 'Failed to create profile' }, { status: 500 })
     }
-
-    console.log('✅ Successfully created/updated profile:', profile)
 
     return NextResponse.json({
       success: true,
@@ -280,13 +183,7 @@ export async function POST(request: NextRequest) {
       profile,
     })
   } catch (error) {
-    console.error('❌ Error in profile creation:', error)
-    return NextResponse.json(
-      {
-        error: 'Failed to create profile',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    )
+    console.error('POST /api/user/profile error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

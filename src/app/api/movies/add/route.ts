@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createClient as createSupabaseClient } from '@/lib/supabase/server-client'
+import { createServerClient as createSupabaseClient } from '@/lib/supabase/client'
 import { logger } from '@/lib/logger'
 
 const popularMovies = [

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { createServerClient } from '@/lib/supabase/client'
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,27 +8,7 @@ export async function GET(request: NextRequest) {
     const cookieNames = request.cookies.getAll().map(c => c.name)
     console.log('🍪 Cookies received:', { cookieCount, cookieNames })
 
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            const cookie = request.cookies.get(name)
-            if (name.includes('supabase')) {
-              console.log(`🍪 Reading cookie ${name}:`, cookie ? 'EXISTS' : 'MISSING')
-            }
-            return cookie?.value
-          },
-          set() {
-            // Auth status endpoint should not set cookies
-          },
-          remove() {
-            // Auth status endpoint should not remove cookies
-          },
-        },
-      }
-    )
+    const supabase = await createServerClient()
 
     // Get the current user first
     const {

@@ -2,14 +2,14 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { User } from '@supabase/supabase-js'
-import { supabase as browserClient } from '@/lib/supabase/browser-client'
+import { createBrowserSupabaseClient } from '@/lib/supabase/client'
 import {
   hydrateSessionFromCookie,
   promiseWithTimeout,
   clearAuthCookie,
 } from '@/lib/supabase/session'
 import { logger } from '@/lib/logger'
-import type { UserProfile } from '@/lib/supabase/browser-client'
+import type { UserProfile } from '@/lib/supabase/types'
 
 interface AuthUser extends User {
   profile?: UserProfile
@@ -37,7 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     supabaseUrl && supabaseAnonKey && supabaseUrl !== 'undefined' && supabaseAnonKey !== 'undefined'
   )
 
-  const supabase = hasValidSupabaseConfig ? browserClient : null
+  const supabase = hasValidSupabaseConfig ? createBrowserSupabaseClient() : null
 
   const supabaseCookieName = supabaseUrl
     ? `sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`
@@ -114,7 +114,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await hydrateSessionFromCookie(supabase, supabaseCookieName)
 
       try {
-        const { data } = await promiseWithTimeout(supabase.auth.getSession())
+        const { data } = (await promiseWithTimeout(supabase.auth.getSession())) as any
         logger.debug('getSession priming call result', {
           hasSession: !!data.session,
           userId: data.session?.user?.id,
@@ -133,7 +133,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Subscribe to ongoing auth changes
-      authSubscription = supabase.auth.onAuthStateChange(async (_event, session) => {
+      authSubscription = supabase.auth.onAuthStateChange(async (_event: any, session: any) => {
         logger.debug('Auth state change', {
           hasSession: !!session,
           hasUser: !!session?.user,

@@ -1,6 +1,6 @@
 import type { Movie } from '@/types'
 import { analyzeCompleteUserBehavior, type UserBehaviorProfile } from './behavioral-analysis'
-import { createClient } from '@/lib/supabase/server-client'
+import { createServerClient as createClient } from '@/lib/supabase/client'
 import { logger } from '@/lib/logger'
 
 // Type definitions for data structures
