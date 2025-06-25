@@ -323,13 +323,15 @@ async function getUserProfile(userId: string) {
     .eq('id', userId)
     .single()
 
+  // Extract preferences from JSON field with type safety
+  const preferences = (profile?.preferences as any) || {}
   return {
-    favorite_movies: profile?.favorite_movies || [],
-    preferred_genres: profile?.preferred_genres || [],
-    preferred_decades: profile?.preferred_decades || [],
-    preferred_languages: profile?.preferred_languages || [],
-    streaming_services: profile?.streaming_services || [],
-    content_preferences: profile?.content_preferences || [],
+    favorite_movies: preferences.favorite_movies || [],
+    preferred_genres: preferences.preferred_genres || [],
+    preferred_decades: preferences.preferred_decades || [],
+    preferred_languages: preferences.preferred_languages || [],
+    streaming_services: preferences.streaming_services || [],
+    content_preferences: preferences.content_preferences || [],
   }
 }
 
@@ -350,24 +352,19 @@ async function getConversationHistory(userId: string) {
     .order('created_at', { ascending: false })
     .limit(5)
 
-  // Interface for chat session with messages
-  interface ChatSessionWithMessages {
-    chat_messages?: Array<{
-      role: string
-      content: string
-      created_at: string
-    }>
-  }
-
+  // Handle potential database relation errors safely
   const allMessages =
-    sessions?.flatMap(
-      (session: ChatSessionWithMessages) =>
-        session.chat_messages?.map(msg => ({
+    sessions?.flatMap((session: any) => {
+      // Check if chat_messages is valid and not an error
+      if (Array.isArray(session.chat_messages)) {
+        return session.chat_messages.map((msg: any) => ({
           role: msg.role as 'user' | 'assistant',
           content: msg.content,
           timestamp: msg.created_at,
-        })) || []
-    ) || []
+        }))
+      }
+      return []
+    }) || []
 
   // Extract key insights from conversation history
   const keyInsights = extractConversationInsights(allMessages)
@@ -402,36 +399,28 @@ async function getAllWatchedMovies(userId: string) {
 
   if (!data) return []
 
-  // Interface for watchlist item with movie relation
-  interface WatchlistItemWithMovie {
-    movie_id: string
-    watched_at: string
-    notes?: string
-    movies: unknown // Movie data from join
-  }
-
-  // Interface for rating data
-  interface RatingData {
-    movie_id: string
-    rating: number
-  }
-
-  // Get ratings for these movies from separate ratings table
-  const movieIds = data.map((item: WatchlistItemWithMovie) => item.movie_id)
+  // Use proper type handling for nullable fields
+  const movieIds = data.map(item => item.movie_id)
   const { data: ratingsData } = await supabase
     .from('ratings')
     .select('movie_id, rating')
     .eq('user_id', userId)
     .in('movie_id', movieIds)
 
-  const ratingsMap = new Map(ratingsData?.map((r: RatingData) => [r.movie_id, r.rating]) || [])
+  // Filter out null ratings and create map
+  const ratingsMap = new Map(
+    ratingsData?.filter(r => r.rating !== null).map(r => [r.movie_id, r.rating!]) || []
+  )
 
-  return data.map((item: WatchlistItemWithMovie) => ({
-    ...item,
-    movie: item.movies as unknown as Movie,
-    rating: ratingsMap.get(item.movie_id),
-    context: inferWatchingContext(item.watched_at, ratingsMap.get(item.movie_id)),
-  }))
+  return data
+    .filter(item => item.watched_at !== null) // Only include items with valid watched_at
+    .map(item => ({
+      movie: item.movies as unknown as Movie,
+      rating: ratingsMap.get(item.movie_id),
+      watched_at: item.watched_at!,
+      notes: item.notes || undefined,
+      context: inferWatchingContext(item.watched_at!, ratingsMap.get(item.movie_id)),
+    }))
 }
 
 async function getAllWatchlistMovies(userId: string) {
@@ -453,17 +442,13 @@ async function getAllWatchlistMovies(userId: string) {
     return [] // Return empty array instead of throwing to prevent app crash
   }
 
-  // Interface for watchlist item with movie relation
-  interface WatchlistItemWithMovieData {
-    added_at: string
-    movies: unknown // Movie data from join
-  }
-
   return (
-    data?.map((item: WatchlistItemWithMovieData) => ({
-      ...item,
-      movie: item.movies as unknown as Movie,
-    })) || []
+    data
+      ?.filter(item => item.added_at !== null)
+      .map(item => ({
+        movie: item.movies as unknown as Movie,
+        added_at: item.added_at!,
+      })) || []
   )
 }
 

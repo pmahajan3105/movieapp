@@ -31,7 +31,7 @@ export const POST = createAuthenticatedApiHandler(async (request, { supabase, us
   // Prepare the profile data
   const profileData = {
     id: user.id,
-    ...(user.email ? { email: user.email } : {}),
+    email: user.email || user.id, // Fallback to user.id if email is undefined
     preferences: {
       preferred_genres: preferences.preferred_genres || [],
       avoid_genres: preferences.avoid_genres || [],
