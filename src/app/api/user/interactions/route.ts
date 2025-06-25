@@ -1,24 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase/client'
+import { createAuthenticatedApiHandler, parseJsonBody } from '@/lib/api/factory'
 
-export async function POST(request: NextRequest) {
-  try {
-    const supabase = await createServerClient()
-
-    // Get the authenticated user
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { movieId, action, rating } = await request.json()
+export const POST = createAuthenticatedApiHandler(
+  async (request: NextRequest, { supabase, user }) => {
+    const { movieId, action, rating } = await parseJsonBody<{
+      movieId: string
+      action: string
+      rating?: number
+    }>(request)
 
     if (!movieId || !action) {
-      return NextResponse.json({ error: 'Movie ID and action are required' }, { status: 400 })
+      throw new Error('Movie ID and action are required')
     }
 
     // Record the interaction
@@ -32,31 +24,15 @@ export async function POST(request: NextRequest) {
     })
 
     if (error) {
-      console.error('Failed to record interaction:', error)
-      return NextResponse.json({ error: 'Failed to record interaction' }, { status: 500 })
+      throw new Error(`Failed to record interaction: ${error.message}`)
     }
 
     return NextResponse.json({ success: true, data })
-  } catch (error) {
-    console.error('POST /api/user/interactions error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+)
 
-export async function GET(request: NextRequest) {
-  try {
-    const supabase = await createServerClient()
-
-    // Get the authenticated user
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
+export const GET = createAuthenticatedApiHandler(
+  async (request: NextRequest, { supabase, user }) => {
     const { searchParams } = new URL(request.url)
     const limit = parseInt(searchParams.get('limit') || '50')
 
@@ -65,22 +41,18 @@ export async function GET(request: NextRequest) {
       .from('ratings')
       .select(
         `
-        *,
-        movies (*)
-      `
+      *,
+      movies (*)
+    `
       )
       .eq('user_id', user.id)
       .order('rated_at', { ascending: false })
       .limit(limit)
 
     if (error) {
-      console.error('Failed to fetch interactions:', error)
-      return NextResponse.json({ error: 'Failed to fetch interactions' }, { status: 500 })
+      throw new Error(`Failed to fetch interactions: ${error.message}`)
     }
 
     return NextResponse.json({ success: true, interactions: data || [] })
-  } catch (error) {
-    console.error('GET /api/user/interactions error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+)

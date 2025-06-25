@@ -1,20 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase/client'
+import { createAuthenticatedApiHandler } from '@/lib/api/factory'
 
-export async function GET(request: NextRequest) {
-  try {
+export const GET = createAuthenticatedApiHandler(
+  async (request: NextRequest, { user, supabase }) => {
     // Debug: Log all cookies received
     const cookieCount = request.cookies.getAll().length
     const cookieNames = request.cookies.getAll().map(c => c.name)
     console.log('🍪 Cookies received:', { cookieCount, cookieNames })
-
-    const supabase = await createServerClient()
-
-    // Get the current user first
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser()
 
     // Get session separately to debug
     const {
@@ -24,31 +16,17 @@ export async function GET(request: NextRequest) {
 
     const response = {
       hasUser: !!user,
-      userId: user?.id,
-      userEmail: user?.email,
-      userError: userError?.message || (user ? undefined : 'Auth session missing!'),
-      userErrorCode: userError?.code,
       hasSession: !!session,
+      userId: user?.id,
+      email: user?.email,
       sessionError: sessionError?.message,
-      sessionErrorCode: sessionError?.code,
-      sessionExpiresAt: session?.expires_at,
-      sessionRefreshToken: !!session?.refresh_token,
-      sessionAccessToken: !!session?.access_token,
-      cookieCount,
-      cookieNames,
     }
 
-    console.log('🔐 Auth Status Check:', response)
+    console.log('🔐 Auth status response:', response)
 
-    return NextResponse.json(response)
-  } catch (error) {
-    console.error('❌ Auth status error:', error)
-    return NextResponse.json(
-      {
-        error: 'Internal server error',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    )
+    return NextResponse.json({
+      success: true,
+      ...response,
+    })
   }
-}
+)
