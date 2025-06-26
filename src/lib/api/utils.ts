@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server-client'
+import { createServerClient } from '@/lib/supabase/server-client'
 import { logger } from '@/lib/logger'
 
 export interface ApiResponse<T = any> {
@@ -13,7 +13,7 @@ export async function withAuth<T>(
   handler: (userId: string, request: NextRequest) => Promise<NextResponse<ApiResponse<T>>>
 ): Promise<NextResponse<ApiResponse<T>>> {
   try {
-    const supabase = await createClient()
+    const supabase = await createServerClient()
     const {
       data: { user },
       error: authError,

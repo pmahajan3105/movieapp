@@ -14,6 +14,9 @@ interface MovieDetailsModalProps {
   onAddToWatchlist?: (movieId: string) => Promise<void>
   onRemoveFromWatchlist?: (movieId: string) => Promise<void>
   isInWatchlist?: boolean
+  isWatched?: boolean
+  watchlistItem?: any
+  onEditRating?: () => void
 }
 
 export function MovieDetailsModal({
@@ -23,6 +26,9 @@ export function MovieDetailsModal({
   onAddToWatchlist,
   onRemoveFromWatchlist,
   isInWatchlist = false,
+  isWatched = false,
+  watchlistItem = null,
+  onEditRating,
 }: MovieDetailsModalProps) {
   const [isLoading, setIsLoading] = useState(false)
 
@@ -85,27 +91,67 @@ export function MovieDetailsModal({
 
             {/* Action Buttons */}
             <div className="mt-4">
-              <Button
-                onClick={handleWatchlistAction}
-                disabled={isLoading}
-                className="w-full shadow-md"
-                variant={isInWatchlist ? 'outline' : 'default'}
-              >
-                {isLoading ? (
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                ) : isInWatchlist ? (
-                  <>
-                    <Minus className="mr-2 h-4 w-4" />
-                    Remove from Watchlist
-                  </>
-                ) : (
-                  <>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add to Watchlist
-                  </>
-                )}
-              </Button>
+              {isWatched ? (
+                <Button
+                  onClick={onEditRating}
+                  disabled={isLoading}
+                  className="w-full shadow-md"
+                  variant="outline"
+                >
+                  {isLoading ? (
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  ) : (
+                    <>
+                      <Star className="mr-2 h-4 w-4" />
+                      Edit Rating & Notes
+                    </>
+                  )}
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleWatchlistAction}
+                  disabled={isLoading}
+                  className="w-full shadow-md"
+                  variant={isInWatchlist ? 'outline' : 'default'}
+                >
+                  {isLoading ? (
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  ) : isInWatchlist ? (
+                    <>
+                      <Minus className="mr-2 h-4 w-4" />
+                      Remove from Watchlist
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add to Watchlist
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
+
+            {/* Rating Display for Watched Movies */}
+            {isWatched && watchlistItem && (
+              <div className="mt-4 rounded-lg border border-gray-100 bg-gray-50 p-3">
+                {watchlistItem.rating && (
+                  <div className="mb-2 flex items-center text-sm">
+                    <Star className="mr-1 h-4 w-4 text-yellow-400" />
+                    <span className="font-medium">Your Rating: {watchlistItem.rating}/5</span>
+                  </div>
+                )}
+                {watchlistItem.notes && (
+                  <p className="text-xs text-gray-600">
+                    <span className="font-medium">Your Notes:</span> {watchlistItem.notes}
+                  </p>
+                )}
+                {watchlistItem.watched_at && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    Watched: {new Date(watchlistItem.watched_at).toLocaleDateString()}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Movie Details */}
@@ -185,19 +231,6 @@ export function MovieDetailsModal({
                 <p className="text-sm text-gray-700">{actors.slice(0, 5).join(', ')}</p>
               </div>
             )}
-
-            {/* Movie IDs */}
-            <div className="flex flex-wrap gap-4 rounded-lg border border-gray-100 bg-gray-50 p-4">
-              {movie.imdb_id && (
-                <div className="rounded border border-gray-200 bg-white p-3">
-                  <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-                    IMDb ID
-                  </h4>
-                  <p className="font-mono text-sm text-gray-900">{movie.imdb_id}</p>
-                </div>
-              )}
-              {/* TMDB ID is internal; no need to show to users */}
-            </div>
           </div>
         </div>
       </DialogContent>

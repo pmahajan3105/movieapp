@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { User } from '@supabase/supabase-js'
-import { createServerClient } from '@/lib/supabase/client'
-import { createClient as createSupabaseClient } from '@/lib/supabase/server-client'
+import { createServerClient as createSupabaseClient } from '@/lib/supabase/server-client'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { GeneratedDatabase } from '@/lib/supabase/types'
 import { logger } from '@/lib/logger'
@@ -26,12 +25,12 @@ export interface ApiResponse<T = unknown> {
 
 export type AuthenticatedApiHandler<T = unknown> = (
   request: NextRequest,
-  context: { user: User; supabase: Awaited<ReturnType<typeof createServerClient>> }
+  context: { user: User; supabase: Awaited<ReturnType<typeof createSupabaseClient>> }
 ) => Promise<NextResponse<ApiResponse<T>>>
 
 export type ApiHandler<T = unknown> = (
   request: NextRequest,
-  context: { supabase: Awaited<ReturnType<typeof createServerClient>> }
+  context: { supabase: Awaited<ReturnType<typeof createSupabaseClient>> }
 ) => Promise<NextResponse<ApiResponse<T>>>
 
 export interface SupabaseCtx {
@@ -133,7 +132,7 @@ export function withAuth<T = unknown>(
 ): (request: NextRequest) => Promise<NextResponse<ApiResponse<T | undefined>>> {
   return async (request: NextRequest) => {
     try {
-      const supabase = await createServerClient()
+      const supabase = await createSupabaseClient()
 
       const {
         data: { user },
@@ -174,7 +173,7 @@ export function withErrorHandling<T = unknown>(
 ): (request: NextRequest) => Promise<NextResponse<ApiResponse<T | undefined>>> {
   return async (request: NextRequest) => {
     try {
-      const supabase = await createServerClient()
+      const supabase = await createSupabaseClient()
       return await handler(request, { supabase })
     } catch (error) {
       logger.apiError('api-handler', error instanceof Error ? error : new Error(String(error)))

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server-client'
+import { createServerClient } from '@/lib/supabase/server-client'
 import { MovieRepository } from '@/repositories/MovieRepository'
 import { logger } from '@/lib/logger'
 
@@ -39,7 +39,7 @@ async function fetchTmdbMovie(tmdbId: number) {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient()
+    const supabase = await createServerClient()
     const {
       data: { user },
       error: authError,

@@ -1,48 +1,34 @@
-import { createServerClient } from '@supabase/ssr'
+import { createServerClient as createSSRServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { cache } from 'react'
+import { Database } from './types'
 
-// Temporary stub until all helpers are migrated to generated types
-interface Database {
-  public: {
-    Tables: {
-      movies: { Row: any; Insert: any; Update: any }
-      watchlist: { Row: any; Insert: any; Update: any }
-      ratings: { Row: any; Insert: any; Update: any }
-      user_profiles: { Row: any; Insert: any; Update: any }
-      chat_sessions: { Row: any; Insert: any; Update: any }
-      recommendations: { Row: any; Insert: any; Update: any }
-    }
-  }
-}
-
-// Server-only client - use only in server components and API routes
-export const createClient = cache(async () => {
+// Server client for server components and API routes
+export const createServerClient = cache(async () => {
+  // MUST await for dynamic cookies API
   const cookieStore = await cookies()
 
-  return createServerClient<Database>(
+  return createSSRServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
-      // NEW cookie API → lets Supabase refresh tokens
       cookies: {
         getAll() {
           return cookieStore.getAll()
         },
-        setAll(cookiesToSet) {
-          // Persist every Set-Cookie header Supabase gives us
+        setAll(cookiesToSet: Array<{ name: string; value: string; options?: any }>) {
           cookiesToSet.forEach(({ name, value, options }) => {
             try {
               cookieStore.set(name, value, options)
             } catch {
-              // Called from a Server Component – safe to ignore
+              /* called from a Server Component – safe to ignore */
             }
           })
         },
       },
     }
   )
-})
+}) 
 
 // Standard response format for API routes
 export interface ApiResponse<T = unknown> {

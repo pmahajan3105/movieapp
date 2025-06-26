@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server-client'
+import { createServerClient } from '@/lib/supabase/server-client'
 import { WatchlistRepository } from '@/repositories/WatchlistRepository'
 import { MovieRepository } from '@/repositories/MovieRepository'
 import { logger } from '@/lib/logger'
@@ -53,7 +53,7 @@ async function fetchTmdbMovie(tmdbId: number) {
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient()
+    const supabase = await createServerClient()
     const {
       data: { user },
       error: authError,
@@ -133,7 +133,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient()
+    const supabase = await createServerClient()
     const {
       data: { user },
       error: authError,
@@ -210,7 +210,7 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const supabase = await createClient()
+    const supabase = await createServerClient()
     const {
       data: { user },
       error: authError,
@@ -256,7 +256,7 @@ export async function DELETE(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const supabase = await createClient()
+    const supabase = await createServerClient()
     const {
       data: { user },
       error: authError,

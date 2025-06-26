@@ -247,18 +247,26 @@ export default function WatchedMoviesPage() {
                   {/* Rating Display/Edit */}
                   {editingId === item.id ? (
                     <div className="space-y-2">
-                      <div className="flex items-center space-x-1">
-                        <Star className="h-4 w-4 text-yellow-400" />
-                        <input
-                          type="number"
-                          min="0"
-                          max="10"
-                          step="0.1"
-                          value={editingRating}
-                          onChange={e => setEditingRating(parseFloat(e.target.value))}
-                          className="w-16 rounded border px-2 py-1 text-sm"
-                        />
-                        <span className="text-sm text-gray-500">/10</span>
+                      <div className="flex items-center justify-center space-x-1">
+                        {[1, 2, 3, 4, 5].map(star => (
+                          <button
+                            key={star}
+                            type="button"
+                            onClick={() => setEditingRating(star)}
+                            className={`transition-colors ${
+                              star <= editingRating ? 'text-yellow-400' : 'text-gray-300'
+                            }`}
+                          >
+                            <Star className={`h-6 w-6 ${star <= editingRating ? 'fill-current' : ''}`} />
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => setEditingRating(0)}
+                          className="ml-2 text-xs text-gray-500 underline"
+                        >
+                          Clear
+                        </button>
                       </div>
                       <textarea
                         value={editingNotes}
@@ -281,7 +289,7 @@ export default function WatchedMoviesPage() {
                       {item.rating && (
                         <div className="flex items-center text-sm">
                           <Star className="mr-1 h-4 w-4 text-yellow-400" />
-                          <span className="font-medium">{item.rating}/10</span>
+                          <span className="font-medium">{item.rating}/5</span>
                         </div>
                       )}
                       {item.notes && (
@@ -334,6 +342,21 @@ export default function WatchedMoviesPage() {
           onClose={() => setSelectedMovie(null)}
           onRemoveFromWatchlist={async () => {}} // Not applicable for watched movies
           isInWatchlist={false}
+          isWatched={true}
+          watchlistItem={
+            selectedMovie
+              ? watchedMovies.find(item => item.movies.id === selectedMovie.id)
+              : null
+          }
+          onEditRating={() => {
+            const item = selectedMovie
+              ? watchedMovies.find(item => item.movies.id === selectedMovie.id)
+              : null
+            if (item) {
+              handleEditRating(item)
+              setSelectedMovie(null)
+            }
+          }}
         />
       </div>
     </div>
