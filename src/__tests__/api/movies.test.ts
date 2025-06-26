@@ -4,10 +4,10 @@
 
 import { NextRequest } from 'next/server'
 import { GET } from '../../app/api/movies/route'
-import { createServerClient } from '@/lib/supabase/client'
+import { createServerClient } from '@/lib/supabase/server-client'
 
-// Mock the entire Supabase client module
-jest.mock('@/lib/supabase/client', () => ({
+// Mock the entire Supabase server client module
+jest.mock('@/lib/supabase/server-client', () => ({
   createServerClient: jest.fn(() =>
     Promise.resolve({
       auth: {
