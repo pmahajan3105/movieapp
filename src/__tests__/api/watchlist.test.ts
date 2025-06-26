@@ -105,7 +105,7 @@ describe('/api/watchlist', () => {
       // expect(mockSupabase.from).toHaveBeenCalledWith('watchlist')
     })
 
-    it('returns 200 for unauthenticated user', async () => {
+    it('returns 401 for unauthenticated user', async () => {
       mockSupabase.auth.getUser.mockResolvedValue({
         data: { user: null },
         error: null,
@@ -118,9 +118,9 @@ describe('/api/watchlist', () => {
       const response = await GET(request)
       const data = await response.json()
 
-      expect(response.status).toBe(200)
-      expect(data.success).toBe(true)
-      // Route defaults to success with empty watchlist for unauthenticated mocks
+      expect(response.status).toBe(401)
+      expect(data.success).toBe(false)
+      expect(data.error).toBe('Unauthorized')
     })
 
     it('filters by watched status when provided', async () => {

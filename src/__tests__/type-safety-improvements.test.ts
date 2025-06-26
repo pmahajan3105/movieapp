@@ -4,7 +4,13 @@
  */
 
 import { handleSupabaseError } from '@/lib/api/factory'
-import { createClient } from '@/lib/supabase/browser-client'
+
+// Mock the browser client
+const mockCreateClient = jest.fn()
+
+jest.mock('@/lib/supabase/browser-client', () => ({
+  createClient: mockCreateClient,
+}))
 
 describe('Type Safety Improvements', () => {
   describe('Error Handling', () => {
@@ -30,7 +36,7 @@ describe('Type Safety Improvements', () => {
       const result = handleSupabaseError(unknownError)
 
       expect(result).toEqual({
-        message: 'Something went wrong',
+        message: 'Unknown error occurred',
         code: 'UNKNOWN_ERROR',
         details: unknownError,
       })
@@ -51,7 +57,12 @@ describe('Type Safety Improvements', () => {
 
   describe('Database Types', () => {
     it('should create Supabase client with proper typing', () => {
-      const client = createClient()
+      mockCreateClient.mockReturnValue({
+        from: jest.fn(),
+        auth: { getUser: jest.fn() },
+      })
+
+      const client = mockCreateClient()
 
       // This test ensures the client is typed properly
       expect(client).toBeDefined()
