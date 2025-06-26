@@ -1,6 +1,6 @@
 import type { Movie } from '@/types'
 import { analyzeCompleteUserBehavior, type UserBehaviorProfile } from './behavioral-analysis'
-import { createServerClient } from '@/lib/supabase/server-client'
+import { supabase } from '@/lib/supabase/client'
 import { logger } from '@/lib/logger'
 
 // Type definitions for data structures
@@ -316,7 +316,6 @@ Important: Use the behavioral intelligence extensively. Reference specific patte
 // Helper functions for data collection
 
 async function getUserProfile(userId: string) {
-  const supabase = await createClient()
   const { data: profile } = await supabase
     .from('user_profiles')
     .select('*')
@@ -334,7 +333,6 @@ async function getUserProfile(userId: string) {
 }
 
 async function getConversationHistory(userId: string) {
-  const supabase = await createClient()
   const { data: sessions } = await supabase
     .from('chat_sessions')
     .select(
@@ -380,7 +378,6 @@ async function getConversationHistory(userId: string) {
 }
 
 async function getAllWatchedMovies(userId: string) {
-  const supabase = await createClient()
   const { data, error } = await supabase
     .from('watchlist')
     .select(
@@ -430,12 +427,14 @@ async function getAllWatchedMovies(userId: string) {
     ...item,
     movie: item.movies as unknown as Movie,
     rating: ratingsMap.get(item.movie_id),
-    context: inferWatchingContext(item.watched_at, ratingsMap.get(item.movie_id)),
+    context: inferWatchingContext(
+      item.watched_at,
+      ratingsMap.get(item.movie_id) as number | undefined
+    ),
   }))
 }
 
 async function getAllWatchlistMovies(userId: string) {
-  const supabase = await createClient()
   const { data, error } = await supabase
     .from('watchlist')
     .select(
