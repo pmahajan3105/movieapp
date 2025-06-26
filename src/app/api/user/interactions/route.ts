@@ -1,17 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createAuthenticatedApiHandler, parseJsonBody } from '@/lib/api/factory'
+import { createAuthenticatedApiHandler, withValidation } from '@/lib/api/factory'
+import { z } from 'zod'
+
+const interactionSchema = z.object({
+  movieId: z.string().min(1, 'Movie ID is required').max(100, 'Movie ID too long'),
+  action: z.enum(
+    ['like', 'dislike', 'watch', 'rate', 'favorite', 'watchlist_add', 'watchlist_remove'],
+    {
+      errorMap: () => ({
+        message:
+          'Action must be one of: like, dislike, watch, rate, favorite, watchlist_add, watchlist_remove',
+      }),
+    }
+  ),
+  rating: z
+    .number()
+    .min(1, 'Rating must be between 1-5')
+    .max(5, 'Rating must be between 1-5')
+    .optional(),
+})
 
 export const POST = createAuthenticatedApiHandler(
   async (request: NextRequest, { supabase, user }) => {
-    const { movieId, action, rating } = await parseJsonBody<{
-      movieId: string
-      action: string
-      rating?: number
-    }>(request)
-
-    if (!movieId || !action) {
-      throw new Error('Movie ID and action are required')
-    }
+    const { movieId, action, rating } = await withValidation(request, interactionSchema)
 
     // Record the interaction
     const { data, error } = await supabase.from('ratings').insert({

@@ -1,5 +1,10 @@
-import { createAuthenticatedApiHandler, parseJsonBody } from '@/lib/api/factory'
+import { createAuthenticatedApiHandler, withValidation } from '@/lib/api/factory'
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
+
+const savePreferencesSchema = z.object({
+  preferences: z.any(),
+})
 
 // GET /api/user/preferences - Get user preferences
 export const GET = createAuthenticatedApiHandler(async (_req, { supabase, user }) => {
@@ -20,10 +25,7 @@ export const GET = createAuthenticatedApiHandler(async (_req, { supabase, user }
 
 // POST /api/user/preferences - Save user preferences
 export const POST = createAuthenticatedApiHandler(async (request, { supabase, user }) => {
-  const { preferences } = await parseJsonBody<{ preferences: any }>(request)
-  if (!preferences) {
-    throw new Error('Preferences data is required')
-  }
+  const { preferences } = await withValidation(request, savePreferencesSchema)
 
   console.log('💾 Saving preferences for user:', user.id)
   console.log('📝 Preferences data:', preferences)

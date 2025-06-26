@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { MovieGridSkeleton } from '@/components/movies/MovieCardSkeleton'
 import { motion } from 'framer-motion'
 import type { Movie } from '@/types'
+import { useAsyncOperation } from '@/hooks/useAsyncOperation'
 
 interface SemanticSearchResult {
   movies: Movie[]
@@ -38,9 +39,13 @@ export function SemanticSearch({ onMovieClick, className = '' }: SemanticSearchP
   const [query, setQuery] = useState('')
   const [selectedGenres, setSelectedGenres] = useState<string[]>([])
   const [mood, setMood] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [results, setResults] = useState<SemanticSearchResult | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const {
+    isLoading,
+    error,
+    data: results,
+    setError,
+    execute,
+  } = useAsyncOperation<SemanticSearchResult>()
 
   const availableGenres = [
     'Action',
@@ -79,10 +84,7 @@ export function SemanticSearch({ onMovieClick, className = '' }: SemanticSearchP
       return
     }
 
-    setLoading(true)
-    setError(null)
-
-    try {
+    await execute(async () => {
       const response = await fetch('/api/recommendations/semantic', {
         method: 'POST',
         headers: {
@@ -104,13 +106,8 @@ export function SemanticSearch({ onMovieClick, className = '' }: SemanticSearchP
         throw new Error(data.error || 'Search failed')
       }
 
-      setResults(data.data)
-    } catch (err) {
-      console.error('Semantic search error:', err)
-      setError(err instanceof Error ? err.message : 'Search failed')
-    } finally {
-      setLoading(false)
-    }
+      return data.data
+    })
   }
 
   const toggleGenre = (genre: string) => {
@@ -196,8 +193,8 @@ export function SemanticSearch({ onMovieClick, className = '' }: SemanticSearchP
           </div>
 
           {/* Search Button */}
-          <Button onClick={handleSearch} disabled={loading || !user} className="w-full" size="lg">
-            {loading ? (
+          <Button onClick={handleSearch} disabled={isLoading || !user} className="w-full" size="lg">
+            {isLoading ? (
               <>
                 <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-white" />
                 Searching with AI...
@@ -216,7 +213,7 @@ export function SemanticSearch({ onMovieClick, className = '' }: SemanticSearchP
       </Card>
 
       {/* Results */}
-      {loading && (
+      {isLoading && (
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <div className="border-primary h-5 w-5 animate-spin rounded-full border-b-2" />
@@ -226,7 +223,7 @@ export function SemanticSearch({ onMovieClick, className = '' }: SemanticSearchP
         </div>
       )}
 
-      {results && !loading && (
+      {results && !isLoading && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

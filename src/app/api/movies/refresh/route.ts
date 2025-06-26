@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createAuthenticatedApiHandler, parseJsonBody } from '@/lib/api/factory'
+import { createAuthenticatedApiHandler, withValidation } from '@/lib/api/factory'
 import { MovieRepository } from '@/repositories/MovieRepository'
 import { logger } from '@/lib/logger'
+import { z } from 'zod'
 
 // Helper to fetch movie from TMDB API
 async function fetchTmdbMovie(tmdbId: number) {
@@ -37,16 +38,12 @@ async function fetchTmdbMovie(tmdbId: number) {
   }
 }
 
+const refreshSchema = z.object({
+  movieId: z.string(),
+})
+
 export const POST = createAuthenticatedApiHandler(async (request: NextRequest, { supabase }) => {
-  const body = await parseJsonBody<{
-    movieId: string
-  }>(request)
-
-  const { movieId } = body
-
-  if (!movieId) {
-    throw new Error('Movie ID is required')
-  }
+  const { movieId } = await withValidation(request, refreshSchema)
 
   const movieRepo = new MovieRepository(supabase)
 

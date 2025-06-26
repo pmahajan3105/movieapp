@@ -8,6 +8,7 @@ import { Card, CardBody } from '@/components/ui/card'
 import type { AutocompleteResponse } from '@/types/search'
 import type { Movie } from '@/types'
 import Image from 'next/image'
+import { useAsyncOperation } from '@/hooks/useAsyncOperation'
 
 interface SearchInterfaceProps {
   onSearch: (query: string) => void
@@ -15,6 +16,7 @@ interface SearchInterfaceProps {
   placeholder?: string
   showAutocomplete?: boolean
   className?: string
+  onQueryChange?: (query: string) => void
 }
 
 export function SearchInterface({
@@ -23,23 +25,53 @@ export function SearchInterface({
   placeholder = 'Search movies, directors, actors...',
   showAutocomplete = true,
   className = '',
+  onQueryChange,
 }: SearchInterfaceProps) {
   const [query, setQuery] = useState(initialQuery)
-  const [autocompleteData, setAutocompleteData] = useState<AutocompleteResponse['data']>()
   const [showSuggestions, setShowSuggestions] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(-1)
-  // TODO: Implement autocomplete and debounce indicators
-  // const [isAutocompleteLoading, setAutocompleteLoading] = useState(false)
-  // const [isDebouncing, setDebouncing] = useState(false)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // Sync query with initialQuery when it changes (for clearing from navigation)
+  useEffect(() => {
+    setQuery(initialQuery)
+  }, [initialQuery])
+
+  // Handle query changes
+  const handleQueryChange = (newQuery: string) => {
+    setQuery(newQuery)
+    setSelectedIndex(-1)
+    onQueryChange?.(newQuery)
+  }
+
+  // Use useAsyncOperation for autocomplete functionality
+  const {
+    isLoading: isLoadingAutocomplete,
+    error: autocompleteError,
+    data: autocompleteResponse,
+    execute: executeAutocomplete,
+  } = useAsyncOperation<{ success: boolean; movies: Movie[] }>()
+
+  // Transform the response to match AutocompleteResponse format
+  const autocompleteData: AutocompleteResponse['data'] | undefined =
+    autocompleteResponse?.success && autocompleteResponse.movies
+      ? {
+          movies: autocompleteResponse.movies.slice(0, 6).map(movie => ({
+            id: movie.id,
+            title: movie.title,
+            year: movie.year ?? null,
+            poster_url: movie.poster_url,
+          })),
+          directors: [], // TMDB doesn't provide directors in search results
+          actors: [], // TMDB doesn't provide actors in search results
+          suggestions: autocompleteResponse.movies.slice(0, 3).map(movie => movie.title), // Top 3 titles as suggestions
+        }
+      : undefined
 
   // Debounced autocomplete
   useEffect(() => {
     if (!showAutocomplete || query.length < 2) {
-      setAutocompleteData(undefined)
       setShowSuggestions(false)
       return
     }
@@ -49,34 +81,28 @@ export function SearchInterface({
     }
 
     timeoutRef.current = setTimeout(async () => {
-      setIsLoading(true)
-      try {
+      await executeAutocomplete(async () => {
         // Use TMDB for autocomplete to ensure consistent movie ID format
         const response = await fetch(
           `/api/movies?realtime=true&database=tmdb&query=${encodeURIComponent(query)}&limit=6`
         )
-        const data: { success: boolean; movies: Movie[] } = await response.json()
 
-        if (data.success && data.movies) {
-          // Transform TMDB response to match AutocompleteResponse format
-          const autocompleteData: AutocompleteResponse['data'] = {
-            movies: data.movies.slice(0, 6).map(movie => ({
-              id: movie.id,
-              title: movie.title,
-              year: movie.year ?? null,
-              poster_url: movie.poster_url,
-            })),
-            directors: [], // TMDB doesn't provide directors in search results
-            actors: [], // TMDB doesn't provide actors in search results
-            suggestions: data.movies.slice(0, 3).map(movie => movie.title), // Top 3 titles as suggestions
-          }
-          setAutocompleteData(autocompleteData)
-          setShowSuggestions(true)
+        if (!response.ok) {
+          throw new Error(`Autocomplete request failed: ${response.status}`)
         }
-      } catch (error) {
-        console.error('Autocomplete error:', error)
-      } finally {
-        setIsLoading(false)
+
+        const data = await response.json()
+
+        if (!data.success) {
+          throw new Error('Autocomplete response was not successful')
+        }
+
+        return data
+      })
+
+      // Show suggestions only if we have valid data
+      if (autocompleteData) {
+        setShowSuggestions(true)
       }
     }, 300)
 
@@ -85,7 +111,21 @@ export function SearchInterface({
         clearTimeout(timeoutRef.current)
       }
     }
-  }, [query, showAutocomplete])
+  }, [query, showAutocomplete, executeAutocomplete])
+
+  // Update suggestions visibility when autocomplete data changes
+  useEffect(() => {
+    if (autocompleteData && query.length >= 2) {
+      setShowSuggestions(true)
+    }
+  }, [autocompleteData, query.length])
+
+  // Log errors (could also show user-facing error messages if needed)
+  useEffect(() => {
+    if (autocompleteError) {
+      console.error('Autocomplete error:', autocompleteError)
+    }
+  }, [autocompleteError])
 
   // Handle search submission
   const handleSearch = (searchQuery?: string) => {
@@ -114,7 +154,7 @@ export function SearchInterface({
           const suggestionIndex = selectedIndex - autocompleteData.movies.length
           const suggestion = autocompleteData.suggestions[suggestionIndex]
           if (suggestion) {
-            setQuery(suggestion)
+            handleQueryChange(suggestion)
             handleSearch(suggestion)
           }
         }
@@ -149,9 +189,8 @@ export function SearchInterface({
 
   // Clear search
   const handleClear = () => {
-    setQuery('')
+    handleQueryChange('')
     setShowSuggestions(false)
-    setSelectedIndex(-1)
     inputRef.current?.focus()
   }
 
@@ -163,10 +202,7 @@ export function SearchInterface({
         <Input
           ref={inputRef}
           value={query}
-          onChange={e => {
-            setQuery(e.target.value)
-            setSelectedIndex(-1)
-          }}
+          onChange={e => handleQueryChange(e.target.value)}
           onKeyDown={handleKeyDown}
           onFocus={() => {
             if (autocompleteData && query.length >= 2) {
@@ -267,7 +303,7 @@ export function SearchInterface({
             )}
 
             {/* Loading state */}
-            {isLoading && (
+            {isLoadingAutocomplete && (
               <div className="p-4 text-center text-gray-500">
                 <div className="inline-flex items-center gap-2">
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
@@ -277,7 +313,8 @@ export function SearchInterface({
             )}
 
             {/* No results */}
-            {!isLoading &&
+            {!isLoadingAutocomplete &&
+              autocompleteData &&
               autocompleteData.movies.length === 0 &&
               autocompleteData.suggestions.length === 0 && (
                 <div className="p-4 text-center text-gray-500">No suggestions found</div>

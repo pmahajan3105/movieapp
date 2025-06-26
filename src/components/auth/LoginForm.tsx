@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { useAsyncAction } from '@/hooks/useAsyncOperation'
 
 const loginSchema = z.object({
   email: z
@@ -19,9 +20,8 @@ interface LoginFormProps {
 }
 
 export function LoginForm({ onMagicLinkSent }: LoginFormProps) {
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  
+  const { isLoading, error, setError, execute } = useAsyncAction()
+
   // Check for error from URL params (from auth callback)
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
@@ -31,7 +31,7 @@ export function LoginForm({ onMagicLinkSent }: LoginFormProps) {
       // Clear error from URL
       window.history.replaceState({}, '', window.location.pathname)
     }
-  }, [])
+  }, [setError])
 
   const {
     register,
@@ -42,10 +42,7 @@ export function LoginForm({ onMagicLinkSent }: LoginFormProps) {
   })
 
   const onSubmit = async (data: LoginFormData) => {
-    setIsLoading(true)
-    setError(null)
-
-    try {
+    await execute(async () => {
       const response = await fetch('/api/auth/request-otp', {
         method: 'POST',
         headers: {
@@ -61,11 +58,7 @@ export function LoginForm({ onMagicLinkSent }: LoginFormProps) {
       }
 
       onMagicLinkSent(data.email)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred')
-    } finally {
-      setIsLoading(false)
-    }
+    })
   }
 
   return (
@@ -86,7 +79,7 @@ export function LoginForm({ onMagicLinkSent }: LoginFormProps) {
             placeholder="Enter your email"
             {...register('email')}
             disabled={isLoading}
-            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+            className={`w-full rounded-lg border px-4 py-2 focus:border-transparent focus:ring-2 focus:ring-blue-500 ${
               errors.email ? 'border-red-500' : 'border-gray-300'
             }`}
           />
@@ -99,9 +92,9 @@ export function LoginForm({ onMagicLinkSent }: LoginFormProps) {
           </div>
         )}
 
-        <button 
-          type="submit" 
-          className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        <button
+          type="submit"
+          className="w-full rounded-lg bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           disabled={isLoading}
         >
           {isLoading ? (

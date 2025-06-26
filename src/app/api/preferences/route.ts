@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createAuthenticatedApiHandler, parseJsonBody } from '@/lib/api/factory'
+import { createAuthenticatedApiHandler, withValidation } from '@/lib/api/factory'
 import { z } from 'zod'
 
 const preferenceSchema = z.object({
@@ -23,6 +23,28 @@ const preferenceSchema = z.object({
   languages: z.array(z.string()).optional(),
   viewingContexts: z.array(z.string()).optional(),
   dislikedGenres: z.array(z.string()).optional(),
+})
+
+const patchSchema = z.object({
+  field: z.string().min(1, 'Field name is required').max(50, 'Field name too long'),
+  value: z.union(
+    [
+      z.string(),
+      z.number(),
+      z.boolean(),
+      z.array(z.string()),
+      z.object({
+        min: z.number(),
+        max: z.number(),
+      }),
+    ],
+    {
+      errorMap: () => ({
+        message: 'Value must be string, number, boolean, array of strings, or min/max object',
+      }),
+    }
+  ),
+  operation: z.enum(['set', 'add', 'remove']).optional().default('set'),
 })
 
 // ---------------------------------------------------------------------------
@@ -54,8 +76,7 @@ export const GET = createAuthenticatedApiHandler(
 // ---------------------------------------------------------------------------
 export const PUT = createAuthenticatedApiHandler(
   async (request: NextRequest, { supabase, user }) => {
-    const body = await parseJsonBody<Record<string, unknown>>(request)
-    const preferences = preferenceSchema.parse(body)
+    const preferences = await withValidation(request, preferenceSchema)
 
     const { data, error } = await supabase
       .from('user_profiles')
@@ -83,13 +104,7 @@ export const PUT = createAuthenticatedApiHandler(
 // ---------------------------------------------------------------------------
 export const PATCH = createAuthenticatedApiHandler(
   async (request: NextRequest, { supabase, user }) => {
-    const body = await parseJsonBody<{
-      field: string
-      value: unknown
-      operation?: 'set' | 'add' | 'remove'
-    }>(request)
-
-    const { field, value, operation = 'set' } = body
+    const { field, value, operation = 'set' } = await withValidation(request, patchSchema)
 
     if (!field) {
       throw new Error('Field is required')

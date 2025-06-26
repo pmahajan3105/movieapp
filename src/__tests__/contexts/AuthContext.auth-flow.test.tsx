@@ -6,7 +6,7 @@ import '@testing-library/jest-dom'
 // Mock Supabase browser client
 const mockListeners: Array<(event: string, session: unknown) => void> = []
 
-jest.mock('../../lib/supabase/browser-client', () => {
+jest.mock('../../lib/supabase/client', () => {
   const sessionWrapper: { current: { user: any } | null } = {
     current: { user: { id: 'user-1', email: 'test@example.com' } }, // Initialize immediately
   }

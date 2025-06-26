@@ -9,7 +9,7 @@ jest.mock('@/contexts/AuthContext', () => ({
 }))
 
 // Mock the supabase client
-jest.mock('@/lib/supabase/browser-client', () => ({
+jest.mock('@/lib/supabase/client', () => ({
   supabase: {
     from: jest.fn(() => ({
       upsert: jest.fn(() => Promise.resolve({ error: null })),
@@ -85,35 +85,38 @@ describe('OnboardingFlow', () => {
     ;(useAuth as jest.Mock).mockReturnValue({
       user: mockUser,
     })
-    
+
     // Mock fetch with different responses based on URL
     ;(global.fetch as jest.Mock).mockImplementation((url: string, options?: any) => {
       if (url.includes('/api/movies')) {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({
-            success: true,
-            data: mockMovies,
-          }),
+          json: () =>
+            Promise.resolve({
+              success: true,
+              data: mockMovies,
+            }),
         })
       }
-      
+
       if (url.includes('/api/ratings') && options?.method === 'POST') {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({
-            success: true,
-            message: 'Ratings saved successfully',
-          }),
+          json: () =>
+            Promise.resolve({
+              success: true,
+              message: 'Ratings saved successfully',
+            }),
         })
       }
-      
+
       // Default response for any other API calls
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({
-          success: true,
-        }),
+        json: () =>
+          Promise.resolve({
+            success: true,
+          }),
       })
     })
   })

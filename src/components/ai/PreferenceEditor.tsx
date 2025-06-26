@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Slider } from '@/components/ui/slider'
 import { X, Plus, RotateCcw, Edit3, Trash2 } from 'lucide-react'
 import type { PreferenceData } from '@/types/chat'
+import { useAsyncAction } from '@/hooks/useAsyncOperation'
 
 interface PreferenceEditorProps {
   initialPreferences?: PreferenceData | null
@@ -43,7 +44,7 @@ export function PreferenceEditor({ initialPreferences, onSave, onCancel }: Prefe
     dislikedGenres: '',
   })
 
-  const [isLoading, setIsLoading] = useState(false)
+  const { isLoading, execute } = useAsyncAction()
   const [hasChanges, setHasChanges] = useState(false)
 
   // Track changes
@@ -89,8 +90,7 @@ export function PreferenceEditor({ initialPreferences, onSave, onCancel }: Prefe
   const handleSave = async () => {
     if (!hasChanges) return
 
-    setIsLoading(true)
-    try {
+    await execute(async () => {
       const response = await fetch('/api/preferences', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -106,12 +106,7 @@ export function PreferenceEditor({ initialPreferences, onSave, onCancel }: Prefe
         onSave?.(preferences)
         setHasChanges(false)
       }
-    } catch (error) {
-      console.error('Error saving preferences:', error)
-      alert('Failed to save preferences. Please try again.')
-    } finally {
-      setIsLoading(false)
-    }
+    })
   }
 
   const handleReset = () => {

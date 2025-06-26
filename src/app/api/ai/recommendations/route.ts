@@ -5,6 +5,8 @@ import {
   buildComprehensivePrompt,
 } from '@/lib/ai/enhanced-context'
 import { logger } from '@/lib/logger'
+import { withValidation } from '@/lib/api/factory'
+import { z } from 'zod'
 // import { addMemories } from '@mem0/vercel-ai-provider' // Package removed
 
 // Types for memory function parameters
@@ -42,31 +44,39 @@ const addMemories = async (
   return { success: true }
 }
 
+// Validation schemas
+const recommendationsRequestSchema = z.object({
+  userId: z.string().min(10, 'Invalid user ID format'),
+  sessionId: z.string().optional(),
+  message: z.string().max(1000, 'Message too long. Please keep under 1000 characters.').optional(),
+  count: z
+    .number()
+    .min(1, 'Count must be at least 1')
+    .max(50, 'Count must be at most 50')
+    .optional()
+    .default(10),
+  moodContext: z.string().optional(),
+})
+
+const ratingRequestSchema = z.object({
+  userId: z.string().min(10, 'Invalid user ID format'),
+  movieId: z.string().min(1, 'Movie ID is required'),
+  rating: z
+    .number()
+    .min(1, 'Rating must be at least 1')
+    .max(10, 'Rating must be at most 10')
+    .optional(),
+  action: z.enum(['rating', 'watchlist_add', 'watched', 'like', 'dislike', 'rate']),
+})
+
 export const POST = withError(
   withSupabase(async ({ request, supabase }) => {
     try {
-      const { userId, sessionId, message, count = 10, moodContext } = await request.json()
-
-      // Enhanced input validation
-      if (!userId) {
-        return fail('User ID is required for personalized recommendations', 400)
-      }
-
-      if (typeof userId !== 'string' || userId.length < 10) {
-        return fail('Invalid user ID format', 400)
-      }
-
-      if (count && (typeof count !== 'number' || count < 1 || count > 50)) {
-        return fail('Count must be a number between 1 and 50', 400)
-      }
-
-      if (message && typeof message !== 'string') {
-        return fail('Message must be a text string', 400)
-      }
-
-      if (message && message.length > 1000) {
-        return fail('Message too long. Please keep under 1000 characters.', 400)
-      }
+      // Use standardized validation instead of manual parsing
+      const { userId, sessionId, message, count, moodContext } = await withValidation(
+        request,
+        recommendationsRequestSchema
+      )
 
       if (process.env.NODE_ENV === 'development') {
         logger.info('Enhanced AI recommendations request received', {
@@ -299,11 +309,8 @@ CRITICAL: Return ONLY valid JSON in the exact format specified. No markdown, no 
 export const PATCH = withError(
   withSupabase(async ({ request, supabase }) => {
     try {
-      const { userId, movieId, rating, action } = await request.json()
-
-      if (!userId || !movieId || !action) {
-        return fail('Missing parameters', 400)
-      }
+      // Use standardized validation instead of manual parsing
+      const { userId, movieId, rating, action } = await withValidation(request, ratingRequestSchema)
 
       if (process.env.NODE_ENV === 'development') {
         logger.info('Real-time learning update received', {

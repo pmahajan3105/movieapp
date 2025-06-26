@@ -286,3 +286,32 @@ For production deployment:
    - Set up uptime monitoring
 
 Your CineAI app should now be fully functional! 🎬✨
+
+## Authentication Flow
+
+The application uses a passwordless authentication system with one-time passcodes (OTP) sent to the user's email.
+
+1.  **Request OTP**: The user enters their email address, and a request is sent to the `/api/auth/request-otp` endpoint.
+2.  **Verify OTP**: The user receives a 6-digit code in their email, which they enter into the app. This code is sent to the `/api/auth/verify-otp` endpoint for verification.
+3.  **Session Creation**: Upon successful verification, a session is created, and the user is logged in.
+
+## Deployment
+
+### Recommended: Vercel
+
+The application is optimized for deployment on Vercel.
+
+1.  **Connect Your Repository**: Go to [vercel.com](https://vercel.com) and import your Git repository.
+2.  **Configure Environment Variables**: Add all the necessary environment variables from your `.env.local` file to the Vercel project settings. Ensure you set `NEXT_PUBLIC_SITE_URL` to your production domain.
+3.  **Deploy**: Vercel will automatically build and deploy the application.
+
+### Production URL Configuration
+
+For magic link authentication to work in production, you must configure the redirect URLs in your Supabase project.
+
+1.  **Navigate to Supabase Dashboard**: Go to **Authentication → Settings → URL Configuration**.
+2.  **Set Site URL**: Set the **Site URL** to your production domain (e.g., `https://your-app.vercel.app`).
+3.  **Add Redirect URLs**: Add the following patterns to the **Additional Redirect URLs**:
+    - `https://your-app.vercel.app/**` (for production)
+    - `https://*.vercel.app/**` (for Vercel preview deployments)
+    - `http://localhost:3000/**` (for local development)

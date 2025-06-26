@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { withErrorHandling } from '@/lib/api/factory'
 import { getMovieService } from '@/lib/services/movie-service'
+import { createServerClient } from '@/lib/supabase/server-client'
 
-export const GET = withErrorHandling(async (request: NextRequest, { supabase }) => {
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  const supabase = await createServerClient()
   const { searchParams } = new URL(request.url)
   const query = searchParams.get('query')
   const limit = Math.max(1, parseInt(searchParams.get('limit') || '12') || 12)

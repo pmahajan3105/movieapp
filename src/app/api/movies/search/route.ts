@@ -116,13 +116,12 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
             ? 'No movies found matching your search criteria.'
             : 'Movie database service is temporarily unavailable. Please try again later.'
 
+      const errorCode = tmdbResponse.status === 429 ? 'RATE_LIMIT_ERROR' : 'SERVICE_ERROR'
+      const statusCode = tmdbResponse.status >= 500 ? 503 : tmdbResponse.status
+
       return NextResponse.json(
-        {
-          success: false,
-          error: errorMessage,
-          code: tmdbResponse.status === 429 ? 'RATE_LIMIT_ERROR' : 'SERVICE_ERROR',
-        },
-        { status: tmdbResponse.status >= 500 ? 503 : tmdbResponse.status }
+        { success: false, error: errorMessage, code: errorCode },
+        { status: statusCode }
       )
     }
 
@@ -269,11 +268,12 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
     )
 
     // Wait for all movie details and filter out nulls
-    const allMovies = await Promise.all(moviePromises)
-    const filteredMovies = allMovies.filter(movie => movie !== null)
+    const finalMovies = (await Promise.all(moviePromises)).filter(
+      (movie): movie is NonNullable<typeof movie> => movie !== null
+    )
 
     // Apply sorting
-    const sortedMovies = [...filteredMovies]
+    const sortedMovies = [...finalMovies]
     switch (filters.sortBy) {
       case 'title':
         sortedMovies.sort((a, b) => {
@@ -303,9 +303,9 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
     const paginatedMovies = sortedMovies.slice(0, filters.limit)
 
     // Calculate facets for filtering
-    const allGenres = [...new Set(filteredMovies.flatMap(movie => movie.genre))]
-    const allYears = [...new Set(filteredMovies.map(movie => movie.year).filter(Boolean))]
-    const allDirectors = [...new Set(filteredMovies.flatMap(movie => movie.director))]
+    const allGenres = [...new Set(finalMovies.flatMap(movie => movie.genre))]
+    const allYears = [...new Set(finalMovies.map(movie => movie.year).filter(Boolean))]
+    const allDirectors = [...new Set(finalMovies.flatMap(movie => movie.director))]
 
     const executionTime = Date.now() - startTime
 
@@ -324,22 +324,22 @@ export async function GET(request: NextRequest): Promise<NextResponse<SearchResp
       success: true,
       data: {
         movies: paginatedMovies,
-        totalCount: tmdbData.total_results || filteredMovies.length,
+        totalCount: tmdbData.total_results || finalMovies.length,
         facets: {
           genres: allGenres.slice(0, 20), // Limit facets for performance
           years: allYears.sort((a, b) => b - a).slice(0, 20),
           directors: allDirectors.slice(0, 20),
           ratingRanges: [
-            { range: '0-3', count: filteredMovies.filter(m => (m.rating || 0) <= 3).length },
+            { range: '0-3', count: finalMovies.filter(m => (m.rating || 0) <= 3).length },
             {
               range: '3-6',
-              count: filteredMovies.filter(m => (m.rating || 0) > 3 && (m.rating || 0) <= 6).length,
+              count: finalMovies.filter(m => (m.rating || 0) > 3 && (m.rating || 0) <= 6).length,
             },
             {
               range: '6-8',
-              count: filteredMovies.filter(m => (m.rating || 0) > 6 && (m.rating || 0) <= 8).length,
+              count: finalMovies.filter(m => (m.rating || 0) > 6 && (m.rating || 0) <= 8).length,
             },
-            { range: '8-10', count: filteredMovies.filter(m => (m.rating || 0) > 8).length },
+            { range: '8-10', count: finalMovies.filter(m => (m.rating || 0) > 8).length },
           ],
         },
         searchMeta: {

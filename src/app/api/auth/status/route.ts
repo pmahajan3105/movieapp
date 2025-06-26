@@ -3,12 +3,7 @@ import { createAuthenticatedApiHandler } from '@/lib/api/factory'
 
 export const GET = createAuthenticatedApiHandler(
   async (request: NextRequest, { user, supabase }) => {
-    // Debug: Log all cookies received
-    const cookieCount = request.cookies.getAll().length
-    const cookieNames = request.cookies.getAll().map(c => c.name)
-    console.log('🍪 Cookies received:', { cookieCount, cookieNames })
-
-    // Get session separately to debug
+    // Get session separately to validate auth state
     const {
       data: { session },
       error: sessionError,
@@ -21,8 +16,6 @@ export const GET = createAuthenticatedApiHandler(
       email: user?.email,
       sessionError: sessionError?.message,
     }
-
-    console.log('🔐 Auth status response:', response)
 
     return NextResponse.json({
       success: true,

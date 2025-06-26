@@ -23,6 +23,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext'
 import Image from 'next/image'
 import { useToast } from '@/hooks/useToast'
+import { useAsyncOperation } from '@/hooks/useAsyncOperation'
 
 interface OnboardingFlowProps {
   onComplete: () => void
@@ -111,32 +112,57 @@ export function OnboardingFlow({ onComplete, className = '' }: OnboardingFlowPro
   const [selectedGenres, setSelectedGenres] = useState<string[]>([])
   const [selectedMoods, setSelectedMoods] = useState<string[]>([])
   const [movieRatings, setMovieRatings] = useState<Record<string, number>>({})
-  const [popularMovies, setPopularMovies] = useState<MovieRating[]>([])
-  const [loading, setLoading] = useState(false)
   const [currentMovieIndex, setCurrentMovieIndex] = useState(0)
   const { showSuccess, showError } = useToast()
+
+  // Use useAsyncOperation for fetching popular movies
+  const {
+    isLoading: isLoadingMovies,
+    error: moviesError,
+    data: popularMoviesData,
+    execute: executeMoviesFetch,
+  } = useAsyncOperation<MovieRating[]>([])
+
+  // Use useAsyncOperation for submitting ratings
+  const {
+    isLoading: isSubmittingRatings,
+    error: submitError,
+    execute: executeSubmitRatings,
+  } = useAsyncOperation<void>()
+
+  // Ensure popularMovies is always an array
+  const popularMovies = popularMoviesData || []
 
   const totalSteps = 4
   const progress = (step / totalSteps) * 100
 
   // Fetch popular movies for rating carousel
   useEffect(() => {
-    const fetchPopularMovies = async () => {
-      try {
+    if (step === 3 && popularMovies.length === 0) {
+      executeMoviesFetch(async () => {
         const response = await fetch('/api/movies?limit=20')
         const data = await response.json()
-        if (data.success && data.data) {
-          setPopularMovies(data.data.slice(0, 20))
+        if (!data.success || !data.data) {
+          throw new Error('Failed to fetch popular movies')
         }
-      } catch (error) {
-        console.error('Failed to fetch popular movies:', error)
-      }
+        return data.data.slice(0, 20)
+      })
     }
+  }, [step, popularMovies.length, executeMoviesFetch])
 
-    if (step === 3) {
-      fetchPopularMovies()
+  // Show error toast if movies fetch fails
+  useEffect(() => {
+    if (moviesError) {
+      showError(`Failed to load movies: ${moviesError}`)
     }
-  }, [step])
+  }, [moviesError, showError])
+
+  // Show error toast if submission fails
+  useEffect(() => {
+    if (submitError) {
+      showError(`Failed to save preferences: ${submitError}`)
+    }
+  }, [submitError, showError])
 
   const toggleGenre = (genre: string) => {
     setSelectedGenres(prev => {
@@ -182,17 +208,15 @@ export function OnboardingFlow({ onComplete, className = '' }: OnboardingFlowPro
   const submitRatings = async () => {
     if (!user) return
 
-    setLoading(true)
     const ratingsArray = Array.from(Object.entries(movieRatings))
     const validRatings = ratingsArray.filter(([, rating]) => rating > 0)
 
     if (validRatings.length === 0) {
       showError('No ratings to submit. Please rate at least one movie to continue')
-      setLoading(false)
       return
     }
 
-    try {
+    const result = await executeSubmitRatings(async () => {
       // Submit all ratings in parallel for better performance
       const ratingPromises = validRatings.map(([movieId, rating]) =>
         fetch('/api/user/interactions', {
@@ -222,7 +246,7 @@ export function OnboardingFlow({ onComplete, className = '' }: OnboardingFlowPro
       }
 
       // Update user profile
-      await fetch('/api/user/profile', {
+      const profileResponse = await fetch('/api/user/profile', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -232,14 +256,15 @@ export function OnboardingFlow({ onComplete, className = '' }: OnboardingFlowPro
         }),
       })
 
-      showSuccess('Preferences saved! Your movie preferences have been recorded.')
+      if (!profileResponse.ok) {
+        throw new Error('Failed to update user profile')
+      }
+    })
 
+    // Only show success and complete onboarding if the operation succeeded
+    if (result !== null) {
+      showSuccess('Preferences saved! Your movie preferences have been recorded.')
       onComplete()
-    } catch (error) {
-      console.error('Failed to submit ratings:', error)
-      showError('Failed to save preferences. Please try again')
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -405,7 +430,12 @@ export function OnboardingFlow({ onComplete, className = '' }: OnboardingFlowPro
                 </p>
               </CardHeader>
               <CardContent>
-                {popularMovies.length > 0 && (
+                {isLoadingMovies ? (
+                  <div className="flex flex-col items-center justify-center py-12">
+                    <div className="border-primary h-8 w-8 animate-spin rounded-full border-4 border-t-transparent" />
+                    <p className="mt-4 text-gray-600">Loading popular movies...</p>
+                  </div>
+                ) : popularMovies.length > 0 ? (
                   <div className="space-y-6">
                     {/* Current Movie Display */}
                     <div className="flex flex-col items-center">
@@ -527,6 +557,27 @@ export function OnboardingFlow({ onComplete, className = '' }: OnboardingFlowPro
                       ))}
                     </div>
                   </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12">
+                    <Film className="mb-4 h-12 w-12 text-gray-400" />
+                    <p className="text-gray-600">Unable to load movies for rating</p>
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        executeMoviesFetch(async () => {
+                          const response = await fetch('/api/movies?limit=20')
+                          const data = await response.json()
+                          if (!data.success || !data.data) {
+                            throw new Error('Failed to fetch popular movies')
+                          }
+                          return data.data.slice(0, 20)
+                        })
+                      }
+                      className="mt-4"
+                    >
+                      Try Again
+                    </Button>
+                  </div>
                 )}
 
                 <div className="mt-8 flex justify-between">
@@ -602,13 +653,22 @@ export function OnboardingFlow({ onComplete, className = '' }: OnboardingFlowPro
                 </div>
 
                 <div className="flex justify-between pt-4">
-                  <Button variant="outline" onClick={() => setStep(3)} disabled={loading}>
+                  <Button
+                    variant="outline"
+                    onClick={() => setStep(3)}
+                    disabled={isSubmittingRatings}
+                  >
                     <ChevronLeft className="mr-2 h-4 w-4" />
                     Back
                   </Button>
 
-                  <Button onClick={submitRatings} disabled={loading} size="lg" className="px-8">
-                    {loading ? (
+                  <Button
+                    onClick={submitRatings}
+                    disabled={isSubmittingRatings}
+                    size="lg"
+                    className="px-8"
+                  >
+                    {isSubmittingRatings ? (
                       <>
                         <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-white" />
                         Creating Your Profile...

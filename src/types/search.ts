@@ -47,7 +47,11 @@ export interface AutocompleteResponse {
     actors: string[]
     suggestions: string[]
   }
-  error?: string
+  error?: {
+    message: string
+    code: string
+    details?: unknown
+  }
 }
 
 export interface FilterPreset {

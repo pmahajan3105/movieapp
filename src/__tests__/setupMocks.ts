@@ -478,7 +478,7 @@ jest.mock('next/headers', () => ({
 //---------------------------------------------
 // Mock Supabase client creation for the factory
 //---------------------------------------------
-jest.mock('@/lib/supabase/browser-client', () => ({
+jest.mock('@/lib/supabase/client', () => ({
   createBrowserSupabaseClient: jest.fn(() => createMockSupabaseClient()),
   supabase: createMockSupabaseClient(),
 }))

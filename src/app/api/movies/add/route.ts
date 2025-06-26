@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createServerClient as createSupabaseClient } from '@/lib/supabase/client'
+import { withErrorHandling, createApiResponse } from '@/lib/api/factory'
 import { logger } from '@/lib/logger'
 
 const popularMovies = [
@@ -275,86 +275,79 @@ const popularMovies = [
   },
 ]
 
-export async function POST() {
-  try {
-    const supabase = await createSupabaseClient()
+export const POST = withErrorHandling(async (_request, { supabase }) => {
+  logger.info('Adding popular movies to database')
 
-    logger.info('Adding popular movies to database')
+  // Check current movie count
+  const { count: currentCount } = await supabase
+    .from('movies')
+    .select('*', { count: 'exact', head: true })
 
-    // Check current movie count
-    const { count: currentCount } = await supabase
+  logger.info('Current movies in database', {
+    currentCount: currentCount || 0,
+  })
+
+  // Add movies in batches to avoid conflicts
+  let addedCount = 0
+  const results = []
+
+  for (const movie of popularMovies) {
+    // Check if movie already exists
+    const { data: existing } = await supabase
       .from('movies')
-      .select('*', { count: 'exact', head: true })
+      .select('id')
+      .eq('title', movie.title)
+      .eq('year', movie.year)
+      .single()
 
-    logger.info('Current movies in database', {
-      currentCount: currentCount || 0,
-    })
-
-    // Add movies in batches to avoid conflicts
-    let addedCount = 0
-    const results = []
-
-    for (const movie of popularMovies) {
-      // Check if movie already exists
-      const { data: existing } = await supabase
-        .from('movies')
-        .select('id')
-        .eq('title', movie.title)
-        .eq('year', movie.year)
-        .single()
-
-      if (existing) {
-        logger.info('Skipping existing movie', {
-          title: movie.title,
-          year: movie.year,
-          reason: 'already exists',
-        })
-        results.push({ movie: movie.title, status: 'skipped', reason: 'already exists' })
-        continue
-      }
-
-      // Insert the movie
-      const { error } = await supabase.from('movies').insert([movie])
-
-      if (error) {
-        logger.dbError('add-movie-insertion', new Error(error.message), {
-          title: movie.title,
-          year: movie.year,
-          errorCode: error.code,
-        })
-        results.push({ movie: movie.title, status: 'error', reason: error.message })
-      } else {
-        logger.info('Successfully added movie', {
-          title: movie.title,
-          year: movie.year,
-        })
-        results.push({ movie: movie.title, status: 'added' })
-        addedCount++
-      }
+    if (existing) {
+      logger.info('Skipping existing movie', {
+        title: movie.title,
+        year: movie.year,
+        reason: 'already exists',
+      })
+      results.push({ movie: movie.title, status: 'skipped', reason: 'already exists' })
+      continue
     }
 
-    // Final count
-    const { count: finalCount } = await supabase
-      .from('movies')
-      .select('*', { count: 'exact', head: true })
+    // Insert the movie
+    const { error } = await supabase.from('movies').insert([movie])
 
-    logger.info('Movie addition completed', {
-      addedCount,
-      totalMovies: finalCount || 0,
-      totalCandidates: popularMovies.length,
-    })
+    if (error) {
+      logger.dbError('add-movie-insertion', new Error(error.message), {
+        title: movie.title,
+        year: movie.year,
+        errorCode: error.code,
+      })
+      results.push({ movie: movie.title, status: 'error', reason: error.message })
+    } else {
+      logger.info('Successfully added movie', {
+        title: movie.title,
+        year: movie.year,
+      })
+      results.push({ movie: movie.title, status: 'added' })
+      addedCount++
+    }
+  }
 
-    return NextResponse.json({
-      success: true,
+  // Final count
+  const { count: finalCount } = await supabase
+    .from('movies')
+    .select('*', { count: 'exact', head: true })
+
+  logger.info('Movie addition completed', {
+    addedCount,
+    totalMovies: finalCount || 0,
+    totalCandidates: popularMovies.length,
+  })
+
+  return NextResponse.json(
+    createApiResponse(true, {
       message: `Successfully added ${addedCount} new movies!`,
       addedCount,
       totalMovies: finalCount,
       results,
-    })
-  } catch (error) {
-    logger.error('Error adding movies', {
-      error: error instanceof Error ? error.message : String(error),
-    })
-    return NextResponse.json({ success: false, error: 'Failed to add movies' }, { status: 500 })
-  }
-}
+    }),
+    { status: 200 }
+  )
+})

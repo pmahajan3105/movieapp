@@ -5,6 +5,7 @@ import { analyzeCompleteUserBehavior, type UserBehaviorProfile } from '@/lib/ai/
 // import { movieMemoryService } from '@/lib/mem0/client' // Disabled - package removed
 import { useAuth } from '@/contexts/AuthContext'
 import Link from 'next/link'
+import { useAsyncOperation } from '@/hooks/useAsyncOperation'
 
 // interface MovieMemory {
 //   id: string
@@ -23,8 +24,7 @@ interface IntelligenceDisplayProps {
 
 export function IntelligenceDisplay({ className = '', onClose }: IntelligenceDisplayProps) {
   const { user } = useAuth()
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { isLoading, error, execute } = useAsyncOperation<UserBehaviorProfile>(null)
   const [behaviorProfile, setBehaviorProfile] = useState<UserBehaviorProfile | null>(null)
   const [memories, setMemories] = useState<
     Array<{ memory: string; created_at: string; category: string }>
@@ -36,25 +36,15 @@ export function IntelligenceDisplay({ className = '', onClose }: IntelligenceDis
   const loadIntelligenceData = useCallback(async () => {
     if (!user?.id) return
 
-    try {
-      setIsLoading(true)
-      setError(null)
-
+    await execute(async () => {
       // Load behavioral analysis (memory service disabled)
       const profile = await analyzeCompleteUserBehavior(user.id)
-
       setBehaviorProfile(profile)
       // Memory data disabled - package removed
       setMemories([])
-    } catch (error) {
-      console.error('Failed to load intelligence data:', error)
-      setError(
-        'Unable to analyze movie intelligence. You might need to rate some movies or use the chat to tell the AI your preferences.'
-      )
-    } finally {
-      setIsLoading(false)
-    }
-  }, [user?.id])
+      return profile
+    })
+  }, [user?.id, execute])
 
   useEffect(() => {
     if (user?.id) {

@@ -3,7 +3,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { withErrorHandling, parseJsonBody } from '@/lib/api/factory'
+import { withErrorHandling, withValidation } from '@/lib/api/factory'
 import { SemanticRecommendationService } from '@/lib/services/semantic-recommendations'
 import { z } from 'zod'
 import { logger } from '@/lib/logger'
@@ -21,15 +21,7 @@ const semanticRequestSchema = z.object({
 // POST /api/recommendations/semantic – Generate semantic recommendations
 export const POST = withErrorHandling(async (request: NextRequest, { supabase }) => {
   // Parse and validate the request body
-  const bodyJson = await parseJsonBody<unknown>(request)
-
-  const parsed = semanticRequestSchema.safeParse(bodyJson)
-  if (!parsed.success) {
-    const errorMsg = parsed.error.errors.map(e => e.message).join(', ')
-    throw new Error(`Validation error: ${errorMsg}`)
-  }
-
-  const body = parsed.data
+  const body = await withValidation(request, semanticRequestSchema)
 
   // Debug log (dev only)
   if (process.env.NODE_ENV === 'development') {

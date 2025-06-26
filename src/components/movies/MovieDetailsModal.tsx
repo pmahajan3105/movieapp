@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React from 'react'
 import Image from 'next/image'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Plus, Minus, Star, Calendar, Clock } from 'lucide-react'
 import type { Movie } from '@/types'
 import { toast } from 'react-hot-toast'
+import { useAsyncAction } from '@/hooks/useAsyncOperation'
 
 interface MovieDetailsModalProps {
   movie: Movie | null
@@ -24,7 +25,7 @@ export function MovieDetailsModal({
   onRemoveFromWatchlist,
   isInWatchlist = false,
 }: MovieDetailsModalProps) {
-  const [isLoading, setIsLoading] = useState(false)
+  const { isLoading, execute } = useAsyncAction()
 
   if (!movie) return null
 
@@ -33,8 +34,7 @@ export function MovieDetailsModal({
 
     console.log('🎬 Watchlist action triggered', { movieId: movie.id, isInWatchlist })
 
-    setIsLoading(true)
-    try {
+    const success = await execute(async () => {
       if (isInWatchlist) {
         console.log('🗑️ Removing from watchlist...')
         await onRemoveFromWatchlist?.(movie.id)
@@ -42,11 +42,11 @@ export function MovieDetailsModal({
         console.log('➕ Adding to watchlist...')
         await onAddToWatchlist?.(movie.id)
       }
-    } catch (error) {
-      console.error('❌ Watchlist action failed:', error)
+    })
+
+    if (!success) {
+      console.error('❌ Watchlist action failed')
       toast.error('Failed to update watchlist. Please try again.')
-    } finally {
-      setIsLoading(false)
     }
   }
 

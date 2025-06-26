@@ -25,6 +25,7 @@ export function NavigationHeader() {
   const pathname = usePathname()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isAccountDropdownOpen, setIsAccountDropdownOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const [mounted, setMounted] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -79,6 +80,14 @@ export function NavigationHeader() {
     setIsMobileMenuOpen(false)
   }, [pathname])
 
+  // Clear search when navigating away from search pages
+  useEffect(() => {
+    // Clear search if not on search page or movie detail from search
+    if (!pathname.startsWith('/search') && pathname !== '/') {
+      setSearchQuery('')
+    }
+  }, [pathname])
+
   const handleSignOut = async () => {
     try {
       await signOut()
@@ -92,8 +101,14 @@ export function NavigationHeader() {
 
   // Handle search navigation
   const handleSearch = (query: string) => {
+    setSearchQuery(query) // Update local state
     router.push(`/search?q=${encodeURIComponent(query)}`)
     setIsMobileMenuOpen(false)
+  }
+
+  // Handle search input change
+  const handleSearchChange = (query: string) => {
+    setSearchQuery(query)
   }
 
   const navItems = [
@@ -157,7 +172,11 @@ export function NavigationHeader() {
             {/* Search - Hide on mobile */}
             {user && (
               <div className="hidden md:block">
-                <SearchInterface onSearch={handleSearch} />
+                <SearchInterface
+                  onSearch={handleSearch}
+                  initialQuery={searchQuery}
+                  onQueryChange={handleSearchChange}
+                />
               </div>
             )}
 
@@ -235,7 +254,11 @@ export function NavigationHeader() {
           <div className="border-t bg-white py-4 md:hidden">
             {/* Mobile Search */}
             <div className="mb-4 px-4">
-              <SearchInterface onSearch={handleSearch} />
+              <SearchInterface
+                onSearch={handleSearch}
+                initialQuery={searchQuery}
+                onQueryChange={handleSearchChange}
+              />
             </div>
 
             {/* Mobile Navigation */}

@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { withErrorHandling } from '@/lib/api/factory'
 import { logger } from '@/lib/logger'
+import { createServerClient } from '@/lib/supabase/server-client'
 
-export const GET = withErrorHandling(async (request: NextRequest, { supabase }) => {
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  const supabase = await createServerClient()
   const movieId = request.nextUrl.pathname.split('/').slice(-2)[0] // segment before /similar
   const { searchParams } = new URL(request.url)
   const limit = parseInt(searchParams.get('limit') || '6')

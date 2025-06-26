@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/contexts/AuthContext'
+import { useAsyncAction } from '@/hooks/useAsyncOperation'
 
 const otpSchema = z.object({
   otp: z
@@ -25,9 +26,8 @@ interface OtpFormProps {
 }
 
 export function OtpForm({ email, onBackToLogin }: OtpFormProps) {
-  const [isLoading, setIsLoading] = useState(false)
-  const [isResending, setIsResending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { isLoading, error, execute } = useAsyncAction()
+  const { isLoading: isResending, execute: executeResend } = useAsyncAction()
   const [resendTimer, setResendTimer] = useState(60)
   const [canResend, setCanResend] = useState(false)
   const router = useRouter()
@@ -67,10 +67,7 @@ export function OtpForm({ email, onBackToLogin }: OtpFormProps) {
 
   const onSubmit = useCallback(
     async (data: OtpFormData) => {
-      setIsLoading(true)
-      setError(null)
-
-      try {
+      await execute(async () => {
         const response = await fetch('/api/auth/verify-otp', {
           method: 'POST',
           headers: {
@@ -97,13 +94,9 @@ export function OtpForm({ email, onBackToLogin }: OtpFormProps) {
         } else {
           router.push('/dashboard/preferences')
         }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'An unexpected error occurred')
-      } finally {
-        setIsLoading(false)
-      }
+      })
     },
-    [email, refreshUser, router]
+    [email, refreshUser, router, execute]
   )
 
   // Auto-submit when OTP is 6 digits
@@ -114,12 +107,10 @@ export function OtpForm({ email, onBackToLogin }: OtpFormProps) {
   }, [otpValue, handleSubmit, onSubmit])
 
   const handleResend = async () => {
-    setIsResending(true)
-    setError(null)
     setCanResend(false)
     setResendTimer(60)
 
-    try {
+    const success = await executeResend(async () => {
       const response = await fetch('/api/auth/request-otp', {
         method: 'POST',
         headers: {
@@ -133,12 +124,12 @@ export function OtpForm({ email, onBackToLogin }: OtpFormProps) {
       if (!response.ok) {
         throw new Error(result.error || 'Failed to resend verification code')
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to resend code')
+    })
+
+    // If resend failed, reset timer and allow retry
+    if (!success) {
       setCanResend(true)
       setResendTimer(0)
-    } finally {
-      setIsResending(false)
     }
   }
 
@@ -198,34 +189,40 @@ export function OtpForm({ email, onBackToLogin }: OtpFormProps) {
           )}
         </Button>
 
-        <div className="space-y-2 text-center">
-          <p className="text-sm text-gray-600">Didn&apos;t receive the code?</p>
-
-          {canResend ? (
+        <div className="text-center">
+          <p className="text-sm text-gray-600">
+            Didn&apos;t receive the code?{' '}
             <Button
               type="button"
               variant="link"
+              className="p-0 text-blue-600 hover:text-blue-500"
               onClick={handleResend}
-              disabled={isResending}
-              className="text-blue-600 hover:text-blue-800"
+              disabled={!canResend || isResending}
             >
               {isResending ? (
-                <div className="flex items-center space-x-2">
-                  <div className="h-3 w-3 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
-                  <span>Sending...</span>
-                </div>
-              ) : (
+                <>
+                  <div className="mr-1 h-3 w-3 animate-spin rounded-full border border-current border-t-transparent" />
+                  Sending...
+                </>
+              ) : canResend ? (
                 'Resend code'
+              ) : (
+                `Resend in ${resendTimer}s`
               )}
             </Button>
-          ) : (
-            <p className="text-sm text-gray-500">Resend available in {resendTimer}s</p>
-          )}
+          </p>
         </div>
 
-        <Button type="button" variant="ghost" onClick={onBackToLogin} className="w-full">
-          Back to login
-        </Button>
+        <div className="text-center">
+          <Button
+            type="button"
+            variant="link"
+            className="text-gray-600 hover:text-gray-500"
+            onClick={onBackToLogin}
+          >
+            Back to login
+          </Button>
+        </div>
       </form>
     </div>
   )

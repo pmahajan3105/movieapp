@@ -1,18 +1,50 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { withErrorHandling, withValidation } from '@/lib/api/factory'
 import { createClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 
 const analyticsSchema = z.object({
-  sessionId: z.string(),
-  event: z.enum(['conversation_started', 'message_sent', 'preferences_extracted', 'conversation_completed']),
-  metadata: z.object({
-    messageCount: z.number().optional(),
-    responseTime: z.number().optional(),
-    userSatisfaction: z.number().min(1).max(5).optional(),
-    extractionAccuracy: z.number().min(0).max(100).optional(),
-    preferenceCategories: z.number().optional(),
-    conversationLength: z.number().optional(),
-  }).optional(),
+  sessionId: z.string().min(1, 'Session ID is required').max(100, 'Session ID too long'),
+  event: z.enum([
+    'conversation_started',
+    'message_sent',
+    'preferences_extracted',
+    'conversation_completed',
+  ]),
+  metadata: z
+    .object({
+      messageCount: z
+        .number()
+        .min(0, 'Message count must be non-negative')
+        .max(1000, 'Message count too high')
+        .optional(),
+      responseTime: z
+        .number()
+        .min(0, 'Response time must be non-negative')
+        .max(30000, 'Response time too high')
+        .optional(),
+      userSatisfaction: z
+        .number()
+        .min(1, 'User satisfaction must be between 1-5')
+        .max(5, 'User satisfaction must be between 1-5')
+        .optional(),
+      extractionAccuracy: z
+        .number()
+        .min(0, 'Extraction accuracy must be 0-100')
+        .max(100, 'Extraction accuracy must be 0-100')
+        .optional(),
+      preferenceCategories: z
+        .number()
+        .min(0, 'Preference categories must be non-negative')
+        .max(50, 'Too many preference categories')
+        .optional(),
+      conversationLength: z
+        .number()
+        .min(0, 'Conversation length must be non-negative')
+        .max(10000, 'Conversation too long')
+        .optional(),
+    })
+    .optional(),
 })
 
 interface AnalyticsRecord {
@@ -31,134 +63,101 @@ interface AnalyticsRecord {
 }
 
 // POST - Track conversation events
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json()
-    const { sessionId, event, metadata } = analyticsSchema.parse(body)
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  const { sessionId, event, metadata } = await withValidation(request, analyticsSchema)
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+  // Use manual client for analytics table since it's not in our main schema
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
 
-    // Store analytics event
-    const { error: analyticsError } = await supabase
-      .from('conversation_analytics')
-      .insert({
-        session_id: sessionId,
-        event_type: event,
-        metadata: metadata || {},
-        timestamp: new Date().toISOString(),
-      })
+  // Store analytics event
+  const { error: analyticsError } = await supabase.from('conversation_analytics').insert({
+    session_id: sessionId,
+    event_type: event,
+    metadata: metadata || {},
+    timestamp: new Date().toISOString(),
+  })
 
-    if (analyticsError) {
-      console.error('Analytics storage error:', analyticsError)
-      // Don't fail the request for analytics errors
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: 'Analytics event recorded',
-    })
-
-  } catch (error) {
-    console.error('❌ Analytics error:', error)
-    
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        {
-          error: 'Invalid analytics data',
-          details: error.errors,
-          success: false,
-        },
-        { status: 400 }
-      )
-    }
-
-    return NextResponse.json(
-      { 
-        error: 'Failed to record analytics',
-        success: false 
-      },
-      { status: 500 }
-    )
+  if (analyticsError) {
+    console.error('Analytics storage error:', analyticsError)
+    // Don't fail the request for analytics errors - just warn
   }
-}
+
+  return NextResponse.json({
+    success: true,
+    message: 'Analytics event recorded',
+  })
+})
 
 // GET - Retrieve conversation analytics
-export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url)
-    const sessionId = searchParams.get('sessionId')
-    const timeframe = searchParams.get('timeframe') || '7d'
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  const { searchParams } = new URL(request.url)
+  const sessionId = searchParams.get('sessionId')
+  const timeframe = searchParams.get('timeframe') || '7d'
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+  // Use manual client for analytics table since it's not in our main schema
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
 
-    let query = supabase
-      .from('conversation_analytics')
-      .select('*')
-      .order('timestamp', { ascending: false })
+  let query = supabase
+    .from('conversation_analytics')
+    .select('*')
+    .order('timestamp', { ascending: false })
 
-    if (sessionId) {
-      query = query.eq('session_id', sessionId)
-    } else {
-      // Apply timeframe filter
-      const now = new Date()
-      const startDate = new Date()
-      
-      switch (timeframe) {
-        case '1d':
-          startDate.setDate(now.getDate() - 1)
-          break
-        case '7d':
-          startDate.setDate(now.getDate() - 7)
-          break
-        case '30d':
-          startDate.setDate(now.getDate() - 30)
-          break
-        default:
-          startDate.setDate(now.getDate() - 7)
-      }
+  if (sessionId) {
+    query = query.eq('session_id', sessionId)
+  } else {
+    // Apply timeframe filter
+    const now = new Date()
+    const startDate = new Date()
 
-      query = query.gte('timestamp', startDate.toISOString())
+    switch (timeframe) {
+      case '1d':
+        startDate.setDate(now.getDate() - 1)
+        break
+      case '7d':
+        startDate.setDate(now.getDate() - 7)
+        break
+      case '30d':
+        startDate.setDate(now.getDate() - 30)
+        break
+      default:
+        startDate.setDate(now.getDate() - 7)
     }
 
-    const { data: analytics, error } = await query.limit(1000)
-
-    if (error) {
-      throw error
-    }
-
-    // Calculate summary metrics
-    const summary = calculateAnalyticsSummary(analytics || [])
-
-    return NextResponse.json({
-      success: true,
-      analytics: analytics || [],
-      summary,
-      timeframe,
-    })
-
-  } catch (error) {
-    console.error('❌ Error fetching analytics:', error)
-    return NextResponse.json(
-      { 
-        error: 'Failed to fetch analytics',
-        success: false 
-      },
-      { status: 500 }
-    )
+    query = query.gte('timestamp', startDate.toISOString())
   }
-}
+
+  const { data: analytics, error } = await query.limit(1000)
+
+  if (error) {
+    throw new Error(`Failed to fetch analytics: ${error.message}`)
+  }
+
+  // Calculate summary metrics
+  const summary = calculateAnalyticsSummary(analytics || [])
+
+  return NextResponse.json({
+    success: true,
+    analytics: analytics || [],
+    summary,
+    timeframe,
+  })
+})
 
 function calculateAnalyticsSummary(analytics: AnalyticsRecord[]) {
   const conversationStarts = analytics.filter(a => a.event_type === 'conversation_started').length
-  const conversationCompletions = analytics.filter(a => a.event_type === 'conversation_completed').length
-  const preferencesExtracted = analytics.filter(a => a.event_type === 'preferences_extracted').length
-  
+  const conversationCompletions = analytics.filter(
+    a => a.event_type === 'conversation_completed'
+  ).length
+  const preferencesExtracted = analytics.filter(
+    a => a.event_type === 'preferences_extracted'
+  ).length
+
   const totalMessages = analytics
     .filter(a => a.event_type === 'message_sent')
     .reduce((sum, a) => sum + (a.metadata?.messageCount || 1), 0)
@@ -168,21 +167,25 @@ function calculateAnalyticsSummary(analytics: AnalyticsRecord[]) {
     .map(a => a.metadata?.responseTime)
     .filter((time): time is number => time !== undefined)
 
-  const avgResponseTime = avgResponseTimes.length > 0 
-    ? avgResponseTimes.reduce((sum, time) => sum + time, 0) / avgResponseTimes.length 
-    : 0
+  const avgResponseTime =
+    avgResponseTimes.length > 0
+      ? avgResponseTimes.reduce((sum, time) => sum + time, 0) / avgResponseTimes.length
+      : 0
 
   const satisfactionScores = analytics
     .filter(a => a.metadata?.userSatisfaction)
     .map(a => a.metadata?.userSatisfaction)
     .filter((score): score is number => score !== undefined)
 
-  const avgSatisfaction = satisfactionScores.length > 0 
-    ? satisfactionScores.reduce((sum, score) => sum + score, 0) / satisfactionScores.length 
-    : 0
+  const avgSatisfaction =
+    satisfactionScores.length > 0
+      ? satisfactionScores.reduce((sum, score) => sum + score, 0) / satisfactionScores.length
+      : 0
 
-  const completionRate = conversationStarts > 0 ? (conversationCompletions / conversationStarts) * 100 : 0
-  const extractionRate = conversationStarts > 0 ? (preferencesExtracted / conversationStarts) * 100 : 0
+  const completionRate =
+    conversationStarts > 0 ? (conversationCompletions / conversationStarts) * 100 : 0
+  const extractionRate =
+    conversationStarts > 0 ? (preferencesExtracted / conversationStarts) * 100 : 0
 
   return {
     totalConversations: conversationStarts,
@@ -194,4 +197,4 @@ function calculateAnalyticsSummary(analytics: AnalyticsRecord[]) {
     avgSatisfaction: Math.round(avgSatisfaction * 100) / 100,
     preferencesExtracted,
   }
-} 
+}

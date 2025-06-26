@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { User } from '@supabase/supabase-js'
-import { createServerClient } from '@/lib/supabase/client'
-import { createServerClient as createSupabaseClient } from '@/lib/supabase/client'
+import { createServerClient } from '@/lib/supabase/server-client'
+import { createServerClient as createSupabaseClient } from '@/lib/supabase/server-client'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { GeneratedDatabase } from '@/lib/supabase/types'
 import { logger } from '@/lib/logger'
@@ -111,6 +111,47 @@ export function handleSupabaseError(error: unknown): {
  */
 export async function parseJsonBody<T = unknown>(req: Request): Promise<T> {
   return req.json() as Promise<T>
+}
+
+/**
+ * Validation helper to standardize Zod validation across routes
+ */
+export async function withValidation<T>(
+  request: NextRequest,
+  schema: {
+    safeParse: (data: unknown) => {
+      success: boolean
+      data?: T
+      error?: { errors: Array<{ message: string }> }
+    }
+  }
+): Promise<T> {
+  const body = await parseJsonBody(request)
+  const result = schema.safeParse(body)
+
+  if (!result.success) {
+    const fieldErrors = result.error?.errors.map(err => err.message).join(', ')
+    throw new Error(`Validation error: ${fieldErrors}`)
+  }
+
+  return result.data!
+}
+
+/**
+ * Cookie utilities for standardized cookie handling
+ */
+export const cookieUtils = {
+  get: (request: NextRequest, name: string): string | undefined => {
+    return request.cookies.get(name)?.value
+  },
+
+  getAll: (request: NextRequest) => {
+    return request.cookies.getAll()
+  },
+
+  has: (request: NextRequest, name: string): boolean => {
+    return request.cookies.has(name)
+  },
 }
 
 /**
