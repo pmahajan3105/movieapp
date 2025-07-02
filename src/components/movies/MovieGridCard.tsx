@@ -3,10 +3,14 @@
 import React from 'react'
 import Image from 'next/image'
 import { Heart, Bookmark, Star, ThumbsUp, ThumbsDown } from 'lucide-react'
-import { MovieGridCardProps } from '@/types'
+
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { ConfidenceBadge } from '@/components/ui/ConfidenceBadge'
+import { ExplanationBadge } from '@/components/ui/ExplanationBadge'
+import { ExplanationPopover } from '@/components/movies/ExplanationPopover'
 import { useRateMovie } from '@/hooks/useRateMovie'
+import { cn } from '@/lib/utils'
+import { MovieGridCardProps } from '@/types'
 
 export const MovieGridCard: React.FC<MovieGridCardProps> = ({
   movie,
@@ -15,6 +19,8 @@ export const MovieGridCard: React.FC<MovieGridCardProps> = ({
   onAddToWatchlist,
   size = 'md',
   className = '',
+  priority = false, // Add priority prop for above-the-fold images
+  index = 0, // Add index prop for determining priority
 }) => {
   const { mutate: rateMovie } = useRateMovie()
 
@@ -100,8 +106,11 @@ export const MovieGridCard: React.FC<MovieGridCardProps> = ({
             src={movie.poster_url}
             alt={movie.title}
             fill
-            className="object-cover"
+            className="object-cover transition-opacity duration-300"
             sizes={`(max-width: 768px) 50vw, ${size === 'sm' ? '16vw' : size === 'md' ? '20vw' : '24vw'}`}
+            priority={priority || index < 6} // Prioritize first 6 images
+            placeholder="blur"
+            blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k="
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-gray-300 to-gray-500">
@@ -129,6 +138,18 @@ export const MovieGridCard: React.FC<MovieGridCardProps> = ({
           <div className="absolute top-2 left-2 flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-xs text-white">
             <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
             {movie.rating.toFixed(1)}
+          </div>
+        )}
+
+        {/* Explanation confidence badge */}
+        {(movie as any).explanation && (
+          <div className="absolute bottom-2 right-2 z-20 flex flex-col items-end gap-1 group/expl">
+            <ConfidenceBadge explanation={(movie as any).explanation} />
+            <ExplanationBadge explanation={(movie as any).explanation} className="max-w-[8rem]" />
+            {/* popover */}
+            <div className="absolute bottom-full right-0 mb-2 hidden group-hover/expl:block w-64">
+              <ExplanationPopover explanation={(movie as any).explanation} />
+            </div>
           </div>
         )}
 

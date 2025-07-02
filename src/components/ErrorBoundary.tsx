@@ -1,18 +1,21 @@
 'use client'
 
 import React, { Component, ErrorInfo, ReactNode } from 'react'
-import { AlertTriangle, RefreshCcw, Home } from 'lucide-react'
+import { AlertTriangle, RefreshCcw, Home, Wrench } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { logger } from '@/lib/logger'
 
 interface Props {
   children: ReactNode
   fallback?: ReactNode
+  reportError?: (error: Error, context?: string) => string
 }
 
 interface State {
   hasError: boolean
   error?: Error
   errorInfo?: ErrorInfo
+  errorId?: string
 }
 
 class ErrorBoundary extends Component<Props, State> {
@@ -27,27 +30,36 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   override componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    // Report to error recovery system if available
+    let errorId: string | undefined
+    if (this.props.reportError) {
+      errorId = this.props.reportError(error, 'React Error Boundary')
+    }
+
     // Update state with error details
     this.setState({
       error,
       errorInfo,
+      errorId
     })
 
-    // Log error to console in development
-    if (process.env.NODE_ENV === 'development') {
-      console.error('❌ ErrorBoundary caught an error:', error)
-      console.error('Error Info:', errorInfo)
-    }
-
-    // In production, you could send this to an error reporting service
-    if (process.env.NODE_ENV === 'production') {
-      // Example: logErrorToService(error, errorInfo)
-      console.error('Production error caught by ErrorBoundary:', error.message)
-    }
+    // Log error using proper logger
+    logger.error('ErrorBoundary caught an error', {
+      errorId,
+      error: error.message,
+      stack: error.stack,
+      componentStack: errorInfo.componentStack,
+    })
   }
 
   handleReset = () => {
-    this.setState({ hasError: false, error: undefined, errorInfo: undefined })
+    this.setState({ hasError: false, error: undefined, errorInfo: undefined, errorId: undefined })
+  }
+
+  handleSafeMode = () => {
+    // Enable safe mode and redirect
+    localStorage.setItem('safe-mode', 'true')
+    window.location.href = '/dashboard?mode=safe'
   }
 
   override render() {
@@ -98,6 +110,11 @@ class ErrorBoundary extends Component<Props, State> {
                 <Button onClick={this.handleReset} className="btn btn-primary">
                   <RefreshCcw className="mr-2 h-4 w-4" />
                   Try Again
+                </Button>
+
+                <Button onClick={this.handleSafeMode} className="btn btn-warning">
+                  <Wrench className="mr-2 h-4 w-4" />
+                  Safe Mode
                 </Button>
 
                 <Button

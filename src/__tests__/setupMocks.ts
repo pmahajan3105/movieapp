@@ -27,30 +27,58 @@ jest.mock('@tanstack/react-query', () => ({
 // Helper: create a minimal Supabase client mock
 //---------------------------------------------
 export const createMockSupabaseClient = () => {
-  const builder = {
-    select: jest.fn().mockReturnThis(),
-    insert: jest.fn().mockReturnThis(),
-    update: jest.fn().mockReturnThis(),
-    upsert: jest.fn().mockResolvedValue({ error: null }),
-    delete: jest.fn().mockReturnThis(),
-    eq: jest.fn().mockReturnThis(),
-    order: jest.fn().mockReturnThis(),
-    or: jest.fn().mockReturnThis(),
-    overlaps: jest.fn().mockReturnThis(),
-    not: jest.fn().mockReturnThis(),
-    gte: jest.fn().mockReturnThis(),
-    lte: jest.fn().mockReturnThis(),
-    range: jest.fn().mockResolvedValue({
-      data: [],
-      error: null,
-      count: 0,
-    }),
-    limit: jest.fn().mockReturnThis(),
-    single: jest.fn().mockResolvedValue({
-      data: { id: 'mock-id', watched: false },
-      error: null,
-    }),
+  // Create a comprehensive chainable builder that supports all Supabase query methods
+  const createChainableBuilder = (defaultData = []) => {
+    const builder = {
+      // Query building methods (return this for chaining)
+      select: jest.fn().mockReturnThis(),
+      insert: jest.fn().mockReturnThis(),
+      update: jest.fn().mockReturnThis(),
+      delete: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      neq: jest.fn().mockReturnThis(),
+      gt: jest.fn().mockReturnThis(),
+      gte: jest.fn().mockReturnThis(),
+      lt: jest.fn().mockReturnThis(),
+      lte: jest.fn().mockReturnThis(),
+      like: jest.fn().mockReturnThis(),
+      ilike: jest.fn().mockReturnThis(),
+      is: jest.fn().mockReturnThis(),
+      in: jest.fn().mockReturnThis(),
+      contains: jest.fn().mockReturnThis(),
+      containedBy: jest.fn().mockReturnThis(),
+      overlaps: jest.fn().mockReturnThis(),
+      order: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      range: jest.fn().mockReturnThis(),
+      or: jest.fn().mockReturnThis(),
+      not: jest.fn().mockReturnThis(),
+      filter: jest.fn().mockReturnThis(),
+      
+      // Terminal operations (return promises)
+      single: jest.fn().mockResolvedValue({
+        data: { id: 'mock-id', watched: false },
+        error: null,
+      }),
+      maybeSingle: jest.fn().mockResolvedValue({
+        data: { id: 'mock-id', watched: false },
+        error: null,
+      }),
+      
+      // Default execution (used when chain ends without explicit terminal)
+      then: jest.fn((onFulfilled) => {
+        const result = { data: defaultData, error: null, count: defaultData.length }
+        return Promise.resolve(onFulfilled ? onFulfilled(result) : result)
+      }),
+    }
+
+    // Special handling for operations that can be terminal or chainable
+    builder.upsert = jest.fn().mockResolvedValue({ error: null })
+    
+    return builder
   }
+  
+  const builder = createChainableBuilder([])
 
   return {
     auth: {
@@ -475,6 +503,3 @@ describe('setupMocks', () => {
 //---------------------------------------------
 // Supabase packages
 //---------------------------------------------
-jest.mock('@supabase/supabase-js', () => ({
-  createClient: jest.fn(() => createMockSupabaseClient()),
-}))

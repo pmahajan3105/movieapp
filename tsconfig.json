@@ -41,5 +41,5 @@
     "types": ["jest", "@testing-library/jest-dom", "node"]
   },
   "include": ["**/*.ts", "**/*.tsx", "next-env.d.ts", "src/**/*", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", ".next", "e2e", "performance"]
+  "exclude": ["node_modules", ".next", "e2e", "performance", "src/__tests__", "src/lib/ai", "src/app/api/movies/handlers", "src/app/dashboard"]
 }

@@ -1,0 +1,425 @@
+name: Performance Testing
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run performance tests daily at 3 AM UTC
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Type of performance test to run'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+        - all
+        - load
+        - lighthouse
+        - browser
+        - stress
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      test-types: ${{ steps.determine-tests.outputs.test-types }}
+    steps:
+      - name: Determine test types to run
+        id: determine-tests
+        run: |
+          if [ "${{ github.event.inputs.test_type }}" = "all" ] || [ -z "${{ github.event.inputs.test_type }}" ]; then
+            echo "test-types=[\"load\",\"lighthouse\",\"browser\",\"stress\"]" >> $GITHUB_OUTPUT
+          else
+            echo "test-types=[\"${{ github.event.inputs.test_type }}\"]" >> $GITHUB_OUTPUT
+          fi
+
+  load-testing:
+    if: contains(fromJSON(needs.setup.outputs.test-types), 'load')
+    needs: setup
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    
+    strategy:
+      matrix:
+        scenario: [smoke, load, stress, spike]
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Install K6
+      run: |
+        sudo gpg -k
+        sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+        echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+        sudo apt-get update
+        sudo apt-get install k6
+        
+    - name: Setup performance testing
+      run: |
+        cd performance
+        npm install
+        
+    - name: Build application
+      run: npm run build
+      
+    - name: Start application
+      run: |
+        npm start &
+        sleep 30
+        curl -f http://localhost:3000/api/healthz || exit 1
+      
+    - name: Run K6 load tests
+      run: |
+        cd performance
+        TEST_TYPE=${{ matrix.scenario }} BASE_URL=http://localhost:3000 k6 run load-test.js
+      env:
+        CI: true
+        
+    - name: Upload K6 results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: k6-results-${{ matrix.scenario }}
+        path: |
+          performance/reports/performance-results-${{ matrix.scenario }}.json
+          performance/reports/performance-results-${{ matrix.scenario }}.html
+        retention-days: 30
+
+  lighthouse-testing:
+    if: contains(fromJSON(needs.setup.outputs.test-types), 'lighthouse')
+    needs: setup
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Setup performance testing
+      run: |
+        cd performance
+        npm install
+        
+    - name: Build application
+      run: npm run build
+      
+    - name: Start application
+      run: |
+        npm start &
+        sleep 30
+        curl -f http://localhost:3000/api/healthz || exit 1
+        
+    - name: Run Lighthouse audits
+      run: |
+        cd performance
+        BASE_URL=http://localhost:3000 node lighthouse-audit.js
+      env:
+        CI: true
+        
+    - name: Upload Lighthouse results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: lighthouse-results
+        path: |
+          performance/reports/lighthouse-*.json
+          performance/reports/lighthouse-*.html
+        retention-days: 30
+
+  browser-performance:
+    if: contains(fromJSON(needs.setup.outputs.test-types), 'browser')
+    needs: setup
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    strategy:
+      matrix:
+        project: [performance-chromium, mobile-performance]
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Setup performance testing
+      run: |
+        cd performance
+        npm install
+        npx playwright install
+        
+    - name: Build application
+      run: npm run build
+      
+    - name: Run browser performance tests
+      run: |
+        cd performance
+        npx playwright test browser-performance.spec.ts --project=${{ matrix.project }}
+      env:
+        CI: true
+        BASE_URL: http://localhost:3000
+        
+    - name: Upload browser performance results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: browser-performance-${{ matrix.project }}
+        path: |
+          performance/test-results/
+        retention-days: 30
+
+  stress-testing:
+    if: contains(fromJSON(needs.setup.outputs.test-types), 'stress')
+    needs: setup
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Setup performance testing
+      run: |
+        cd performance
+        npm install
+        npx playwright install
+        
+    - name: Build application
+      run: npm run build
+      
+    - name: Run stress tests
+      run: |
+        cd performance
+        npx playwright test stress-test.spec.ts
+      env:
+        CI: true
+        BASE_URL: http://localhost:3000
+        
+    - name: Upload stress test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: stress-test-results
+        path: |
+          performance/test-results/
+        retention-days: 30
+
+  consolidate-reports:
+    if: always()
+    needs: [setup, load-testing, lighthouse-testing, browser-performance, stress-testing]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Download all test artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: performance/all-results
+        
+    - name: Setup performance testing
+      run: |
+        cd performance
+        npm install
+        
+    - name: Organize test results
+      run: |
+        cd performance
+        
+        # Create reports directory structure
+        mkdir -p reports test-results
+        
+        # Copy K6 results
+        find all-results -name "performance-results-*.json" -exec cp {} reports/ \;
+        find all-results -name "performance-results-*.html" -exec cp {} reports/ \;
+        
+        # Copy Lighthouse results
+        find all-results -name "lighthouse-*.json" -exec cp {} reports/ \;
+        find all-results -name "lighthouse-*.html" -exec cp {} reports/ \;
+        
+        # Copy Playwright results
+        find all-results -name "results.json" -exec cp {} test-results/ \;
+        
+    - name: Generate consolidated performance report
+      run: |
+        cd performance
+        node generate-performance-report.js
+        
+    - name: Upload consolidated report
+      uses: actions/upload-artifact@v4
+      with:
+        name: consolidated-performance-report
+        path: |
+          performance/consolidated-reports/
+        retention-days: 90
+        
+    - name: Upload to GitHub Pages
+      if: github.ref == 'refs/heads/main'
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./performance/consolidated-reports
+        destination_dir: performance-reports/${{ github.run_number }}
+
+  performance-summary:
+    if: always()
+    needs: [consolidate-reports]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Download consolidated report
+      uses: actions/download-artifact@v4
+      with:
+        name: consolidated-performance-report
+        path: ./reports
+        
+    - name: Generate performance summary
+      run: |
+        if [ -f "./reports/consolidated-performance-report.json" ]; then
+          # Extract key metrics for summary
+          OVERALL_SCORE=$(cat ./reports/consolidated-performance-report.json | jq -r '.summary.overallScore // "Unknown"')
+          STATUS=$(cat ./reports/consolidated-performance-report.json | jq -r '.summary.status // "unknown"')
+          LIGHTHOUSE_PERF=$(cat ./reports/consolidated-performance-report.json | jq -r '.summary.categories.lighthouse.performance // "N/A"')
+          
+          echo "# 🎬 CineAI Performance Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Overall Performance Score: $OVERALL_SCORE/100" >> $GITHUB_STEP_SUMMARY
+          echo "**Status**: $(echo $STATUS | tr '[:lower:]' '[:upper:]' | sed 's/-/ /g')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Key Metrics" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔍 **Lighthouse Performance**: $LIGHTHOUSE_PERF/100" >> $GITHUB_STEP_SUMMARY
+          echo "- ⚡ **Load Testing**: Completed across multiple scenarios" >> $GITHUB_STEP_SUMMARY
+          echo "- 🌐 **Browser Performance**: Cross-device testing completed" >> $GITHUB_STEP_SUMMARY
+          echo "- 💪 **Stress Testing**: High-load scenarios validated" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔗 Detailed Reports" >> $GITHUB_STEP_SUMMARY
+          echo "- 📋 [Performance Dashboard](../actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+          echo "- 📊 [Lighthouse Audit Results](../actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+          echo "- ⚡ [Load Testing Reports](../actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+          echo "- 🌐 [Browser Performance Analysis](../actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+          
+          # Add status indicator
+          if [ "$OVERALL_SCORE" -ge 85 ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Performance targets met!** The application meets all performance criteria." >> $GITHUB_STEP_SUMMARY
+          elif [ "$OVERALL_SCORE" -ge 70 ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ **Performance needs attention.** Some optimization opportunities identified." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "❌ **Performance requires improvement.** Multiple issues need addressing." >> $GITHUB_STEP_SUMMARY
+          fi
+        else
+          echo "# 🎬 CineAI Performance Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "❌ **Performance testing incomplete.** No consolidated report found." >> $GITHUB_STEP_SUMMARY
+        fi
+        
+    - name: Comment on PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          try {
+            const reportData = JSON.parse(fs.readFileSync('./reports/consolidated-performance-report.json', 'utf8'));
+            const summary = reportData.summary;
+            
+            const statusEmoji = {
+              'excellent': '🟢',
+              'good': '🟡', 
+              'needs-improvement': '🟠',
+              'poor': '🔴'
+            };
+            
+            const comment = `
+            ## 🎬 CineAI Performance Test Results
+            
+            ### Overall Score: ${summary.overallScore}/100 ${statusEmoji[summary.status] || '⚪'}
+            **Status**: ${summary.status.replace('-', ' ').toUpperCase()}
+            
+            ### 📊 Performance Breakdown
+            ${summary.categories.lighthouse ? `
+            #### 🔍 Lighthouse Scores
+            - **Performance**: ${summary.categories.lighthouse.performance}/100
+            - **Accessibility**: ${summary.categories.lighthouse.accessibility}/100
+            - **Best Practices**: ${summary.categories.lighthouse.bestPractices}/100
+            - **SEO**: ${summary.categories.lighthouse.seo}/100
+            ` : ''}
+            
+            ${summary.categories.loadTesting ? `
+            #### ⚡ Load Testing
+            - **Avg Response**: ${summary.categories.loadTesting.avgResponseTime}ms
+            - **Error Rate**: ${summary.categories.loadTesting.errorRate}%
+            - **Throughput**: ${summary.categories.loadTesting.throughput} req/s
+            ` : ''}
+            
+            ${summary.categories.browserPerformance ? `
+            #### 🌐 Browser Performance
+            - **Success Rate**: ${summary.categories.browserPerformance.successRate}%
+            - **Tests Passed**: ${summary.categories.browserPerformance.testsPassed}/${summary.categories.browserPerformance.totalTests}
+            ` : ''}
+            
+            ### 🚀 Top Recommendations
+            ${reportData.recommendations.slice(0, 3).map((rec, i) => 
+              `${i + 1}. **${rec.title}** (${rec.priority.toUpperCase()})\\n   ${rec.description}`
+            ).join('\\n\\n')}
+            
+            [View detailed performance report →](../actions/runs/${context.runId})
+            `;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+          } catch (error) {
+            console.log('Could not parse performance report:', error.message);
+          }

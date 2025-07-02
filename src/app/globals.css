@@ -48,6 +48,16 @@
   color: transparent;
 }
 
+/* Hide scrollbars for horizontal navigation */
+.scrollbar-hide {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none; /* Chrome, Safari and Opera */
+}
+
 /* Custom animations */
 @keyframes float {
   0%,

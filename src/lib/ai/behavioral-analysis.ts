@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Movie } from '@/types'
+import { logger } from '@/lib/logger'
 // import { movieMemoryService } from '@/lib/mem0/client' // Disabled - package removed
 
 const supabase = createClient(
@@ -73,7 +74,7 @@ export async function analyzeRatingPatterns(
   userId: string
 ): Promise<UserBehaviorProfile['rating_patterns']> {
   try {
-    console.log('🔍 Analyzing rating patterns for user:', userId)
+    logger.info('Analyzing rating patterns for user', { userId })
 
     // Get all rated movies (using ratings table instead of non-existent watchlist.rating)
     const { data: ratedMovies, error } = await supabase
@@ -160,7 +161,7 @@ export async function analyzeRatingPatterns(
     const totalRatings = ratingPatterns.length
     const averageRating = ratingPatterns.reduce((sum, p) => sum + p.rating, 0) / totalRatings
 
-    console.log('✅ Rating analysis complete:', {
+    logger.info('Rating analysis complete', {
       totalRatings,
       averageRating: Math.round(averageRating * 100) / 100,
       fiveStars: fiveStarMovies.length,
@@ -181,7 +182,7 @@ export async function analyzeRatingPatterns(
       total_ratings: totalRatings,
     }
   } catch (error) {
-    console.warn('⚠️ No rating data to analyze:', error)
+    logger.warn('No rating data to analyze', { error })
     return createEmptyRatingPatterns()
   }
 }
@@ -193,7 +194,7 @@ export async function analyzeWatchlistBehavior(
   userId: string
 ): Promise<UserBehaviorProfile['watchlist_patterns']> {
   try {
-    console.log('🔍 Analyzing watchlist behavior for user:', userId)
+    logger.info('Analyzing watchlist behavior for user', { userId })
 
     // Get all watchlist items
     const { data: watchlistItems, error } = await supabase
@@ -296,7 +297,7 @@ export async function analyzeWatchlistBehavior(
         ? Math.round(timesToWatch.reduce((sum, days) => sum + days, 0) / timesToWatch.length)
         : 0
 
-    console.log('✅ Watchlist analysis complete:', {
+    logger.info('Watchlist analysis complete', {
       totalItems,
       completionRate: `${completionRate}%`,
       impulseWatches: impulseWatches.length,
@@ -315,7 +316,7 @@ export async function analyzeWatchlistBehavior(
       genre_add_vs_watch_patterns: genreStats,
     }
   } catch (error) {
-    console.warn('⚠️ No watchlist data to analyze:', error)
+    logger.warn('No watchlist data to analyze', { error })
     return createEmptyWatchlistPatterns()
   }
 }
@@ -327,7 +328,7 @@ export async function analyzeTemporalPatterns(
   userId: string
 ): Promise<UserBehaviorProfile['temporal_patterns']> {
   try {
-    console.log('🔍 Analyzing temporal patterns for user:', userId)
+    logger.info('Analyzing temporal patterns for user', { userId })
 
     // Get watched movies with timestamps
     const { data: watchedMovies, error } = await supabase
@@ -387,7 +388,7 @@ export async function analyzeTemporalPatterns(
       seasonalPreferences.get(month)!.push(...genres)
     })
 
-    console.log('✅ Temporal analysis complete:', {
+    logger.info('Temporal analysis complete', {
       totalWatched: watchedMovies.length,
       weekendMovies: weekendGenres.length,
       weekdayMovies: weekdayGenres.length,
@@ -403,7 +404,7 @@ export async function analyzeTemporalPatterns(
       preferred_viewing_contexts: inferViewingContexts(weekendGenres, weekdayGenres),
     }
   } catch (error) {
-    console.warn('⚠️ No temporal data to analyze:', error)
+    logger.warn('No temporal data to analyze', { error })
     return createEmptyTemporalPatterns()
   }
 }
@@ -549,10 +550,10 @@ export async function storeBehavioralInsightsInMem0(
     // }
 
     if (process.env.NODE_ENV === 'development') {
-      console.log(`✅ Generated ${insights.length} behavioral insights (mem0 storage disabled)`)
+      logger.debug(`Generated behavioral insights (mem0 storage disabled)`, { insightCount: insights.length })
     }
   } catch (error) {
-    console.error('❌ Error storing behavioral insights in Mem0:', error)
+    logger.error('Error storing behavioral insights in Mem0', { error })
   }
 }
 
@@ -560,7 +561,7 @@ export async function storeBehavioralInsightsInMem0(
  * Main function to analyze all user behavior and store insights
  */
 export async function analyzeCompleteUserBehavior(userId: string): Promise<UserBehaviorProfile> {
-  console.log('🎯 Starting complete behavioral analysis for user:', userId)
+  logger.info('Starting complete behavioral analysis for user', { userId })
 
   const [ratingPatterns, watchlistPatterns, temporalPatterns] = await Promise.all([
     analyzeRatingPatterns(userId),
@@ -584,7 +585,7 @@ export async function analyzeCompleteUserBehavior(userId: string): Promise<UserB
   // Store insights in Mem0 for semantic access - DISABLED (mem0 package removed)
   // await storeBehavioralInsightsInMem0(userId, completeProfile)
 
-  console.log('🎉 Complete behavioral analysis finished!')
+  logger.info('Complete behavioral analysis finished')
   return completeProfile
 }
 
@@ -716,4 +717,111 @@ function calculateRatingVariance(ratingDistribution: Map<number, number>): numbe
     ) / total
 
   return Math.sqrt(variance)
+}
+
+/**
+ * Lightweight structure focused on genre affinity by hour & weekday.
+ * This is used by PersonalizedRecommender to boost scores.
+ */
+export interface TemporalPreferencesLite {
+  timeOfDay: Record<
+    number,
+    {
+      preferredGenres: string[]
+      confidence: number // 0-1 based on sample size
+    }
+  >
+  dayOfWeek: Record<
+    number,
+    {
+      preferredGenres: string[]
+      watchCount: number
+    }
+  >
+}
+
+/**
+ * Analyze the last N interactions and derive simple genre affinity per hour/day.
+ * We purposefully keep calculations cheap – only last 90 days, max 200 rows.
+ */
+export async function analyzeTemporalGenreAffinity(
+  userId: string,
+  limit = 200
+): Promise<TemporalPreferencesLite> {
+  // Query user_interactions joined with movies to get genre_ids.
+  const { data, error } = await supabase
+    .from('user_interactions')
+    .select(
+      `time_of_day, day_of_week, interaction_type, movies:movie_id ( genre_ids )`
+    )
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  if (error || !data) {
+    return { timeOfDay: {}, dayOfWeek: {} }
+  }
+
+  // Helpers to accumulate counts
+  const hourlyGenreCount: Record<number, Record<string, number>> = {}
+  const weekdayGenreCount: Record<number, Record<string, number>> = {}
+
+  data.forEach((row: any) => {
+    const movieObj: any = (row as any).movies || {}
+    const genres: number[] = Array.isArray(movieObj.genre_ids) ? movieObj.genre_ids : []
+    if (genres.length === 0) return
+
+    const rowAny: any = row
+     
+    const hour =
+      typeof rowAny.time_of_day === 'number'
+        ? rowAny.time_of_day
+        : new Date(rowAny.created_at ?? Date.now()).getHours()
+     
+    const dow =
+      typeof rowAny.day_of_week === 'number'
+        ? rowAny.day_of_week
+        : new Date(rowAny.created_at ?? Date.now()).getDay()
+
+    hourlyGenreCount[hour] = hourlyGenreCount[hour] || {}
+    weekdayGenreCount[dow] = weekdayGenreCount[dow] || {}
+
+    const hourMap = hourlyGenreCount[hour]!
+    const dayMap = weekdayGenreCount[dow]!
+
+    genres.forEach((g) => {
+      const gn = `${g}`
+      hourMap[gn] = (hourMap[gn] || 0) + 1
+      dayMap[gn] = (dayMap[gn] || 0) + 1
+    })
+  })
+
+  // Convert counts → sorted arrays + confidence
+  const timeOfDay: TemporalPreferencesLite['timeOfDay'] = {}
+  Object.entries(hourlyGenreCount).forEach(([h, counts]) => {
+    const total = Object.values(counts).reduce((a, b) => a + b, 0)
+    const sorted = Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([g]) => g)
+    timeOfDay[Number(h)] = {
+      preferredGenres: sorted,
+      confidence: Math.min(1, total / 10),
+    }
+  })
+
+  const dayOfWeek: TemporalPreferencesLite['dayOfWeek'] = {}
+  Object.entries(weekdayGenreCount).forEach(([d, counts]) => {
+    const total = Object.values(counts).reduce((a, b) => a + b, 0)
+    const sorted = Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([g]) => g)
+    dayOfWeek[Number(d)] = {
+      preferredGenres: sorted,
+      watchCount: total,
+    }
+  })
+
+  return { timeOfDay, dayOfWeek }
 }

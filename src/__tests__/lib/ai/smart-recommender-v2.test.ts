@@ -2,6 +2,8 @@
  * @jest-environment jsdom
  */
 
+/* eslint-disable @typescript-eslint/no-require-imports */
+
 import { SmartRecommenderV2 } from '../../../lib/ai/smart-recommender-v2'
 import type { Movie } from '../../../types'
 
@@ -33,10 +35,6 @@ const createMockChain = () => {
   return chain
 }
 
-const mockSupabaseClient = {
-  from: jest.fn(() => createMockChain()),
-} as any
-
 // Mock environment variables
 jest.mock('../../../lib/env', () => ({
   getSupabaseUrl: () => 'https://test.supabase.co',
@@ -57,10 +55,11 @@ jest.mock('../../../lib/ai/embedding-service', () => ({
   },
 }))
 
-// Mock Supabase client creation
-jest.mock('@supabase/supabase-js', () => ({
-  createClient: jest.fn(() => mockSupabaseClient),
-}))
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const supaModule: any = require('@supabase/supabase-js')
+const mockSupabaseClient = (supaModule.createClient as jest.Mock).mock.results?.[0]?.value ?? {
+  from: jest.fn(),
+}
 
 describe('SmartRecommenderV2 - Tier 2 Intelligent Recommendations', () => {
   let smartRecommender: SmartRecommenderV2

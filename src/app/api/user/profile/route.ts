@@ -1,27 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { createRouteSupabaseClient } from '@/lib/supabase/route-client'
 import { z } from 'zod'
-
-// Create Supabase client for server-side use
-function createSupabaseServerClient(request: NextRequest) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value
-        },
-        set() {
-          // API routes don't set cookies
-        },
-        remove() {
-          // API routes don't remove cookies
-        },
-      },
-    }
-  )
-}
+import { logger } from '@/lib/logger'
 
 const profileUpdateSchema = z.object({
   fullName: z.string().optional(),
@@ -30,7 +10,7 @@ const profileUpdateSchema = z.object({
 // GET - Get user profile information
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createSupabaseServerClient(request)
+    const supabase = createRouteSupabaseClient(request)
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -39,7 +19,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    console.log('🔍 Checking profile for user:', {
+    logger.info('Checking profile for user', {
       userId: user.id,
       email: user.email,
       userMetadata: user.user_metadata,
@@ -51,7 +31,7 @@ export async function GET(request: NextRequest) {
       .eq('id', user.id)
       .single()
 
-    console.log('👤 Profile query result:', {
+    logger.info('Profile query result', {
       found: !!userProfile,
       profile: userProfile,
       error: error?.message,
@@ -69,7 +49,7 @@ export async function GET(request: NextRequest) {
       error: error?.message,
     })
   } catch (error) {
-    console.error('❌ Error fetching user profile:', error)
+    logger.apiError('/api/user/profile', error as Error)
     return NextResponse.json({ error: 'Failed to fetch profile' }, { status: 500 })
   }
 }
@@ -77,7 +57,7 @@ export async function GET(request: NextRequest) {
 // PUT - Update user profile information
 export async function PUT(request: NextRequest) {
   try {
-    const supabase = createSupabaseServerClient(request)
+    const supabase = createRouteSupabaseClient(request)
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -101,11 +81,11 @@ export async function PUT(request: NextRequest) {
       .single()
 
     if (error) {
-      console.error('❌ Supabase error updating profile:', error)
+      logger.dbError('profile update', error as Error)
       throw error
     }
 
-    console.log('✅ Profile updated successfully:', { userId: user.id, fullName: body.fullName })
+    logger.info('Profile updated successfully', { userId: user.id, fullName: body.fullName })
 
     return NextResponse.json({
       success: true,
@@ -113,7 +93,7 @@ export async function PUT(request: NextRequest) {
       message: 'Profile updated successfully',
     })
   } catch (error) {
-    console.error('❌ Error updating user profile:', error)
+    logger.apiError('/api/user/profile', error as Error)
 
     if (error instanceof Error && error.message === 'Authentication required') {
       return NextResponse.json(
@@ -146,7 +126,7 @@ export async function PUT(request: NextRequest) {
 // PATCH - Update user profile information (alternative to PUT)
 export async function PATCH(request: NextRequest) {
   try {
-    const supabase = createSupabaseServerClient(request)
+    const supabase = createRouteSupabaseClient(request)
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -157,7 +137,7 @@ export async function PATCH(request: NextRequest) {
 
     const body = await request.json()
 
-    console.log('🔄 PATCH request to update profile:', {
+    logger.info('PATCH request to update profile', {
       userId: user.id,
       updates: body,
     })
@@ -180,7 +160,7 @@ export async function PATCH(request: NextRequest) {
       .single()
 
     if (error) {
-      console.error('❌ Supabase error updating profile:', error)
+      logger.dbError('profile update via PATCH', error as Error)
       return NextResponse.json(
         {
           success: false,
@@ -190,7 +170,7 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
-    console.log('✅ Profile updated successfully via PATCH:', {
+    logger.info('Profile updated successfully via PATCH', {
       userId: user.id,
       updates: updateData,
     })
@@ -201,7 +181,7 @@ export async function PATCH(request: NextRequest) {
       message: 'Profile updated successfully',
     })
   } catch (error) {
-    console.error('❌ Error updating user profile via PATCH:', error)
+    logger.apiError('/api/user/profile', error as Error)
 
     return NextResponse.json(
       {
@@ -215,7 +195,7 @@ export async function PATCH(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createSupabaseServerClient(request)
+    const supabase = createRouteSupabaseClient(request)
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -224,7 +204,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    console.log('🔧 Creating/fixing profile for user:', {
+    logger.info('Creating/fixing profile for user', {
       userId: user.id,
       email: user.email,
       userMetadata: user.user_metadata,
@@ -244,7 +224,7 @@ export async function POST(request: NextRequest) {
       updated_at: new Date().toISOString(),
     }
 
-    console.log('📋 Profile data to upsert:', profileData)
+    logger.debug('Profile data to upsert', { profileData })
 
     const { data: profile, error } = await supabase
       .from('user_profiles')
@@ -255,10 +235,8 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) {
-      console.error('❌ Error creating/updating profile:', {
-        error,
+      logger.dbError('profile creation/update', error as Error, {
         code: error.code,
-        message: error.message,
         details: error.details,
         hint: error.hint,
       })
@@ -272,7 +250,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log('✅ Successfully created/updated profile:', profile)
+    logger.info('Successfully created/updated profile', { profile })
 
     return NextResponse.json({
       success: true,
@@ -280,7 +258,7 @@ export async function POST(request: NextRequest) {
       profile,
     })
   } catch (error) {
-    console.error('❌ Error in profile creation:', error)
+    logger.apiError('/api/user/profile', error as Error)
     return NextResponse.json(
       {
         error: 'Failed to create profile',

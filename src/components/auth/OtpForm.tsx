@@ -57,13 +57,15 @@ export function OtpForm({ email, onBackToLogin }: OtpFormProps) {
   // Countdown timer for resend
   useEffect(() => {
     if (resendTimer > 0) {
-      const timer = setTimeout(() => setResendTimer(resendTimer - 1), 1000)
+      const timer = setTimeout(() => {
+        setResendTimer(prev => prev - 1)
+      }, 1000)
       return () => clearTimeout(timer)
-    } else {
+    } else if (resendTimer === 0 && !canResend) {
       setCanResend(true)
     }
     return undefined
-  }, [resendTimer])
+  }, [resendTimer, canResend])
 
   const onSubmit = useCallback(
     async (data: OtpFormData) => {

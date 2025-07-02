@@ -7,7 +7,12 @@ import { logger } from '@/lib/logger'
 type TypedSupabaseClient = SupabaseClient<Database>
 
 // Enhanced movie type with semantic search data
-export type SemanticMovie = any
+export interface SemanticMovie extends Omit<Movie, 'metadata'> {
+  semanticSimilarity: number
+  recommendationReason: string
+  confidence: number
+  metadata?: any // Allow for flexible metadata from database
+}
 
 export interface SemanticRecommendationRequest {
   userId: string

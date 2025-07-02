@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react'
 import { User } from '@supabase/supabase-js'
 import { supabase as browserClient } from '@/lib/supabase/browser-client'
 import {
@@ -28,6 +28,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const userUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -42,6 +43,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabaseCookieName = supabaseUrl
     ? `sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`
     : ''
+
+  // Debounced user update to prevent rapid auth state changes
+  const debouncedSetUser = useCallback((newUser: AuthUser | null) => {
+    if (userUpdateTimeoutRef.current) {
+      clearTimeout(userUpdateTimeoutRef.current)
+    }
+    
+    userUpdateTimeoutRef.current = setTimeout(() => {
+      setUser(newUser)
+      setIsLoading(false)
+    }, 100) // 100ms debounce
+  }, [])
 
   const loadUserProfile = React.useCallback(
     async (authUser: User): Promise<AuthUser> => {
@@ -72,20 +85,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [supabase]
   )
 
-  const reloadProfile = async () => {
+  const reloadProfile = useCallback(async () => {
     if (!user || !supabase) return
     try {
       const enrichedUser = await loadUserProfile(user)
-      setUser(enrichedUser)
+      debouncedSetUser(enrichedUser)
       logger.debug('Profile reloaded successfully')
     } catch (error) {
       logger.error('Error reloading profile', {
         error: error instanceof Error ? error.message : String(error),
       })
     }
-  }
+  }, [user, supabase, debouncedSetUser])
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     if (!supabase) return
     try {
       await supabase.auth.signOut()
@@ -96,7 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         error: error instanceof Error ? error.message : String(error),
       })
     }
-  }
+  }, [supabase])
 
   useEffect(() => {
     if (!supabase) {
@@ -122,7 +135,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (data.session?.user) {
           const enriched = await loadUserProfile(data.session.user)
-          setUser(enriched)
+          debouncedSetUser(enriched)
+        } else {
+          debouncedSetUser(null)
         }
       } catch (e) {
         logger.warn('getSession priming call failed', {
@@ -143,17 +158,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           if (session?.user) {
             const enrichedUser = await loadUserProfile(session.user)
-            setUser(enrichedUser)
+            debouncedSetUser(enrichedUser)
           } else {
-            setUser(null)
+            debouncedSetUser(null)
           }
         } catch (err) {
           logger.error('Error handling auth state change', {
             error: err instanceof Error ? err.message : String(err),
           })
-          setUser(null)
-        } finally {
-          setIsLoading(false)
+          debouncedSetUser(null)
         }
       }).data.subscription
     }
@@ -162,16 +175,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       authSubscription?.unsubscribe()
+      if (userUpdateTimeoutRef.current) {
+        clearTimeout(userUpdateTimeoutRef.current)
+      }
     }
-  }, [supabase, loadUserProfile, supabaseCookieName])
+  }, [supabase, loadUserProfile, supabaseCookieName, debouncedSetUser])
 
-  const value = {
+  const value = React.useMemo(() => ({
     user,
     isLoading,
     signOut,
     refreshUser: reloadProfile,
     isSessionValid: !!user,
-  }
+  }), [user, isLoading, signOut, reloadProfile])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

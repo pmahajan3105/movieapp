@@ -303,10 +303,16 @@ export function useWatchlistPage() {
     unwatched: items.filter(item => !item.watched).length,
   }
 
-  // Load data on mount
+  // Load data on mount and when user changes
   useEffect(() => {
-    loadWatchlist()
-  }, [loadWatchlist])
+    if (user) {
+      loadWatchlist()
+    } else {
+      // Reset state when no user
+      dispatch({ type: 'SET_LOADING', payload: false })
+      dispatch({ type: 'SET_ERROR', payload: 'Please log in to view your watchlist' })
+    }
+  }, [loadWatchlist, user])
 
   return {
     // State

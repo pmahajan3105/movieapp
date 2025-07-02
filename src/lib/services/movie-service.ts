@@ -978,14 +978,26 @@ export class MovieService {
 // Create singleton instance
 let movieServiceInstance: MovieService | null = null
 
+// Force reset singleton for development (allows reloading with new env vars)
+if (process.env.NODE_ENV === 'development') {
+  movieServiceInstance = null
+}
+
 export function getMovieService(): MovieService {
   if (!movieServiceInstance) {
+    // Use service role key in server context, anon key as fallback
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+    
     const config: MovieServiceConfig = {
       tmdbApiKey: process.env.TMDB_API_KEY || '',
       supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-      supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+      supabaseKey,
       enableCache: true,
       cacheMaxAge: 60,
+    }
+
+    if (!supabaseKey) {
+      throw new Error('Supabase key is required (SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY)')
     }
 
     movieServiceInstance = new MovieService(config)

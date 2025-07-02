@@ -1,0 +1,39 @@
+name: Deploy Edge Function
+
+on:
+  push:
+    paths:
+      - 'supabase/functions/movie-enricher/**'
+      - '.github/workflows/deploy-edge.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install Supabase CLI
+        run: npm install -g supabase
+
+      - name: Supabase login
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: echo "$SUPABASE_ACCESS_TOKEN" | supabase login --stdin
+
+      - name: Link project
+        run: supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+
+      - name: Deploy movie-enricher
+        run: supabase functions deploy movie-enricher --no-verify-jwt
+
+      - name: Smoke test function
+        env:
+          SUPA_URL: https://${{ secrets.SUPABASE_PROJECT_REF }}.functions.supabase.co/movie-enricher
+        run: |
+          echo "Invoking edge function..."
+          curl -s -o /dev/null -w "%{http_code}" "$SUPA_URL" | grep -q 200 

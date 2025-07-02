@@ -22,12 +22,12 @@ export function ProtectedRoute({
     if (!isLoading) {
       // No user, redirect to login
       if (!user) {
-        console.log('🔄 ProtectedRoute: No user found, redirecting to login')
+        // No user found, redirecting to login
         router.push(redirectTo)
         return
       }
 
-      console.log('✅ ProtectedRoute: User authenticated, allowing access')
+      // User authenticated, allowing access
 
       // User exists but onboarding required and not completed
       if (requireOnboarding && !user.profile?.onboarding_completed) {

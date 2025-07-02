@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 import React from 'react'
 import { render, screen, fireEvent } from '@testing-library/react'
 import '@testing-library/jest-dom'
@@ -7,22 +8,17 @@ import type { Movie, Rating } from '../../types'
 // Mock Next.js Image component
 jest.mock('next/image', () => ({
   __esModule: true,
-  default: function Image({
-    src,
-    alt,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    fill,
-    ...props
-  }: {
+  default: function Image(props: {
     src: string
     alt: string
+    className?: string
     fill?: boolean
+    sizes?: string
     [key: string]: unknown
   }) {
-    // Don't pass fill, sizes to the HTML img element as they're Next.js specific
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { sizes: _sizes, className, ...otherProps } = props
-    return <img src={src} alt={alt} className={className as string} {...otherProps} />
+    // Extract Next.js specific props that shouldn't go to HTML img
+    const { src, alt, className, fill, sizes, ...htmlProps } = props
+    return <img src={src} alt={alt} className={className} {...htmlProps} />
   },
 }))
 

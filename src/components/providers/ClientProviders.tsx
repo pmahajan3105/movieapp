@@ -1,22 +1,32 @@
 'use client'
 
-import { ThemeProvider } from '@/contexts/ThemeContext'
-import { AuthProvider } from '@/contexts/AuthContext'
-import { QueryProvider } from './QueryProvider'
 import { Toaster } from 'react-hot-toast'
+
 import ErrorBoundary from '@/components/ErrorBoundary'
+import LoadingOverlay from '@/components/ui/LoadingOverlay'
+import { OfflineIndicator } from '@/components/ui/OfflineIndicator'
+import { ServiceWorkerRegistration } from '@/components/ServiceWorkerRegistration'
+import { AuthProvider } from '@/contexts/AuthContext'
+import { ThemeProvider } from '@/contexts/ThemeContext'
+import { ErrorRecoveryProvider } from '@/contexts/ErrorRecoveryContext'
+import { QueryProvider } from './QueryProvider'
 
 export function ClientProviders({ children }: { children: React.ReactNode }) {
   return (
     <ErrorBoundary>
-      <QueryProvider>
-        <ThemeProvider defaultTheme="pastel">
-          <AuthProvider>
-            {children}
-            <Toaster />
-          </AuthProvider>
-        </ThemeProvider>
-      </QueryProvider>
+      <ErrorRecoveryProvider>
+        <QueryProvider>
+          <ThemeProvider defaultTheme="pastel">
+            <AuthProvider>
+              {children}
+              <Toaster />
+              <LoadingOverlay />
+              <OfflineIndicator showOnlineStatus={true} />
+              <ServiceWorkerRegistration />
+            </AuthProvider>
+          </ThemeProvider>
+        </QueryProvider>
+      </ErrorRecoveryProvider>
     </ErrorBoundary>
   )
 }

@@ -23,7 +23,7 @@ export function AuthGuard({
     if (!isLoading && requireAuth) {
       // If no user or session is invalid, sign out and redirect
       if (!user || !isSessionValid) {
-        console.log('🔄 AuthGuard: Invalid session detected, redirecting to login')
+        // Invalid session detected, redirecting to login
 
         // Sign out to clear any invalid session data
         if (user && !isSessionValid) {

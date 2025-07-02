@@ -1,0 +1,40 @@
+{
+  "version": "1.0",
+  "lastUpdated": "2025-01-25T00:00:00Z",
+  "description": "Tunable weights for SmartRecommenderV2 scoring algorithm",
+  "weights": {
+    "semantic": {
+      "base": 0.4,
+      "description": "Base semantic similarity score from embeddings"
+    },
+    "rating": {
+      "base": 0.25,
+      "description": "IMDb/TMDB rating influence"
+    },
+    "popularity": {
+      "base": 0.15,
+      "description": "Movie popularity/vote count influence"
+    },
+    "recency": {
+      "base": 0.1,
+      "description": "Release year recency boost"
+    },
+    "preference": {
+      "genreMatch": 0.1,
+      "description": "User preference genre matching boost"
+    }
+  },
+  "boosts": {
+    "trendingMultiplier": 1.2,
+    "preferenceGenreBoost": 0.1,
+    "recentReleaseBoost": 0.05,
+    "highRatingThreshold": 7.5,
+    "highRatingBoost": 0.1
+  },
+  "meta": {
+    "dynamicWeightsEnabled": false,
+    "lastFittingDate": null,
+    "fittingDataPoints": 0,
+    "notes": "Weights can be auto-tuned based on user interaction patterns"
+  }
+} 

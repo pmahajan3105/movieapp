@@ -1,0 +1,325 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  e2e-tests:
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+        shard: [1/3, 2/3, 3/3]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Install Playwright browsers
+      run: npx playwright install --with-deps ${{ matrix.browser }}
+      
+    - name: Build application
+      run: npm run build
+      
+    - name: Run E2E tests
+      run: npx playwright test --shard=${{ matrix.shard }} --project=${{ matrix.browser }}
+      env:
+        CI: true
+        # Add any environment variables needed for testing
+        NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: e2e-results-${{ matrix.browser }}-${{ matrix.shard }}
+        path: |
+          test-results/
+          playwright-report/
+        retention-days: 30
+        
+  merge-reports:
+    if: always()
+    needs: [e2e-tests]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: all-artifacts
+        
+    - name: Merge test reports
+      run: |
+        # Combine all test results
+        mkdir -p merged-results
+        find all-artifacts -name "*.xml" -exec cp {} merged-results/ \;
+        find all-artifacts -name "*.json" -exec cp {} merged-results/ \;
+        
+    - name: Generate combined HTML report
+      run: npx playwright merge-reports all-artifacts/*/playwright-report
+      
+    - name: Upload combined report
+      uses: actions/upload-artifact@v4
+      with:
+        name: combined-e2e-report
+        path: |
+          merged-results/
+          playwright-report/
+        retention-days: 30
+        
+    - name: Upload to GitHub Pages
+      if: github.ref == 'refs/heads/main'
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./playwright-report
+        destination_dir: e2e-reports/${{ github.run_number }}
+
+  mobile-tests:
+    timeout-minutes: 45
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Install Playwright browsers
+      run: npx playwright install --with-deps chromium
+      
+    - name: Build application
+      run: npm run build
+      
+    - name: Run mobile E2E tests
+      run: npx playwright test --project="Mobile Chrome" --project="Mobile Safari"
+      env:
+        CI: true
+        
+    - name: Upload mobile test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: mobile-e2e-results
+        path: |
+          test-results/
+          playwright-report/
+        retention-days: 30
+
+  accessibility-tests:
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Install Playwright browsers
+      run: npx playwright install --with-deps chromium
+      
+    - name: Build application
+      run: npm run build
+      
+    - name: Run accessibility tests
+      run: npx playwright test --grep="accessibility|a11y" --project=chromium
+      env:
+        CI: true
+        
+    - name: Upload accessibility results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: accessibility-results
+        path: |
+          test-results/
+          playwright-report/
+        retention-days: 30
+
+  performance-tests:
+    timeout-minutes: 45
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Install Playwright browsers
+      run: npx playwright install --with-deps chromium
+      
+    - name: Build application
+      run: npm run build
+      
+    - name: Run performance tests
+      run: npx playwright test --grep="performance|load time" --project=chromium
+      env:
+        CI: true
+        
+    - name: Upload performance results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: performance-results
+        path: |
+          test-results/
+          playwright-report/
+        retention-days: 30
+
+  test-summary:
+    if: always()
+    needs: [e2e-tests, mobile-tests, accessibility-tests, performance-tests]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Download all test artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: all-test-results
+        
+    - name: Generate test summary
+      run: |
+        echo "# 🎬 CineAI E2E Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Test Suite Status" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Check if each test job passed
+        if [ "${{ needs.e2e-tests.result }}" == "success" ]; then
+          echo "✅ **Main E2E Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Main E2E Tests**: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ "${{ needs.mobile-tests.result }}" == "success" ]; then
+          echo "✅ **Mobile Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Mobile Tests**: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ "${{ needs.accessibility-tests.result }}" == "success" ]; then
+          echo "✅ **Accessibility Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Accessibility Tests**: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ "${{ needs.performance-tests.result }}" == "success" ]; then
+          echo "✅ **Performance Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Performance Tests**: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## 📊 Test Coverage Areas" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- 🔐 Authentication Flow" >> $GITHUB_STEP_SUMMARY
+        echo "- 🔍 Search and Discovery" >> $GITHUB_STEP_SUMMARY
+        echo "- 📝 Watchlist Management" >> $GITHUB_STEP_SUMMARY
+        echo "- 🤖 AI Recommendations" >> $GITHUB_STEP_SUMMARY
+        echo "- 🎤 Voice Interactions" >> $GITHUB_STEP_SUMMARY
+        echo "- 🛡️ Error Handling & Recovery" >> $GITHUB_STEP_SUMMARY
+        echo "- 📱 Mobile Responsive Design" >> $GITHUB_STEP_SUMMARY
+        echo "- ♿ Accessibility Compliance" >> $GITHUB_STEP_SUMMARY
+        echo "- ⚡ Performance Benchmarks" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## 🔗 Artifacts" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- 📋 [Test Reports](../actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+        echo "- 📸 Screenshots and Videos (on failure)" >> $GITHUB_STEP_SUMMARY
+        echo "- 📊 Performance Metrics" >> $GITHUB_STEP_SUMMARY
+        echo "- ♿ Accessibility Audit Results" >> $GITHUB_STEP_SUMMARY
+        
+    - name: Comment on PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const summary = `
+          ## 🎬 CineAI E2E Test Results
+          
+          ### Test Suite Status
+          - ${process.env.E2E_STATUS} **Main E2E Tests**
+          - ${process.env.MOBILE_STATUS} **Mobile Tests** 
+          - ${process.env.A11Y_STATUS} **Accessibility Tests**
+          - ${process.env.PERF_STATUS} **Performance Tests**
+          
+          ### 📊 Coverage Areas Tested
+          - 🔐 Authentication & Session Management
+          - 🔍 Search & Discovery Features
+          - 📝 Watchlist Operations
+          - 🤖 AI Recommendation Engine
+          - 🎤 Voice Interaction System
+          - 🛡️ Error Handling & Recovery
+          - 📱 Mobile Responsive Design
+          - ♿ Accessibility Standards
+          - ⚡ Performance Benchmarks
+          
+          [View detailed results →](../actions/runs/${context.runId})
+          `;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: summary
+          });
+      env:
+        E2E_STATUS: ${{ needs.e2e-tests.result == 'success' && '✅' || '❌' }}
+        MOBILE_STATUS: ${{ needs.mobile-tests.result == 'success' && '✅' || '❌' }}
+        A11Y_STATUS: ${{ needs.accessibility-tests.result == 'success' && '✅' || '❌' }}
+        PERF_STATUS: ${{ needs.performance-tests.result == 'success' && '✅' || '❌' }}

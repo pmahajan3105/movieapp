@@ -97,6 +97,7 @@ export function NavigationHeader() {
   }
 
   const navItems = [
+    { label: 'AI Recommended', href: '/dashboard', icon: Sparkles },
     { label: 'Movies', href: '/dashboard/movies', icon: Film },
     { label: 'Watchlist', href: '/dashboard/watchlist', icon: List },
     { label: 'Watched', href: '/dashboard/watched', icon: CheckCircle },
@@ -124,94 +125,90 @@ export function NavigationHeader() {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-sm">
-      <div className="container mx-auto px-4">
-        <div className="flex h-14 items-center justify-between">
+    <header className="sticky top-0 z-50 w-full bg-gradient-to-r from-slate-50 to-blue-50 backdrop-blur-md border-b border-slate-200/50 shadow-sm">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Top Bar */}
+        <div className="flex h-16 items-center justify-between">
           {/* Logo */}
-          <Link href="/" className="flex items-center space-x-2">
-            <Sparkles className="h-6 w-6 text-purple-600" />
-            <span className="text-xl font-bold text-gray-900">CineAI</span>
+          <Link href="/" className="flex items-center space-x-3 group">
+            <div className="relative">
+              <Sparkles className="h-8 w-8 text-purple-600 group-hover:text-purple-700 transition-colors" />
+              <div className="absolute -inset-1 bg-purple-100 rounded-full opacity-0 group-hover:opacity-100 transition-opacity -z-10"></div>
+            </div>
+            <span className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+              CineAI
+            </span>
           </Link>
 
-          {/* Desktop Navigation - Center */}
-          <nav className="hidden items-center space-x-8 md:flex">
-            {user &&
-              navItems.map(item => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center space-x-1 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-200 ${
-                    pathname === item.href
-                      ? 'bg-purple-100 text-purple-700'
-                      : 'text-gray-600 hover:bg-purple-50 hover:text-purple-600'
-                  }`}
-                >
-                  <item.icon className="h-4 w-4" />
-                  <span>{item.label}</span>
-                </Link>
-              ))}
-          </nav>
+          {/* Center Section - Search */}
+          {user && (
+            <div className="flex-1 max-w-2xl mx-8 hidden lg:block">
+              <SearchInterface onSearch={handleSearch} />
+            </div>
+          )}
 
-          {/* Search and User Section */}
+          {/* Right Section - User */}
           <div className="flex items-center space-x-4">
-            {/* Search - Hide on mobile */}
+            {/* Search for smaller screens */}
             {user && (
-              <div className="hidden md:block">
+              <div className="lg:hidden">
                 <SearchInterface onSearch={handleSearch} />
               </div>
             )}
 
             {/* User Section */}
             {isLoading ? (
-              <div className="h-8 w-8 animate-pulse rounded-full bg-gray-200" />
+              <div className="h-10 w-10 animate-pulse rounded-full bg-slate-200" />
             ) : user ? (
               <div className="relative" ref={dropdownRef}>
                 <button
                   onClick={() => setIsAccountDropdownOpen(!isAccountDropdownOpen)}
-                  className="flex items-center space-x-2 rounded-md px-2 py-1 text-sm text-gray-700 hover:text-purple-600 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:outline-none"
+                  className="flex items-center space-x-3 rounded-full bg-white/80 backdrop-blur-sm px-4 py-2 text-sm shadow-sm ring-1 ring-slate-200 hover:shadow-md transition-all duration-200 min-h-[44px] touch-manipulation"
                 >
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-100">
-                    <User className="h-4 w-4 text-purple-600" />
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-r from-purple-500 to-blue-500 text-white shadow-sm">
+                    <User className="h-4 w-4" />
                   </div>
-                  <span className="hidden font-medium sm:block">{userDisplayName}</span>
-                  <ChevronDown className="h-4 w-4" />
+                  <span className="hidden font-medium text-slate-700 sm:block max-w-[120px] truncate">
+                    {userDisplayName}
+                  </span>
+                  <ChevronDown className="h-4 w-4 text-slate-500" />
                 </button>
 
                 {isAccountDropdownOpen && (
-                  <div className="absolute right-0 z-50 mt-2 w-48 rounded-md border bg-white py-1 shadow-lg">
-                    <div className="border-b px-4 py-2 text-sm text-gray-700">
-                      <div className="truncate font-medium">{userDisplayName}</div>
-                      <div className="truncate text-xs text-gray-500">{user.email}</div>
+                  <div className="absolute right-0 z-50 mt-3 w-56 rounded-xl bg-white/95 backdrop-blur-md py-2 shadow-xl ring-1 ring-slate-200">
+                    <div className="border-b border-slate-100 px-4 py-3">
+                      <div className="truncate font-medium text-slate-900">{userDisplayName}</div>
+                      <div className="truncate text-sm text-slate-500">{user.email}</div>
                     </div>
                     <Link
                       href="/dashboard/account"
-                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      className="flex items-center px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
                       onClick={() => setIsAccountDropdownOpen(false)}
                     >
-                      <Settings className="mr-2 h-4 w-4" />
+                      <Settings className="mr-3 h-4 w-4 text-slate-400" />
                       Account Settings
                     </Link>
                     <button
                       onClick={handleSignOut}
-                      className="flex w-full items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      className="flex w-full items-center px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
                     >
-                      <LogOut className="mr-2 h-4 w-4" />
+                      <LogOut className="mr-3 h-4 w-4 text-slate-400" />
                       Sign Out
                     </button>
                   </div>
                 )}
               </div>
             ) : (
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-3">
                 <Link
                   href="/auth/login"
-                  className="rounded-md px-3 py-2 text-sm font-medium text-gray-600 hover:text-purple-600"
+                  className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-white/50 transition-all"
                 >
                   Sign In
                 </Link>
                 <Link
                   href="/auth/register"
-                  className="rounded-md bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700"
+                  className="rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 px-6 py-2 text-sm font-medium text-white shadow-sm hover:shadow-md hover:from-purple-700 hover:to-blue-700 transition-all"
                 >
                   Sign Up
                 </Link>
@@ -222,35 +219,51 @@ export function NavigationHeader() {
             {user && (
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="rounded-md p-2 text-gray-600 hover:bg-purple-50 hover:text-purple-600 md:hidden"
+                className="rounded-lg p-2 text-slate-600 hover:bg-white/50 hover:text-slate-900 lg:hidden min-h-[44px] min-w-[44px] touch-manipulation transition-colors"
               >
-                {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
               </button>
             )}
           </div>
         </div>
 
-        {/* Mobile Menu */}
-        {user && isMobileMenuOpen && (
-          <div className="border-t bg-white py-4 md:hidden">
-            {/* Mobile Search */}
-            <div className="mb-4 px-4">
-              <SearchInterface onSearch={handleSearch} />
-            </div>
-
-            {/* Mobile Navigation */}
-            <nav className="space-y-2 px-4">
+        {/* Navigation Bar */}
+        {user && (
+          <div className="border-t border-slate-200/50 bg-white/30 backdrop-blur-sm">
+            <nav className="flex space-x-1 px-2 py-3 overflow-x-auto scrollbar-hide">
               {navItems.map(item => (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center space-x-3 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-200 ${
+                  className={`flex items-center space-x-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all duration-200 whitespace-nowrap ${
                     pathname === item.href
-                      ? 'bg-purple-100 text-purple-700'
-                      : 'text-gray-600 hover:bg-purple-50 hover:text-purple-600'
+                      ? 'bg-gradient-to-r from-purple-500 to-blue-500 text-white shadow-md'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                   }`}
                 >
                   <item.icon className="h-4 w-4" />
+                  <span>{item.label}</span>
+                </Link>
+              ))}
+            </nav>
+          </div>
+        )}
+
+        {/* Mobile Menu */}
+        {user && isMobileMenuOpen && (
+          <div className="border-t border-slate-200/50 bg-white/95 backdrop-blur-md lg:hidden">
+            <nav className="space-y-1 px-4 py-4">
+              {navItems.map(item => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center space-x-3 rounded-lg px-4 py-3 text-base font-medium transition-all duration-200 touch-manipulation min-h-[44px] ${
+                    pathname === item.href
+                      ? 'bg-gradient-to-r from-purple-500 to-blue-500 text-white shadow-md'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                  }`}
+                >
+                  <item.icon className="h-5 w-5" />
                   <span>{item.label}</span>
                 </Link>
               ))}

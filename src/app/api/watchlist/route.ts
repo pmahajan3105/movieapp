@@ -3,53 +3,8 @@ import { createServerClient } from '@/lib/supabase/server-client'
 import { WatchlistRepository } from '@/repositories/WatchlistRepository'
 import { MovieRepository } from '@/repositories/MovieRepository'
 import { logger } from '@/lib/logger'
-
-// Helper to fetch movie from TMDB API
-async function fetchTmdbMovie(tmdbId: number) {
-  const apiKey = process.env.TMDB_API_KEY
-
-  if (!apiKey) {
-    logger.warn('TMDB API key not found, creating enhanced stub movie', { tmdbId })
-    // Return a better stub with the TMDB ID properly set
-    return {
-      title: `Movie ${tmdbId}`,
-      year: null,
-      genre: [],
-      director: [],
-      plot: 'Movie details will be loaded when TMDB API key is configured.',
-      poster_url: null,
-      rating: null,
-      runtime: null,
-      tmdb_id: tmdbId,
-      imdb_id: null,
-    }
-  }
-
-  const resp = await fetch(
-    `https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${apiKey}&append_to_response=credits`
-  )
-
-  if (!resp.ok) {
-    throw new Error(`TMDB API error: ${resp.status} ${resp.statusText}`)
-  }
-
-  const m = await resp.json()
-
-  return {
-    title: m.title,
-    year: m.release_date ? new Date(m.release_date).getFullYear() : null,
-    genre: (m.genres || []).map((g: any) => g.name),
-    director: (m.credits?.crew || [])
-      .filter((c: any) => c.job === 'Director')
-      .map((d: any) => d.name),
-    plot: m.overview,
-    poster_url: m.poster_path ? `https://image.tmdb.org/t/p/w500${m.poster_path}` : null,
-    rating: m.vote_average,
-    runtime: m.runtime,
-    tmdb_id: tmdbId,
-    imdb_id: m.imdb_id || null,
-  }
-}
+import RecommendationCacheManager from '@/lib/utils/recommendation-cache'
+import { fetchTmdbMovieById } from '@/lib/utils/tmdb-helpers'
 
 export async function GET(request: NextRequest) {
   try {
@@ -96,12 +51,21 @@ export async function GET(request: NextRequest) {
         try {
           const movie = item.movies!
           logger.info('Auto-refreshing stub movie', { movieId: movie.id, tmdbId: movie.tmdb_id })
-          const tmdbData = await fetchTmdbMovie(movie.tmdb_id!)
+          const tmdbMovie = await fetchTmdbMovieById(movie.tmdb_id!)
+          if (!tmdbMovie) {
+            logger.warn('Failed to fetch TMDB movie data', { tmdbId: movie.tmdb_id })
+            return
+          }
           const movieUpdate = {
-            ...tmdbData,
-            poster_url: tmdbData.poster_url || undefined,
-            plot: tmdbData.plot || undefined,
-            imdb_id: tmdbData.imdb_id || undefined,
+            title: tmdbMovie.title,
+            year: tmdbMovie.year,
+            genre: tmdbMovie.genre,
+            director: tmdbMovie.director,
+            plot: tmdbMovie.plot || undefined,
+            poster_url: tmdbMovie.poster_url || undefined,
+            rating: tmdbMovie.rating,
+            runtime: tmdbMovie.runtime,
+            imdb_id: tmdbMovie.imdb_id || undefined,
           }
           const updatedMovie = await movieRepo.update(movie.id, movieUpdate)
           item.movies = updatedMovie
@@ -167,7 +131,22 @@ export async function POST(request: NextRequest) {
       if (!movie) {
         // Movie doesn't exist, create it
         try {
-          const movieData = await fetchTmdbMovie(tmdbId)
+          const tmdbMovie = await fetchTmdbMovieById(tmdbId)
+          if (!tmdbMovie) {
+            throw new Error('Failed to fetch movie from TMDB')
+          }
+          const movieData = {
+            title: tmdbMovie.title,
+            year: tmdbMovie.year,
+            genre: tmdbMovie.genre,
+            director: tmdbMovie.director,
+            plot: tmdbMovie.plot,
+            poster_url: tmdbMovie.poster_url,
+            rating: tmdbMovie.rating,
+            runtime: tmdbMovie.runtime,
+            tmdb_id: tmdbId,
+            imdb_id: tmdbMovie.imdb_id,
+          }
           movie = await movieRepo.create(movieData)
           logger.info('Created movie from TMDB', { tmdbId, movieId: movie.id })
         } catch (error) {
@@ -289,6 +268,15 @@ export async function PATCH(request: NextRequest) {
 
       const result = await watchlistRepo.updateWatchlistItem(watchlist_id, user.id, updates)
       logger.info('Watchlist item updated', { watchlistId: watchlist_id, userId: user.id, updates })
+
+      // Clear recommendation cache if movie was marked as watched
+      if (updates.watched === true) {
+        RecommendationCacheManager.clearUserRecommendations(user.id)
+        logger.info('🗑️ Cleared recommendation cache due to movie marked as watched', {
+          userId: user.id,
+          watchlistId: watchlist_id
+        })
+      }
 
       return NextResponse.json({
         success: true,

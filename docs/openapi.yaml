@@ -1,0 +1,648 @@
+openapi: 3.0.3
+info:
+  title: CineAI API
+  description: Comprehensive movie recommendation API with AI-powered features
+  version: 1.0.0
+  contact:
+    name: CineAI Team
+    email: contact@cineai.app
+  license:
+    name: MIT
+servers:
+  - url: https://cineai.vercel.app/api
+    description: Production server
+  - url: http://localhost:3000/api
+    description: Development server
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        data:
+          type: null
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: "VALIDATION_ERROR"
+            message:
+              type: string
+              example: "Invalid request parameters"
+            details:
+              type: object
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    Meta:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        requestId:
+          type: string
+          format: uuid
+        cached:
+          type: boolean
+
+    Movie:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        overview:
+          type: string
+        posterPath:
+          type: string
+        backdropPath:
+          type: string
+        releaseDate:
+          type: string
+          format: date
+        runtime:
+          type: integer
+        rating:
+          type: number
+          format: float
+        voteCount:
+          type: integer
+        genres:
+          type: array
+          items:
+            type: string
+        cast:
+          type: array
+          items:
+            type: object
+        confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        fullName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    Preferences:
+      type: object
+      properties:
+        genres:
+          type: array
+          items:
+            type: string
+        actors:
+          type: array
+          items:
+            type: string
+        directors:
+          type: array
+          items:
+            type: string
+        yearRange:
+          type: array
+          items:
+            type: integer
+          minItems: 2
+          maxItems: 2
+        ratingRange:
+          type: array
+          items:
+            type: number
+          minItems: 2
+          maxItems: 2
+
+paths:
+  /auth/status:
+    get:
+      summary: Check authentication status
+      tags:
+        - Authentication
+      responses:
+        '200':
+          description: Authentication status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      authenticated:
+                        type: boolean
+                      user:
+                        $ref: '#/components/schemas/User'
+
+  /auth/request-otp:
+    post:
+      summary: Request OTP for authentication
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+              required:
+                - email
+      responses:
+        '200':
+          description: OTP sent successfully
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/verify-otp:
+    post:
+      summary: Verify OTP and authenticate
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                token:
+                  type: string
+                  pattern: '^[0-9]{6}$'
+              required:
+                - email
+                - token
+      responses:
+        '200':
+          description: Authentication successful
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /movies:
+    get:
+      summary: Get movies with optional AI recommendations
+      tags:
+        - Movies
+      parameters:
+        - name: smart
+          in: query
+          schema:
+            type: boolean
+          description: Enable AI-powered recommendations
+        - name: behavioral
+          in: query
+          schema:
+            type: boolean
+          description: Use behavioral analysis
+        - name: realtime
+          in: query
+          schema:
+            type: boolean
+          description: Fetch live TMDB data
+        - name: query
+          in: query
+          schema:
+            type: string
+          description: Search query
+        - name: mood
+          in: query
+          schema:
+            type: string
+          description: Mood-based filtering
+        - name: genres
+          in: query
+          schema:
+            type: string
+          description: Comma-separated genre IDs
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 12
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+      responses:
+        '200':
+          description: Movies retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      movies:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Movie'
+                      pagination:
+                        type: object
+                        properties:
+                          page:
+                            type: integer
+                          limit:
+                            type: integer
+                          total:
+                            type: integer
+                          hasNext:
+                            type: boolean
+
+  /movies/search:
+    post:
+      summary: Search movies with natural language
+      tags:
+        - Movies
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query:
+                  type: string
+                  example: "sci-fi movies like Blade Runner"
+                limit:
+                  type: integer
+                  minimum: 1
+                  maximum: 50
+                  default: 10
+              required:
+                - query
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      movies:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Movie'
+
+  /movies/{id}:
+    get:
+      summary: Get movie details
+      tags:
+        - Movies
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Movie details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Movie'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /ai/chat:
+    post:
+      summary: AI chat interface
+      tags:
+        - AI & Recommendations
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  example: "Recommend me some horror movies"
+                sessionId:
+                  type: string
+                  format: uuid
+                stream:
+                  type: boolean
+                  default: false
+              required:
+                - message
+      responses:
+        '200':
+          description: AI response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      response:
+                        type: string
+                      extractedPreferences:
+                        type: object
+                      sessionId:
+                        type: string
+
+  /recommendations/hyper-personalized:
+    get:
+      summary: Get hyper-personalized recommendations
+      tags:
+        - AI & Recommendations
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: count
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+        - name: context
+          in: query
+          schema:
+            type: string
+        - name: excludeWatched
+          in: query
+          schema:
+            type: boolean
+            default: true
+      responses:
+        '200':
+          description: Personalized recommendations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      recommendations:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Movie'
+
+  /preferences:
+    get:
+      summary: Get user preferences
+      tags:
+        - User Data
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User preferences
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Preferences'
+
+    put:
+      summary: Update user preferences
+      tags:
+        - User Data
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Preferences'
+      responses:
+        '200':
+          description: Preferences updated
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /ratings:
+    post:
+      summary: Rate a movie
+      tags:
+        - User Data
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                movie_id:
+                  type: string
+                  format: uuid
+                interested:
+                  type: boolean
+                rating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+              required:
+                - movie_id
+      responses:
+        '200':
+          description: Rating saved
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /watchlist:
+    get:
+      summary: Get user watchlist
+      tags:
+        - User Data
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: watched
+          in: query
+          schema:
+            type: boolean
+          description: Filter by watched status
+      responses:
+        '200':
+          description: Watchlist items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              format: uuid
+                            movie:
+                              $ref: '#/components/schemas/Movie'
+                            watched:
+                              type: boolean
+                            rating:
+                              type: integer
+                            notes:
+                              type: string
+                            addedAt:
+                              type: string
+                              format: date-time
+
+    post:
+      summary: Add movie to watchlist
+      tags:
+        - User Data
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                movieId:
+                  type: string
+                  format: uuid
+                source:
+                  type: string
+                  enum: [recommendation, search, manual]
+              required:
+                - movieId
+      responses:
+        '201':
+          description: Movie added to watchlist
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /healthz:
+    get:
+      summary: Health check
+      tags:
+        - System
+      responses:
+        '200':
+          description: System health status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        enum: [healthy, degraded, unhealthy]
+                      database:
+                        type: string
+                        enum: [connected, disconnected]
+                      aiService:
+                        type: string
+                        enum: [operational, degraded, offline]
+                      timestamp:
+                        type: string
+                        format: date-time
+                      version:
+                        type: string
+                      uptime:
+                        type: integer
+
+  components:
+    responses:
+      ValidationError:
+        description: Validation error
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      
+      NotFound:
+        description: Resource not found
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+      
+      Unauthorized:
+        description: Authentication required
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Error'
+
+security:
+  - bearerAuth: []

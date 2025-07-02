@@ -37,19 +37,15 @@ export function MovieDetailsModal({
   const handleWatchlistAction = async () => {
     if (!movie) return
 
-    console.log('🎬 Watchlist action triggered', { movieId: movie.id, isInWatchlist })
-
     setIsLoading(true)
     try {
       if (isInWatchlist) {
-        console.log('🗑️ Removing from watchlist...')
         await onRemoveFromWatchlist?.(movie.id)
       } else {
-        console.log('➕ Adding to watchlist...')
         await onAddToWatchlist?.(movie.id)
       }
     } catch (error) {
-      console.error('❌ Watchlist action failed:', error)
+      // Error logging handled in the parent component's watchlist hooks
       toast.error('Failed to update watchlist. Please try again.')
     } finally {
       setIsLoading(false)
@@ -63,9 +59,9 @@ export function MovieDetailsModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto border border-gray-200 bg-white shadow-xl">
-        <DialogHeader className="-m-6 mb-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-purple-50 p-6">
-          <DialogTitle className="text-2xl font-bold text-gray-900">
+      <DialogContent className="max-h-[95vh] sm:max-h-[90vh] max-w-4xl w-full sm:w-auto mx-2 sm:mx-auto overflow-y-auto border border-gray-200 bg-white shadow-xl">
+        <DialogHeader className="-m-6 mb-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-purple-50 p-4 sm:p-6">
+          <DialogTitle className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">
             {movie.title} ({movie.year})
           </DialogTitle>
         </DialogHeader>
@@ -95,7 +91,7 @@ export function MovieDetailsModal({
                 <Button
                   onClick={onEditRating}
                   disabled={isLoading}
-                  className="w-full shadow-md"
+                  className="w-full shadow-md h-12 text-base touch-manipulation"
                   variant="outline"
                 >
                   {isLoading ? (
@@ -111,7 +107,7 @@ export function MovieDetailsModal({
                 <Button
                   onClick={handleWatchlistAction}
                   disabled={isLoading}
-                  className="w-full shadow-md"
+                  className="w-full shadow-md h-12 text-base touch-manipulation"
                   variant={isInWatchlist ? 'outline' : 'default'}
                 >
                   {isLoading ? (

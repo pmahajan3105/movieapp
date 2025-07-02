@@ -3,6 +3,8 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { ClientProviders } from '@/components/providers/ClientProviders'
 import { NavigationHeader } from '@/components/layout/NavigationHeader'
+import { BottomNavigation } from '@/components/layout/BottomNavigation'
+import { FloatingActionGroup } from '@/components/ui/FloatingActionGroup'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -21,6 +23,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ClientProviders>
           <NavigationHeader />
           <main>{children}</main>
+          <BottomNavigation />
+          <FloatingActionGroup />
         </ClientProviders>
       </body>
     </html>

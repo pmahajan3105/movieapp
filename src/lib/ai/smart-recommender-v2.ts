@@ -3,11 +3,15 @@
  * Uses semantic embeddings for intelligent movie discovery
  */
 
-import { embeddingService } from './embedding-service'
+import * as fs from 'fs'
+import * as path from 'path'
 import { createClient } from '@supabase/supabase-js'
+
 import { getSupabaseUrl, getSupabaseServiceRoleKey } from '@/lib/env'
+import { logger } from '@/lib/logger'
 import type { Movie } from '@/types'
-import { logger } from '../logger'
+import { analyzeTemporalGenreAffinity, TemporalPreferencesLite } from './behavioral-analysis'
+import { embeddingService } from './embedding-service'
 
 // Extended Movie type with recommendation properties
 interface EnhancedMovie extends Movie {
@@ -15,6 +19,34 @@ interface EnhancedMovie extends Movie {
   recommendationReason?: string
   confidenceScore?: number
   matchCategories?: string[]
+  preferenceMatch?: boolean
+}
+
+// Weight configuration interface
+interface RecommenderWeights {
+  version: string
+  lastUpdated: string
+  description: string
+  weights: {
+    semantic: { base: number; description: string }
+    rating: { base: number; description: string }
+    popularity: { base: number; description: string }
+    recency: { base: number; description: string }
+    preference: { genreMatch: number; description: string }
+  }
+  boosts: {
+    trendingMultiplier: number
+    preferenceGenreBoost: number
+    recentReleaseBoost: number
+    highRatingThreshold: number
+    highRatingBoost: number
+  }
+  meta: {
+    dynamicWeightsEnabled: boolean
+    lastFittingDate: string | null
+    fittingDataPoints: number
+    notes: string
+  }
 }
 
 export interface SmartRecommendationOptions {
@@ -43,6 +75,7 @@ export interface SmartRecommendationResult {
     semanticMatches: number
     memoryInfluences: number
     diversityScore: number
+    behavioralFactors?: any
   }
 }
 
@@ -65,8 +98,31 @@ export interface UserInteractionContext {
   [key: string]: string | number | boolean | undefined
 }
 
+// Add new interface for behavioral options
+export interface EnhancedRecommendationOptions extends SmartRecommendationOptions {
+  includeBehavioral?: boolean // enable temporal/behavioral boost
+  preferenceInsights?: {
+    insights: {
+      top_genres?: Array<{ genre_id: string; count: number }>
+      total_interactions?: number
+    } | null
+    confidence_score?: number
+  } | null
+}
+
 export class SmartRecommenderV2 {
   private static instance: SmartRecommenderV2
+  private weightsCache: RecommenderWeights | null = null
+  private weightsCacheExpiry: number = 0
+  private readonly WEIGHTS_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+  
+  // Performance caches
+  private vectorCache = new Map<string, number[]>()
+  private similarityCache = new Map<string, number>()
+  private userContextCache = new Map<string, any>()
+  private readonly VECTOR_CACHE_TTL = 10 * 60 * 1000 // 10 minutes
+  private readonly SIMILARITY_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+  private readonly USER_CONTEXT_TTL = 15 * 60 * 1000 // 15 minutes
 
   public static getInstance(): SmartRecommenderV2 {
     if (!SmartRecommenderV2.instance) {
@@ -84,6 +140,83 @@ export class SmartRecommenderV2 {
     }
 
     return createClient(url, key)
+  }
+
+  /**
+   * Load and cache recommender weights from config file
+   */
+  private async loadWeights(): Promise<RecommenderWeights> {
+    const now = Date.now()
+    
+    // Return cached weights if still valid
+    if (this.weightsCache && now < this.weightsCacheExpiry) {
+      return this.weightsCache
+    }
+
+    try {
+      // In production/serverless, weights might be in environment or database
+      // For now, load from file system
+      const configPath = path.join(process.cwd(), 'config', 'recommender-weights.json')
+      
+      let weightsData: RecommenderWeights
+      
+      if (fs.existsSync(configPath)) {
+        const rawData = fs.readFileSync(configPath, 'utf-8')
+        weightsData = JSON.parse(rawData)
+        logger.info('Loaded recommender weights from config file', { version: weightsData.version })
+      } else {
+        // Fallback to default weights if config file doesn't exist
+        weightsData = this.getDefaultWeights()
+        logger.warn('Config file not found, using default weights', { configPath })
+      }
+
+      // Cache the weights
+      this.weightsCache = weightsData
+      this.weightsCacheExpiry = now + this.WEIGHTS_CACHE_TTL
+      
+      return weightsData
+    } catch (error) {
+      logger.error('Failed to load recommender weights', { 
+        error: error instanceof Error ? error.message : String(error) 
+      })
+      
+      // Return default weights on error
+      const defaultWeights = this.getDefaultWeights()
+      this.weightsCache = defaultWeights
+      this.weightsCacheExpiry = now + this.WEIGHTS_CACHE_TTL
+      return defaultWeights
+    }
+  }
+
+  /**
+   * Get default weights (fallback)
+   */
+  private getDefaultWeights(): RecommenderWeights {
+    return {
+      version: "1.0-default",
+      lastUpdated: new Date().toISOString(),
+      description: "Default weights (fallback)",
+      weights: {
+        semantic: { base: 0.4, description: "Base semantic similarity score from embeddings" },
+        rating: { base: 0.25, description: "IMDb/TMDB rating influence" },
+        popularity: { base: 0.15, description: "Movie popularity/vote count influence" },
+        recency: { base: 0.1, description: "Release year recency boost" },
+        preference: { genreMatch: 0.1, description: "User preference genre matching boost" }
+      },
+      boosts: {
+        trendingMultiplier: 1.2,
+        preferenceGenreBoost: 0.1,
+        recentReleaseBoost: 0.05,
+        highRatingThreshold: 7.5,
+        highRatingBoost: 0.1
+      },
+      meta: {
+        dynamicWeightsEnabled: false,
+        lastFittingDate: null,
+        fittingDataPoints: 0,
+        notes: "Default fallback weights"
+      }
+    }
   }
 
   /**
@@ -112,8 +245,45 @@ export class SmartRecommenderV2 {
       // Step 3: Perform semantic matching
       const semanticMatches = await this.performSemanticMatching(candidates, userContext, options)
 
+      // NEW Step 3b: Talent boost (actor/director)
+      const talentPrefs = await this.getTalentPreferences(options.userId)
+      const talentBoostedMatches = this.applyTalentBoost(semanticMatches, talentPrefs)
+
+      // NEW Step 3c: storyline similarity
+      const userStoryline = await this.getUserStorylineProfile(options.userId)
+      if (userStoryline) {
+        talentBoostedMatches.forEach(m => {
+          if ((m as any).storyline_embedding && Array.isArray((m as any).storyline_embedding)) {
+            const sim = this.calculateCosine((m as any).storyline_embedding as number[], userStoryline)
+            m.confidenceScore = (m.confidenceScore || 0.5) + sim * 0.2 // incorporate weight lightly
+            m.matchCategories = [...(m.matchCategories || []), 'storyline-match']
+          }
+        })
+      }
+
+      // NEW Step 3d: review sentiment & social buzz adjustments
+      const userSentiment = await this.getUserSentimentBias(options.userId)
+      talentBoostedMatches.forEach(m => {
+        // Sentiment alignment boost (±0.05)
+        const rs = (m as any).review_sentiment as { critics?: number; audience?: number }
+        if (rs && typeof rs.critics === 'number') {
+          const alignment = 1 - Math.abs((rs.critics ?? 0.5) - userSentiment) // 0..1
+          const boost = (alignment - 0.5) * 0.1 // -0.05..+0.05
+          m.confidenceScore = Math.min(1, Math.max(0, (m.confidenceScore || 0.5) + boost))
+          if (Math.abs(boost) > 0.02) {
+            m.matchCategories = [...(m.matchCategories || []), 'review-match']
+          }
+        }
+
+        // Social buzz cap – if movie very popular, limit total confidence contribution
+        const buzz = (m as any).social_buzz_score as number | undefined
+        if (buzz && buzz > 0.8) {
+          m.confidenceScore = Math.min(0.85, m.confidenceScore || 0.85)
+        }
+      })
+
       // Step 4: Apply diversity and ranking
-      const finalRecommendations = await this.applyDiversityRanking(semanticMatches, options)
+      const finalRecommendations = await this.applyDiversityRanking(talentBoostedMatches, options)
 
       // Step 5: Generate insights
       const insights = this.generateInsights(finalRecommendations)
@@ -209,7 +379,8 @@ export class SmartRecommenderV2 {
   }
 
   /**
-   * Get candidate movies for recommendation
+   * Get candidate movies for recommendations
+   * Option 1: Smart Hybrid - Live TMDB trending + smart caching
    */
   private async getCandidateMovies(options: SmartRecommendationOptions): Promise<Movie[]> {
     const supabase = this.getSupabaseClient()
@@ -217,7 +388,7 @@ export class SmartRecommenderV2 {
 
     try {
       if (options.userQuery) {
-        // Search-based candidates
+        // Search-based candidates - use existing search logic
         const { data } = await supabase
           .from('movies')
           .select('*')
@@ -226,15 +397,8 @@ export class SmartRecommenderV2 {
 
         return data || []
       } else {
-        // General popular candidates
-        const { data } = await supabase
-          .from('movies')
-          .select('*')
-          .not('rating', 'is', null)
-          .order('rating', { ascending: false })
-          .limit(limit)
-
-        return data || []
+        // NEW: Smart Hybrid approach for general recommendations
+        return await this.getSmartHybridCandidates(limit)
       }
     } catch (error) {
       logger.dbError(
@@ -248,6 +412,241 @@ export class SmartRecommenderV2 {
       )
       return []
     }
+  }
+
+  /**
+   * Smart Hybrid: Fresh TMDB trending + smart caching
+   */
+  private async getSmartHybridCandidates(limit: number): Promise<Movie[]> {
+    // Step 1: Try cached trending movies first (24-hour cache)
+    let trendingMovies = await this.getCachedTrendingMovies()
+    
+    if (!trendingMovies || trendingMovies.length < 20) {
+      // Step 2: Fetch fresh TMDB trending data
+      trendingMovies = await this.fetchLiveTMDBTrending()
+      
+      if (trendingMovies.length > 0) {
+        // Step 3: Cache the results with embeddings
+        await this.cacheTrendingMoviesWithEmbeddings(trendingMovies)
+      }
+    }
+    
+    // Step 4: Blend with high-quality local movies
+    const localTopRated = await this.getLocalTopRated(Math.floor(limit * 0.3)) // 30% local
+    
+    // Step 5: Combine and deduplicate
+    const combinedMovies = this.blendMovieSources(trendingMovies, localTopRated)
+    
+    return combinedMovies.slice(0, limit)
+  }
+
+  /**
+   * Get cached trending movies (24-hour TTL)
+   */
+  private async getCachedTrendingMovies(): Promise<Movie[]> {
+    const supabase = this.getSupabaseClient()
+    
+    try {
+      const { data } = await supabase
+        .from('trending_movies_cache')
+        .select('movies_data, created_at')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+      
+      if (data) {
+        const cacheAge = Date.now() - new Date(data.created_at).getTime()
+        const twentyFourHours = 24 * 60 * 60 * 1000
+        
+        if (cacheAge < twentyFourHours) {
+          logger.info('Using cached trending movies', { cacheAgeHours: cacheAge / (60 * 60 * 1000) })
+          return data.movies_data || []
+        }
+      }
+    } catch (error) {
+      logger.warn('Failed to get cached trending movies', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+    
+    return []
+  }
+
+  /**
+   * Fetch live TMDB trending movies
+   */
+  private async fetchLiveTMDBTrending(): Promise<Movie[]> {
+    const apiKey = process.env.TMDB_API_KEY
+    if (!apiKey) {
+      logger.warn('TMDB API key not configured, falling back to local movies')
+      return []
+    }
+
+    try {
+      const url = `https://api.themoviedb.org/3/trending/movie/week?api_key=${apiKey}&page=1`
+      const response = await fetch(url)
+      
+      if (!response.ok) {
+        throw new Error(`TMDB API error: ${response.status}`)
+      }
+      
+      const data = await response.json()
+      const trendingMovies = data.results.slice(0, 50).map((movie: any) => this.transformTMDBToMovie(movie))
+      
+      logger.info('Fetched live TMDB trending movies', { count: trendingMovies.length })
+      return trendingMovies
+    } catch (error) {
+      logger.error('Failed to fetch TMDB trending movies', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return []
+    }
+  }
+
+  /**
+   * Transform TMDB movie data to our Movie type
+   */
+  private transformTMDBToMovie(tmdbMovie: any): Movie {
+    return {
+      id: tmdbMovie.id.toString(),
+      title: tmdbMovie.title,
+      plot: tmdbMovie.overview,
+      genre: tmdbMovie.genre_ids?.map((id: number) => this.getGenreNameFromId(id)).filter(Boolean) || [],
+      rating: tmdbMovie.vote_average,
+      poster_url: tmdbMovie.poster_path
+        ? `https://image.tmdb.org/t/p/w500${tmdbMovie.poster_path}`
+        : undefined,
+      backdrop_url: tmdbMovie.backdrop_path
+        ? `https://image.tmdb.org/t/p/w1280${tmdbMovie.backdrop_path}`
+        : undefined,
+      release_date: tmdbMovie.release_date,
+      vote_count: tmdbMovie.vote_count,
+      genre_ids: tmdbMovie.genre_ids,
+    }
+  }
+
+  /**
+   * Get genre name from TMDB genre ID
+   */
+  private getGenreNameFromId(genreId: number): string {
+    const genreMap: { [id: number]: string } = {
+      28: 'Action', 12: 'Adventure', 16: 'Animation', 35: 'Comedy',
+      80: 'Crime', 99: 'Documentary', 18: 'Drama', 10751: 'Family',
+      14: 'Fantasy', 36: 'History', 27: 'Horror', 10402: 'Music',
+      9648: 'Mystery', 10749: 'Romance', 878: 'Science Fiction',
+      10770: 'TV Movie', 53: 'Thriller', 10752: 'War', 37: 'Western'
+    }
+    return genreMap[genreId] || 'Unknown'
+  }
+
+  /**
+   * Cache trending movies with embeddings
+   */
+  private async cacheTrendingMoviesWithEmbeddings(movies: Movie[]): Promise<void> {
+    const supabase = this.getSupabaseClient()
+    
+    try {
+      // Store in trending cache
+      await supabase
+        .from('trending_movies_cache')
+        .insert({
+          movies_data: movies,
+          source: 'tmdb_trending',
+          cached_at: new Date().toISOString()
+        })
+      
+      // Generate embeddings in background (don't wait)
+      this.generateEmbeddingsForMovies(movies).catch(error => {
+        logger.warn('Background embedding generation failed', {
+          error: error instanceof Error ? error.message : String(error),
+        })
+      })
+      
+      logger.info('Cached trending movies', { count: movies.length })
+    } catch (error) {
+      logger.error('Failed to cache trending movies', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
+  /**
+   * Generate embeddings for movies in background
+   */
+  private async generateEmbeddingsForMovies(movies: Movie[]): Promise<void> {
+    const embeddingService = (await import('./embedding-service')).embeddingService
+    
+    for (const movie of movies) {
+      try {
+        // Check if embedding already exists
+        const existing = await this.getMovieEmbedding(movie)
+        if (!existing) {
+          const embeddingData = await embeddingService.generateMovieEmbeddings(movie)
+          await embeddingService.saveMovieEmbeddings(embeddingData)
+        }
+      } catch (error) {
+        logger.warn(`Failed to generate embedding for movie ${movie.title}`, {
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+    }
+  }
+
+  /**
+   * Get high-quality local movies
+   */
+  private async getLocalTopRated(limit: number): Promise<Movie[]> {
+    const supabase = this.getSupabaseClient()
+    
+    try {
+      const { data } = await supabase
+        .from('movies')
+        .select('*')
+        .not('rating', 'is', null)
+        .gte('rating', 7.5) // High quality threshold
+        .order('rating', { ascending: false })
+        .limit(limit)
+
+      return data || []
+    } catch (error) {
+      logger.warn('Failed to get local top-rated movies', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return []
+    }
+  }
+
+  /**
+   * Blend trending and local movies intelligently
+   */
+  private blendMovieSources(trendingMovies: Movie[], localMovies: Movie[]): Movie[] {
+    const seen = new Set<string>()
+    const blended: Movie[] = []
+    
+    // Add trending movies first (70% of results)
+    for (const movie of trendingMovies) {
+      if (!seen.has(movie.id)) {
+        seen.add(movie.id)
+        blended.push({
+          ...movie,
+          // Mark as trending for potential boost
+          matchCategories: ['trending']
+        } as any)
+      }
+    }
+    
+    // Fill remaining with local high-quality movies
+    for (const movie of localMovies) {
+      if (!seen.has(movie.id)) {
+        seen.add(movie.id)
+        blended.push({
+          ...movie,
+          matchCategories: ['curated']
+        } as any)
+      }
+    }
+    
+    return blended
   }
 
   /**
@@ -278,7 +677,7 @@ export class SmartRecommenderV2 {
         const reason = this.generateRecommendationReason(movie, similarity, options)
 
         // Calculate confidence score
-        const confidence = this.calculateConfidenceScore(similarity, userContext.confidence, movie)
+        const confidence = await this.calculateConfidenceScore(similarity, userContext.confidence, movie)
 
         // Determine match categories
         const categories = this.determineMatchCategories(movie, options, similarity)
@@ -335,10 +734,21 @@ export class SmartRecommenderV2 {
   }
 
   /**
-   * Calculate cosine similarity between two vectors
+   * Calculate cosine similarity between two vectors with memoization
    */
   private calculateCosineSimilarity(vecA: number[], vecB: number[]): number {
     if (vecA.length !== vecB.length) return 0
+
+    // Generate cache key for memoization
+    const keyA = this.hashVector(vecA)
+    const keyB = this.hashVector(vecB)
+    const cacheKey = `${keyA}-${keyB}`
+    
+    // Check cache first
+    const cached = this.getCachedSimilarity(cacheKey)
+    if (cached !== null) {
+      return cached
+    }
 
     let dotProduct = 0
     let normA = 0
@@ -353,7 +763,51 @@ export class SmartRecommenderV2 {
     }
 
     const magnitude = Math.sqrt(normA) * Math.sqrt(normB)
-    return magnitude > 0 ? dotProduct / magnitude : 0
+    const similarity = magnitude > 0 ? dotProduct / magnitude : 0
+    
+    // Cache the result
+    this.setCachedSimilarity(cacheKey, similarity)
+    
+    return similarity
+  }
+
+  /**
+   * Generate a fast hash for vector caching
+   */
+  private hashVector(vector: number[]): string {
+    // Simple hash for performance - first/last few elements + length
+    const sample = [
+      vector.length,
+      ...vector.slice(0, 3),
+      ...vector.slice(-2)
+    ].map(n => Math.round((n || 0) * 1000))
+    
+    return sample.join('|')
+  }
+
+  /**
+   * Get cached similarity with TTL check
+   */
+  private getCachedSimilarity(key: string): number | null {
+    const cached = this.similarityCache.get(key)
+    if (cached !== undefined) {
+      return cached
+    }
+    return null
+  }
+
+  /**
+   * Set cached similarity with automatic cleanup
+   */
+  private setCachedSimilarity(key: string, similarity: number): void {
+    // Limit cache size to prevent memory leaks
+    if (this.similarityCache.size > 1000) {
+      // Remove oldest entries (simple FIFO)
+      const keysToDelete = Array.from(this.similarityCache.keys()).slice(0, 200)
+      keysToDelete.forEach(k => this.similarityCache.delete(k))
+    }
+    
+    this.similarityCache.set(key, similarity)
   }
 
   /**
@@ -397,16 +851,18 @@ export class SmartRecommenderV2 {
   /**
    * Calculate confidence score
    */
-  private calculateConfidenceScore(
+  private async calculateConfidenceScore(
     similarity: number,
     userConfidence: number,
     movie: Movie
-  ): number {
+  ): Promise<number> {
+    const weights = await this.loadWeights()
+    
     let confidence = similarity * userConfidence
 
     // Boost confidence for popular/well-rated movies
-    if (movie.rating && movie.rating > 8) {
-      confidence *= 1.2
+    if (movie.rating && movie.rating > weights.boosts.highRatingThreshold) {
+      confidence *= (1 + weights.boosts.highRatingBoost)
     }
 
     // Ensure confidence is between 0 and 1
@@ -438,6 +894,7 @@ export class SmartRecommenderV2 {
       }
     }
 
+     
     if (movie.rating && movie.rating > 8) {
       categories.push('high-quality')
     }
@@ -575,6 +1032,245 @@ export class SmartRecommenderV2 {
     }
 
     return confidenceMap[interactionType] || 0.5
+  }
+
+  /**
+   * Vector recommendations + optional temporal behavioral boost
+   */
+  async getEnhancedRecommendations(
+    options: EnhancedRecommendationOptions
+  ): Promise<SmartRecommendationResult> {
+    // 1. Get base vector recommendations first
+    const base = await this.getSmartRecommendations(options)
+
+    // Early-exit if behavioral logic not requested
+    if (!options.includeBehavioral) {
+      return base
+    }
+
+    // 2. Fetch lightweight temporal preferences (hourly+weekly genre affinity)
+    let temporalPrefs: TemporalPreferencesLite | null = null
+    try {
+      temporalPrefs = await analyzeTemporalGenreAffinity(options.userId)
+    } catch (err) {
+      logger.warn('Behavioral affinity analysis failed – falling back to base recs', {
+        userId: options.userId,
+        error: err instanceof Error ? err.message : String(err),
+      })
+      return base
+    }
+
+    const boostedMovies = this.applyTemporalBoost(base.movies, temporalPrefs)
+
+    // 3. Apply preference insights boost if available
+    const finalMovies = options.preferenceInsights?.insights
+      ? this.applyPreferenceInsightsBoost(boostedMovies, options.preferenceInsights.insights)
+      : boostedMovies
+
+    return {
+      ...base,
+      movies: finalMovies,
+      insights: {
+        ...base.insights,
+        behavioralFactors: {
+          timeOfDay: temporalPrefs?.timeOfDay || {},
+          dayOfWeek: temporalPrefs?.dayOfWeek || {},
+          preferenceInsights: options.preferenceInsights?.insights || null,
+        },
+      },
+    }
+  }
+
+  /**
+   * Apply a simple boost (≤0.25) based on genre-time match – now ENV-configurable
+   */
+  private applyTemporalBoost(
+    movies: EnhancedMovie[],
+    prefs: TemporalPreferencesLite
+  ): EnhancedMovie[] {
+    // Allow runtime tuning via ENV (defaults keep previous behaviour)
+    const HOUR_WEIGHT = Number.parseFloat(process.env.BEHAVIORAL_HOUR_WEIGHT || '0.1')
+    const DAY_WEIGHT = Number.parseFloat(process.env.BEHAVIORAL_DAY_WEIGHT || '0.15')
+
+    const hour = new Date().getHours()
+    const dow = new Date().getDay()
+
+    const hourPref = prefs.timeOfDay[hour]
+    const dayPref = prefs.dayOfWeek[dow]
+
+    return movies
+      .map(m => {
+        let boost = 0
+
+        if (hourPref && Array.isArray(m.genre_ids)) {
+          const { preferredGenres, confidence } = hourPref
+          const matches = m.genre_ids.filter(id => preferredGenres.includes(String(id)))
+          if (matches.length > 0) {
+            // up to 3 × weight × confidence
+            boost += HOUR_WEIGHT * confidence * matches.length
+          }
+        }
+
+        if (dayPref && Array.isArray(m.genre_ids)) {
+          const { preferredGenres } = dayPref
+          const matches = m.genre_ids.filter(id => preferredGenres.includes(String(id)))
+          if (matches.length > 0) {
+            boost += DAY_WEIGHT
+          }
+        }
+
+        return {
+          ...m,
+          confidenceScore: Math.min(1, (m.confidenceScore || 0.5) + boost),
+        }
+      })
+      .sort((a, b) => (b.confidenceScore || 0) - (a.confidenceScore || 0))
+  }
+
+  private async getTalentPreferences(userId: string): Promise<{ actors: string[]; directors: string[] }> {
+    try {
+      const supabase = this.getSupabaseClient()
+      const { data, error } = await supabase
+        .from('conversational_memory')
+        .select('memory_type, memory_key')
+        .eq('user_id', userId)
+        .in('memory_type', ['actor_preference', 'director_preference'])
+        .gt('preference_strength', 0)
+
+      if (error) {
+        logger.warn('Failed to fetch talent preferences', { userId, error: error.message })
+        return { actors: [], directors: [] }
+      }
+
+      const actors: string[] = []
+      const directors: string[] = []
+      for (const row of data || []) {
+        if (row.memory_type === 'actor_preference' && row.memory_key) {
+          actors.push(String(row.memory_key).toLowerCase())
+        }
+        if (row.memory_type === 'director_preference' && row.memory_key) {
+          directors.push(String(row.memory_key).toLowerCase())
+        }
+      }
+      return { actors, directors }
+    } catch (err) {
+      logger.warn('Talent preference query failed', {
+        userId,
+        error: err instanceof Error ? err.message : String(err),
+      })
+      return { actors: [], directors: [] }
+    }
+  }
+
+  /**
+   * Apply actor/director preference boost (≤0.3)
+   */
+  private applyTalentBoost(
+    movies: EnhancedMovie[],
+    prefs: { actors: string[]; directors: string[] }
+  ): EnhancedMovie[] {
+    if (prefs.actors.length === 0 && prefs.directors.length === 0) return movies
+
+    return movies
+      .map(m => {
+        let boost = 0
+        const cast = (m.cast || m.actors || []) as string[]
+        const directors = (m.director || []) as string[]
+
+        // Director match – single boost
+        if (directors.some(d => prefs.directors.includes(d.toLowerCase()))) {
+          boost += 0.15
+          m.matchCategories = [...(m.matchCategories || []), 'director-match']
+        }
+
+        // Actor matches – up to 3 matches (0.3)
+        const actorMatches = cast.filter(a => prefs.actors.includes(a.toLowerCase()))
+        if (actorMatches.length > 0) {
+          boost += Math.min(0.3, 0.1 * actorMatches.length)
+          m.matchCategories = [...(m.matchCategories || []), 'actor-match']
+        }
+
+        return {
+          ...m,
+          confidenceScore: Math.min(1, (m.confidenceScore || 0.5) + boost),
+        }
+      })
+      .sort((a, b) => (b.confidenceScore || 0) - (a.confidenceScore || 0))
+  }
+
+  /**
+   * Compute average storyline embedding of movies the user liked (rating >=4 or like interaction)
+   */
+  private async getUserStorylineProfile(userId: string): Promise<number[] | null> {
+    try {
+      const supabase = this.getSupabaseClient()
+      const { data } = await supabase.rpc('get_user_storyline_profile', { p_user_id: userId })
+      // Assume RPC returns { embedding: number[] } or null
+      if (data && data.embedding) return data.embedding as number[]
+    } catch (err) {
+      logger.warn('Failed to fetch storyline profile', { userId, error: String(err) })
+    }
+    return null
+  }
+
+  private calculateCosine(vecA: number[], vecB: number[]): number {
+    if (!vecA || !vecB || vecA.length === 0 || vecB.length === 0 || vecA.length !== vecB.length) {
+      return 0
+    }
+    
+    const dot = vecA.reduce((sum, a, i) => sum + a * (vecB[i] ?? 0), 0)
+    const magA = Math.sqrt(vecA.reduce((s, a) => s + a * a, 0))
+    const magB = Math.sqrt(vecB.reduce((s, b) => s + b * b, 0))
+    if (magA === 0 || magB === 0) return 0
+    return dot / (magA * magB)
+  }
+
+  private async getUserSentimentBias(userId: string): Promise<number> {
+    try {
+      const supabase = this.getSupabaseClient()
+      const { data, error } = await supabase.rpc('get_user_sentiment_bias', { p_user_id: userId })
+      if (error) throw error
+      if (data !== null && !isNaN(Number(data))) {
+        return Number(data)
+      }
+    } catch (err) {
+      logger.warn('Sentiment bias RPC failed', { userId, error: String(err) })
+    }
+    return 0.5 // neutral default
+  }
+
+  private applyPreferenceInsightsBoost(
+    movies: EnhancedMovie[],
+    insights: {
+      top_genres?: Array<{ genre_id: string; count: number }>
+      total_interactions?: number
+    } | null
+  ): EnhancedMovie[] {
+    if (!insights || !insights.top_genres || insights.top_genres.length === 0) {
+      return movies
+    }
+
+    const genreBoost = 0.1
+
+    return movies.map(m => {
+      let boost = 0
+
+      if (m.genre) {
+        const movieGenres = Array.isArray(m.genre) ? m.genre : [m.genre]
+        const genreMatches = movieGenres.filter(g =>
+          insights.top_genres?.some(genre => g.toLowerCase().includes(genre.genre_id.toLowerCase()))
+        )
+        if (genreMatches.length > 0) {
+          boost += genreBoost * genreMatches.length
+          m.preferenceMatch = true // Mark as preference match
+        }
+      }
+
+      return {
+        ...m,
+        confidenceScore: Math.min(1, (m.confidenceScore || 0.5) + boost),
+      }
+    })
   }
 }
 

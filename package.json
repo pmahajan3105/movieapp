@@ -1,9 +1,35 @@
 {
-  "name": "movie-app",
-  "version": "0.1.0",
+  "name": "cineai",
+  "version": "2.0.0",
+  "description": "Advanced AI-powered movie recommendation engine with voice conversation and hyper-personalized recommendations",
+  "keywords": [
+    "ai",
+    "movie",
+    "recommendations",
+    "voice-chat",
+    "nextjs",
+    "typescript",
+    "supabase",
+    "machine-learning",
+    "personalization"
+  ],
+  "homepage": "https://cineai.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/cineai.git"
+  },
+  "author": {
+    "name": "CineAI Team",
+    "email": "contact@cineai.app"
+  },
+  "license": "MIT",
   "private": true,
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
   "scripts": {
-    "dev": "next dev --turbo",
+    "dev": "next dev",
     "dev:clean": "rm -rf .next && next dev --turbo",
     "dev:stable": "rm -rf .next node_modules/.cache && next dev --turbo",
     "build": "next build",
@@ -12,17 +38,45 @@
     "lint:fix": "next lint --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "type-check": "tsc --noEmit",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
+    "test:coverage": "jest --coverage --watchAll=false",
+    "test:coverage:detailed": "jest --coverage --verbose --watchAll=false",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug",
+    "test:all": "npm run test:coverage && npm run test:e2e && npm run test:performance",
+    "test:performance": "cd performance && npm run test:performance",
+    "test:performance:setup": "cd performance && npm install && npx playwright install",
+    "test:load": "cd performance && npm run test:load",
+    "test:lighthouse": "cd performance && npm run test:lighthouse",
+    "test:stress": "cd performance && npm run test:stress",
+    "performance:report": "cd performance && npm run generate:report",
     "test:ci": "jest --ci --coverage --watchAll=false",
-    "test:preferences": "jest src/__tests__/api/movies.test.ts src/__tests__/components/movies-page.test.tsx src/__tests__/components/dashboard.test.tsx src/__tests__/integration/preference-workflow.test.ts --verbose",
     "test:api": "jest src/__tests__/api/ --verbose",
     "test:components": "jest src/__tests__/components/ --verbose",
     "test:integration": "jest src/__tests__/integration/ --verbose",
+    "test:lib": "jest src/__tests__/lib/ --verbose",
+    "test:hooks": "jest src/__tests__/hooks/ --verbose",
+    "test:preferences": "jest src/__tests__/api/movies.test.ts src/__tests__/components/movies-page.test.tsx src/__tests__/components/dashboard.test.tsx src/__tests__/integration/preference-workflow.test.ts --verbose",
     "test:pre-commit": "node src/__tests__/run-tests.js",
-    "type-check": "tsc --noEmit",
+    "coverage:open": "open coverage/lcov-report/index.html",
+    "coverage:serve": "npx http-server coverage/lcov-report -p 8080",
+    "security:audit": "npm audit --audit-level=moderate",
+    "security:fix": "npm audit fix",
+    "security:check": "npm run security:audit && npm outdated",
+    "db:migrate": "npx supabase db push",
+    "db:reset": "npx supabase db reset",
+    "db:seed": "npx supabase db seed",
+    "db:types": "npx supabase gen types typescript --project-id=\"kpgaafgmpnxtnbkwfqdr\" > src/types/supabase.ts",
     "generate:types": "supabase gen types typescript --linked --schema public > src/types/supabase-generated.ts",
+    "health:check": "curl -f http://localhost:3000/api/healthz || exit 1",
+    "build:analyze": "ANALYZE=true npm run build",
+    "deploy:check": "node scripts/deployment-check.js",
+    "deploy:staging": "npm run deploy:check && vercel --env=staging",
+    "deploy:production": "npm run deploy:check && vercel --prod",
     "prepare": "husky",
     "pre-commit": "lint-staged"
   },
@@ -62,6 +116,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "3.1.0",
+    "@playwright/test": "^1.53.1",
     "@tailwindcss/postcss": "4.1.7",
     "@tanstack/react-query-devtools": "5.80.7",
     "@testing-library/dom": "10.4.0",
@@ -89,5 +144,26 @@
     "tailwindcss": "4.0.0",
     "typescript": "5.5.4",
     "whatwg-fetch": "3.6.20"
+  },
+  "browserslist": {
+    "production": [
+      ">0.3%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
   }
 }

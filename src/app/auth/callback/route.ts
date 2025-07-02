@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextRequest, NextResponse } from 'next/server'
 import { getSiteURL } from '@/lib/utils/url-helper'
+import { getRequiredEnvVar } from '@/lib/utils/env-validation'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -27,8 +28,8 @@ export async function GET(request: NextRequest) {
 
     // Create Supabase client with simplified cookie management
     const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      getRequiredEnvVar('NEXT_PUBLIC_SUPABASE_URL'),
+      getRequiredEnvVar('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
       {
         cookies: {
           get(name: string) {
@@ -73,7 +74,7 @@ export async function GET(request: NextRequest) {
       await supabase.from('user_profiles').upsert(
         {
           id: data.user.id,
-          email: data.user.email!,
+          email: data.user.email || '',
           full_name: data.user.user_metadata?.full_name || null,
           updated_at: new Date().toISOString(),
         },

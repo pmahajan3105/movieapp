@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAuth, withError } from '@/lib/api/factory'
 import { logger } from '@/lib/logger'
+import RecommendationCacheManager from '@/lib/utils/recommendation-cache'
 
 export const PATCH = withError(
   requireAuth(async ({ request, supabase, user }) => {
@@ -129,6 +130,16 @@ export const PATCH = withError(
       watchedAt: data.watched_at,
       hasNotes: !!data.notes,
     })
+
+    // Clear recommendation cache if movie was marked as watched
+    if (data.watched === true && typeof watched === 'boolean' && watched === true) {
+      RecommendationCacheManager.clearUserRecommendations(user.id)
+      logger.info('🗑️ Cleared recommendation cache due to movie marked as watched', {
+        userId: user.id,
+        watchlistId,
+        movieWatched: data.watched
+      })
+    }
 
     return NextResponse.json({ success: true, data })
   })

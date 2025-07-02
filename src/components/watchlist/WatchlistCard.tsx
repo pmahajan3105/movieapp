@@ -3,6 +3,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Film, CheckCircle, Circle, Calendar, Star, Trash2 } from 'lucide-react'
 import Image from 'next/image'
+import { ConfidenceBadge } from '@/components/ui/ConfidenceBadge'
+import { ExplanationPopover } from '@/components/movies/ExplanationPopover'
 import type { Movie, WatchlistItem } from '@/types'
 
 interface WatchlistCardProps {
@@ -48,6 +50,17 @@ export function WatchlistCard({ item, onMovieClick, onRemove, onMarkWatched }: W
             </Badge>
           )}
         </div>
+
+        {/* Explanation Badge */}
+        {(item.movies as any).explanation && (
+          <div className="absolute bottom-2 right-2 z-20 group/expl">
+            <ConfidenceBadge explanation={(item.movies as any).explanation} />
+            {/* popover */}
+            <div className="absolute bottom-full right-0 mb-2 hidden group-hover/expl:block">
+              <ExplanationPopover explanation={(item.movies as any).explanation} />
+            </div>
+          </div>
+        )}
       </div>
 
       <CardContent className="p-4">

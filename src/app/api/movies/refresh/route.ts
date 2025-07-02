@@ -2,40 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server-client'
 import { MovieRepository } from '@/repositories/MovieRepository'
 import { logger } from '@/lib/logger'
-
-// Helper to fetch movie from TMDB API
-async function fetchTmdbMovie(tmdbId: number) {
-  const apiKey = process.env.TMDB_API_KEY
-
-  if (!apiKey) {
-    throw new Error('TMDB API key not configured')
-  }
-
-  const resp = await fetch(
-    `https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${apiKey}&append_to_response=credits`
-  )
-
-  if (!resp.ok) {
-    throw new Error(`TMDB API error: ${resp.status} ${resp.statusText}`)
-  }
-
-  const m = await resp.json()
-
-  return {
-    title: m.title,
-    year: m.release_date ? new Date(m.release_date).getFullYear() : null,
-    genre: (m.genres || []).map((g: any) => g.name),
-    director: (m.credits?.crew || [])
-      .filter((c: any) => c.job === 'Director')
-      .map((d: any) => d.name),
-    plot: m.overview,
-    poster_url: m.poster_path ? `https://image.tmdb.org/t/p/w500${m.poster_path}` : null,
-    rating: m.vote_average,
-    runtime: m.runtime,
-    tmdb_id: tmdbId,
-    imdb_id: m.imdb_id || null,
-  }
-}
+import { fetchTmdbMovieById } from '@/lib/utils/tmdb-helpers'
 
 export async function POST(request: NextRequest) {
   try {
@@ -84,14 +51,23 @@ export async function POST(request: NextRequest) {
     logger.info('Refreshing movie details from TMDB', { movieId, tmdbId: movie.tmdb_id })
 
     // Fetch fresh data from TMDB
-    const tmdbData = await fetchTmdbMovie(movie.tmdb_id)
+    const tmdbMovie = await fetchTmdbMovieById(movie.tmdb_id)
+    
+    if (!tmdbMovie) {
+      return NextResponse.json({ success: false, error: 'Failed to fetch movie details from TMDB' }, { status: 500 })
+    }
 
     // Convert null values to undefined for Movie type compatibility
     const movieUpdate = {
-      ...tmdbData,
-      poster_url: tmdbData.poster_url || undefined,
-      plot: tmdbData.plot || undefined,
-      imdb_id: tmdbData.imdb_id || undefined,
+      title: tmdbMovie.title,
+      year: tmdbMovie.year,
+      genre: tmdbMovie.genre,
+      director: tmdbMovie.director,
+      plot: tmdbMovie.plot || undefined,
+      poster_url: tmdbMovie.poster_url || undefined,
+      rating: tmdbMovie.rating,
+      runtime: tmdbMovie.runtime,
+      imdb_id: tmdbMovie.imdb_id || undefined,
     }
 
     // Update the movie in database

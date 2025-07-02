@@ -20,19 +20,7 @@ export default function WatchlistPage() {
     handleConfirmMarkWatched,
   } = useWatchlistPage()
 
-  // Loading state
-  if (state.isLoading) {
-    return (
-      <div className="flex min-h-screen flex-col justify-center bg-gray-50 py-12 sm:px-6 lg:px-8">
-        <div className="sm:mx-auto sm:w-full sm:max-w-md">
-          <div className="flex justify-center">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
-          </div>
-          <p className="mt-4 text-center text-sm text-gray-600">Loading your watchlist...</p>
-        </div>
-      </div>
-    )
-  }
+  // Don't show full-page loading, handle it in the content area
 
   // Error state
   if (state.error) {
@@ -88,7 +76,13 @@ export default function WatchlistPage() {
         </div>
 
         {/* Movies Grid or Empty State */}
-        {unwatchedItems.length > 0 ? (
+        {state.isLoading || (state.items.length === 0 && !state.error) ? (
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="aspect-[2/3] bg-gray-200 animate-pulse rounded-lg" />
+            ))}
+          </div>
+        ) : unwatchedItems.length > 0 ? (
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {unwatchedItems.map(item => (
               <WatchlistCard

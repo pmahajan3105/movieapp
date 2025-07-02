@@ -11,7 +11,7 @@ State: React Query for server state, Context for auth
 
 Coding Instructions
 
-- Write the absolute minimum code required
+- Write the minimum code required
 - No sweeping changes
 - No unrelated edits - focus on just the task you're on
 - Make code precise, modular, testable

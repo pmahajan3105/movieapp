@@ -53,7 +53,7 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps = {
     },
     onPreferencesExtracted: handlePreferencesExtracted,
     onSessionStart: newSessionId => {
-      console.log('🎬 New chat session started:', newSessionId)
+      // Session tracking handled internally
     },
   })
 
@@ -74,7 +74,7 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps = {
       // Send through streaming chat for preference extraction or general conversation
       await startStreaming(message, sessionId)
     } catch (error) {
-      console.error('❌ Failed to send message:', error)
+      // Error logging handled by streaming chat hook
       addErrorMessage()
     }
   }
@@ -103,13 +103,6 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps = {
   return (
     <ChatErrorBoundary onReset={handleReset}>
       <div className="flex h-full flex-col">
-        {/* Debug Info - Remove in production */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="bg-base-200 text-base-content/60 border-b p-2 text-xs">
-            Session: {sessionId || 'None'} | Preferences: {preferencesComplete ? '✅' : '❌'} |
-            Messages: {messages.length}
-          </div>
-        )}
 
         {/* Preference Status */}
         {extractedPreferences && (

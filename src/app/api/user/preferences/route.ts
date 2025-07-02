@@ -1,5 +1,6 @@
 import { createAuthenticatedApiHandler, parseJsonBody } from '@/lib/api/factory'
 import { NextResponse } from 'next/server'
+import { logger } from '@/lib/logger'
 
 // GET /api/user/preferences - Get user preferences
 export const GET = createAuthenticatedApiHandler(async (_req, { supabase, user }) => {
@@ -25,8 +26,7 @@ export const POST = createAuthenticatedApiHandler(async (request, { supabase, us
     throw new Error('Preferences data is required')
   }
 
-  console.log('💾 Saving preferences for user:', user.id)
-  console.log('📝 Preferences data:', preferences)
+  logger.info('Saving preferences for user', { userId: user.id, preferenceCount: Object.keys(preferences).length })
 
   // Prepare the profile data
   const profileData = {
@@ -58,11 +58,11 @@ export const POST = createAuthenticatedApiHandler(async (request, { supabase, us
     .select()
 
   if (error) {
-    console.error('❌ Database error saving preferences:', error)
+    logger.dbError('saving preferences', error as Error)
     throw new Error(`Failed to save preferences: ${error.message}`)
   }
 
-  console.log('✅ Preferences saved successfully:', data)
+  logger.info('Preferences saved successfully', { userId: user.id, recordCount: data?.length })
 
   return NextResponse.json({
     success: true,
@@ -72,7 +72,7 @@ export const POST = createAuthenticatedApiHandler(async (request, { supabase, us
 
 // DELETE /api/user/preferences - Clear user preferences
 export const DELETE = createAuthenticatedApiHandler(async (_req, { supabase, user }) => {
-  console.log('🗑️ Clearing manual preferences for user:', user.id)
+  logger.info('Clearing manual preferences for user', { userId: user.id })
 
   // Clear preferences by setting to null
   const { error } = await supabase
@@ -84,11 +84,11 @@ export const DELETE = createAuthenticatedApiHandler(async (_req, { supabase, use
     .eq('id', user.id)
 
   if (error) {
-    console.error('❌ Error clearing preferences:', error)
+    logger.dbError('clearing preferences', error as Error)
     throw new Error(`Failed to clear preferences: ${error.message}`)
   }
 
-  console.log('✅ Successfully cleared manual preferences for user:', user.id)
+  logger.info('Successfully cleared manual preferences for user', { userId: user.id })
 
   return NextResponse.json({
     success: true,

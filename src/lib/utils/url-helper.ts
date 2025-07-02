@@ -2,6 +2,7 @@
  * URL Helper for Supabase Authentication Redirects
  * Ensures magic links and OAuth flows work correctly in all environments
  */
+import { logger } from '@/lib/logger'
 
 /**
  * Gets the current site URL based on environment
@@ -69,20 +70,21 @@ export function getRedirectURL(path: string = '/dashboard'): string {
  * Useful for troubleshooting in different environments
  */
 export function debugURLConfig(): void {
-  console.log('🔍 URL Configuration Debug:')
-  console.log('- NEXT_PUBLIC_SITE_URL:', process.env.NEXT_PUBLIC_SITE_URL || 'NOT SET')
-  console.log('- NEXT_PUBLIC_VERCEL_URL:', process.env.NEXT_PUBLIC_VERCEL_URL || 'NOT SET')
-  console.log('- VERCEL_URL:', process.env.VERCEL_URL || 'NOT SET')
-  console.log('- PORT:', process.env.PORT || 'NOT SET')
-  console.log('- NODE_ENV:', process.env.NODE_ENV || 'NOT SET')
-
-  if (typeof window !== 'undefined') {
-    console.log('- Current Browser URL:', `${window.location.protocol}//${window.location.host}`)
+  const config = {
+    NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL || 'NOT SET',
+    NEXT_PUBLIC_VERCEL_URL: process.env.NEXT_PUBLIC_VERCEL_URL || 'NOT SET',
+    VERCEL_URL: process.env.VERCEL_URL || 'NOT SET',
+    PORT: process.env.PORT || 'NOT SET',
+    NODE_ENV: process.env.NODE_ENV || 'NOT SET',
+    currentBrowserURL: typeof window !== 'undefined' 
+      ? `${window.location.protocol}//${window.location.host}` 
+      : 'N/A (server-side)',
+    computedSiteURL: getSiteURL(),
+    authCallbackURL: getAuthCallbackURL(),
+    defaultRedirectURL: getRedirectURL()
   }
-
-  console.log('- Computed Site URL:', getSiteURL())
-  console.log('- Auth Callback URL:', getAuthCallbackURL())
-  console.log('- Default Redirect URL:', getRedirectURL())
+  
+  logger.debug('URL Configuration Debug', config)
 }
 
 /**

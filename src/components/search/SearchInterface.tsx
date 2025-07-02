@@ -2,9 +2,6 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { Search, X, Clock, Film } from 'lucide-react'
-import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
-import { Card, CardBody } from '@/components/ui/card'
 import type { AutocompleteResponse } from '@/types/search'
 import type { Movie } from '@/types'
 import Image from 'next/image'
@@ -158,9 +155,11 @@ export function SearchInterface({
   return (
     <div className={`relative w-full ${className}`}>
       {/* Search Input */}
-      <div className="relative">
-        <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
-        <Input
+      <div className="relative group">
+        <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+          <Search className="h-5 w-5 text-slate-400 group-focus-within:text-purple-500 transition-colors" />
+        </div>
+        <input
           ref={inputRef}
           value={query}
           onChange={e => {
@@ -174,116 +173,127 @@ export function SearchInterface({
             }
           }}
           placeholder={placeholder}
-          className="h-12 pr-20 pl-10 text-base"
+          className="w-full h-12 pl-12 pr-12 bg-white/80 backdrop-blur-sm border border-slate-200/50 rounded-2xl shadow-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-300 transition-all duration-200 hover:bg-white/90 hover:shadow-md"
+          autoComplete="off"
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck={false}
         />
 
-        {/* Clear and Search buttons */}
-        <div className="absolute top-1/2 right-2 flex -translate-y-1/2 gap-1">
-          {query && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={handleClear}
-              className="h-8 w-8 p-0"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          )}
-          <Button
+        {/* Clear button */}
+        {query && (
+          <button
             type="button"
-            onClick={() => handleSearch()}
-            disabled={!query.trim()}
-            className="h-8 px-3"
+            onClick={handleClear}
+            className="absolute inset-y-0 right-3 flex items-center text-slate-400 hover:text-slate-600 transition-colors p-1"
           >
-            Search
-          </Button>
-        </div>
+            <X className="h-4 w-4" />
+          </button>
+        )}
+
+        {/* Search loading indicator */}
+        {isLoading && (
+          <div className="absolute inset-y-0 right-3 flex items-center">
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-purple-500/30 border-t-purple-500"></div>
+          </div>
+        )}
       </div>
 
       {/* Autocomplete Suggestions */}
       {showSuggestions && autocompleteData && (
-        <Card className="absolute top-full right-0 left-0 z-50 mt-1 max-h-96 overflow-y-auto">
-          <CardBody className="p-0">
-            {/* Movie Suggestions */}
-            {autocompleteData.movies.length > 0 && (
-              <div className="p-2">
-                <div className="mb-2 px-2 text-xs font-medium tracking-wide text-gray-500 uppercase">
-                  Movies
-                </div>
-                {autocompleteData.movies.map((movie, index) => (
+        <div className="absolute top-full left-0 right-0 z-50 mt-2 max-h-96 overflow-y-auto bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-200/50 ring-1 ring-slate-200/20">
+          {/* Movie Suggestions */}
+          {autocompleteData.movies.length > 0 && (
+            <div className="p-4">
+              <div className="mb-3 px-2 text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                Movies
+              </div>
+              {autocompleteData.movies.map((movie, index) => (
+                <button
+                  key={movie.id}
+                  onClick={() => handleSearch(movie.title)}
+                  className={`flex w-full items-center gap-4 rounded-xl p-3 text-left transition-all duration-150 ${
+                    index === selectedIndex 
+                      ? 'bg-gradient-to-r from-purple-50 to-blue-50 shadow-sm' 
+                      : 'hover:bg-slate-50/80'
+                  }`}
+                >
+                  {movie.poster_url ? (
+                    <div className="relative h-14 w-10 flex-shrink-0 overflow-hidden rounded-lg shadow-sm">
+                      <Image
+                        src={movie.poster_url}
+                        alt={movie.title}
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex h-14 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-slate-100 to-slate-200 shadow-sm">
+                      <Film className="h-5 w-5 text-slate-400" />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-semibold text-slate-800">{movie.title}</div>
+                    {movie.year && (
+                      <div className="text-sm text-slate-500 mt-0.5">{movie.year}</div>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Search Suggestions */}
+          {autocompleteData.suggestions.length > 0 && (
+            <div className={`p-4 ${autocompleteData.movies.length > 0 ? 'border-t border-slate-200/50' : ''}`}>
+              <div className="mb-3 px-2 text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                Popular Searches
+              </div>
+              {autocompleteData.suggestions.map((suggestion, index) => {
+                const suggestionIndex = autocompleteData.movies.length + index
+                return (
                   <button
-                    key={movie.id}
-                    onClick={() => handleSearch(movie.title)}
-                    className={`flex w-full items-center gap-3 rounded p-2 text-left hover:bg-gray-50 ${
-                      index === selectedIndex ? 'bg-blue-50' : ''
+                    key={suggestion}
+                    onClick={() => handleSearch(suggestion)}
+                    className={`flex w-full items-center gap-3 rounded-xl p-3 text-left transition-all duration-150 ${
+                      suggestionIndex === selectedIndex 
+                        ? 'bg-gradient-to-r from-purple-50 to-blue-50 shadow-sm' 
+                        : 'hover:bg-slate-50/80'
                     }`}
                   >
-                    {movie.poster_url ? (
-                      <div className="relative h-12 w-8 flex-shrink-0">
-                        <Image
-                          src={movie.poster_url}
-                          alt={movie.title}
-                          fill
-                          className="rounded object-cover"
-                        />
-                      </div>
-                    ) : (
-                      <div className="flex h-12 w-8 flex-shrink-0 items-center justify-center rounded bg-gray-200">
-                        <Film className="h-4 w-4 text-gray-400" />
-                      </div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate font-medium text-gray-900">{movie.title}</div>
-                      <div className="text-sm text-gray-500">{movie.year}</div>
+                    <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-purple-100 to-blue-100 flex items-center justify-center">
+                      <Clock className="h-4 w-4 text-purple-500" />
                     </div>
+                    <span className="text-slate-700 font-medium">{suggestion}</span>
                   </button>
-                ))}
-              </div>
-            )}
+                )
+              })}
+            </div>
+          )}
 
-            {/* Search Suggestions */}
-            {autocompleteData.suggestions.length > 0 && (
-              <div className="border-t p-2">
-                <div className="mb-2 px-2 text-xs font-medium tracking-wide text-gray-500 uppercase">
-                  Recent Searches
+          {/* Loading state */}
+          {isLoading && (
+            <div className="p-6 text-center">
+              <div className="inline-flex items-center gap-3 text-slate-500">
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-purple-500/30 border-t-purple-500" />
+                <span className="font-medium">Searching movies...</span>
+              </div>
+            </div>
+          )}
+
+          {/* No results */}
+          {!isLoading &&
+            autocompleteData.movies.length === 0 &&
+            autocompleteData.suggestions.length === 0 && (
+              <div className="p-6 text-center">
+                <div className="mb-2">
+                  <Film className="h-8 w-8 text-slate-300 mx-auto" />
                 </div>
-                {autocompleteData.suggestions.map((suggestion, index) => {
-                  const suggestionIndex = autocompleteData.movies.length + index
-                  return (
-                    <button
-                      key={suggestion}
-                      onClick={() => handleSearch(suggestion)}
-                      className={`flex w-full items-center gap-3 rounded p-2 text-left hover:bg-gray-50 ${
-                        suggestionIndex === selectedIndex ? 'bg-blue-50' : ''
-                      }`}
-                    >
-                      <Clock className="h-4 w-4 flex-shrink-0 text-gray-400" />
-                      <span className="text-gray-700">{suggestion}</span>
-                    </button>
-                  )
-                })}
+                <div className="text-slate-500 font-medium">No movies found</div>
+                <div className="text-sm text-slate-400 mt-1">Try a different search term</div>
               </div>
             )}
-
-            {/* Loading state */}
-            {isLoading && (
-              <div className="p-4 text-center text-gray-500">
-                <div className="inline-flex items-center gap-2">
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                  Searching...
-                </div>
-              </div>
-            )}
-
-            {/* No results */}
-            {!isLoading &&
-              autocompleteData.movies.length === 0 &&
-              autocompleteData.suggestions.length === 0 && (
-                <div className="p-4 text-center text-gray-500">No suggestions found</div>
-              )}
-          </CardBody>
-        </Card>
+        </div>
       )}
     </div>
   )

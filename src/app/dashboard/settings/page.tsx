@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import PreferencesSetup from '@/components/PreferencesSetup'
 import { Settings, Brain, User, Trash2, AlertCircle, CheckCircle, Clock, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { logger } from '@/lib/logger'
 
 interface PreferenceItem {
   id: string
@@ -157,7 +158,7 @@ export default function SettingsPage() {
         setAiPreferences(transformedPreferences)
       }
     } catch (error) {
-      console.error('Error loading AI preferences:', error)
+      // Fail silently - AI preferences are optional
     }
   }, [])
 
@@ -173,7 +174,7 @@ export default function SettingsPage() {
         setHasManualPreferences(false)
       }
     } catch (error) {
-      console.error('Error loading manual preferences:', error)
+      // Fail silently - show no manual preferences
       setHasManualPreferences(false)
     }
   }, [])
@@ -203,7 +204,7 @@ export default function SettingsPage() {
         showToast('Failed to save preferences. Please try again.', 'error')
       }
     } catch (error) {
-      console.error('Error saving preferences:', error)
+      // Error feedback handled by UI toast
       showToast('Failed to save preferences. Please try again.', 'error')
     } finally {
       setSaving(false)
@@ -225,7 +226,7 @@ export default function SettingsPage() {
         showToast('Failed to delete preference. Please try again.', 'error')
       }
     } catch (error) {
-      console.error('Error deleting preference:', error)
+      // Error feedback handled by UI toast
       showToast('Failed to delete preference. Please try again.', 'error')
     }
   }
@@ -244,7 +245,7 @@ export default function SettingsPage() {
         showToast('Failed to clear preferences. Please try again.', 'error')
       }
     } catch (error) {
-      console.error('Error clearing preferences:', error)
+      // Error feedback handled by UI toast
       showToast('Failed to clear preferences. Please try again.', 'error')
     }
   }

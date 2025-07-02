@@ -58,7 +58,17 @@ export async function GET(request: NextRequest) {
       cookieNames,
     }
 
-    console.log('🔐 Auth Status Check:', response)
+    // Only log debug info in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔐 Auth Status Check:', {
+        hasUser: response.hasUser,
+        userId: response.userId ? '[REDACTED]' : undefined,
+        userEmail: response.userEmail ? '[REDACTED]' : undefined,
+        hasSession: response.hasSession,
+        sessionExpiresAt: response.sessionExpiresAt,
+        cookieCount: response.cookieCount,
+      })
+    }
 
     return NextResponse.json(response)
   } catch (error) {

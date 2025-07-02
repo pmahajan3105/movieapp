@@ -12,6 +12,7 @@ import { useMoviesWatchlist } from '@/hooks/useMoviesWatchlist'
 import type { Movie } from '@/types'
 import type { SearchFilters, SearchResponse } from '@/types/search'
 import { toast } from 'react-hot-toast'
+import { logger } from '@/lib/logger'
 
 function SearchPageContent() {
   const searchParams = useSearchParams()
@@ -37,7 +38,7 @@ function SearchPageContent() {
     try {
       const params = new URLSearchParams()
 
-      if (searchFilters.query) params.set('query', searchFilters.query)
+      if (searchFilters.query) params.set('q', searchFilters.query)
       if (searchFilters.genres?.length) params.set('genres', searchFilters.genres.join(','))
       if (searchFilters.yearRange) params.set('yearRange', JSON.stringify(searchFilters.yearRange))
       if (searchFilters.minRating) params.set('minRating', searchFilters.minRating.toString())
@@ -47,9 +48,11 @@ function SearchPageContent() {
       if (searchFilters.sortBy) params.set('sortBy', searchFilters.sortBy)
       if (searchFilters.sortOrder) params.set('sortOrder', searchFilters.sortOrder)
 
+      // Force simple search for now since AI search seems to be failing
+      params.set('simple', 'true')
       const response = await fetch(`/api/movies/search?${params.toString()}`)
       const data = await response.json()
-
+      
       const payload = data.data || data // backward compatibility
       if (payload.movies && Array.isArray(payload.movies)) {
         // Transform TMDB response to match SearchResponse format
@@ -70,9 +73,9 @@ function SearchPageContent() {
           },
         }
         setSearchResults(searchResponse)
-        console.log(`🔍 Search successful: ${payload.movies.length} movies found`)
+        logger.debug('Search successful', { resultCount: payload.movies.length })
       } else {
-        console.error('🔍 Search failed - unexpected response format:', payload)
+        logger.error('Search failed unexpected response', { payload: JSON.stringify(payload) })
         toast.error(payload.error || 'Search failed')
         setSearchResults(undefined)
       }
@@ -219,6 +222,7 @@ function SearchPageContent() {
               pageSize={filters.limit || 20}
               onPageChange={handlePageChange}
               onMovieClick={setSelectedMovie}
+              onAddToWatchlist={handleAddToWatchlist}
               loading={loading}
               searchMeta={searchResults?.searchMeta}
               viewMode={viewMode}

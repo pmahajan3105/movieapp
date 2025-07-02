@@ -129,7 +129,7 @@ export function OnboardingFlow({ onComplete, className = '' }: OnboardingFlowPro
           setPopularMovies(data.data.slice(0, 20))
         }
       } catch (error) {
-        console.error('Failed to fetch popular movies:', error)
+        // Fail silently - popular movies are optional for onboarding
       }
     }
 
@@ -236,7 +236,7 @@ export function OnboardingFlow({ onComplete, className = '' }: OnboardingFlowPro
 
       onComplete()
     } catch (error) {
-      console.error('Failed to submit ratings:', error)
+      // Error display handled by UI feedback
       showError('Failed to save preferences. Please try again')
     } finally {
       setLoading(false)

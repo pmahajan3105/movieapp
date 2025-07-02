@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { MovieGridSkeleton } from '@/components/movies/MovieCardSkeleton'
+import { MovieGridCard } from '@/components/movies/MovieGridCard'
 import { motion } from 'framer-motion'
 import type { Movie } from '@/types'
 import Image from 'next/image'
@@ -24,6 +25,7 @@ interface SearchResultsProps {
   pageSize: number
   onPageChange: (page: number) => void
   onMovieClick: (movie: Movie) => void
+  onAddToWatchlist?: (movieId: string) => void
   loading?: boolean
   searchMeta?: SearchMeta
   viewMode?: 'grid' | 'list'
@@ -153,6 +155,7 @@ export function SearchResults({
   pageSize,
   onPageChange,
   onMovieClick,
+  onAddToWatchlist,
   loading = false,
   searchMeta,
   viewMode = 'grid',
@@ -297,11 +300,22 @@ export function SearchResults({
               ease: 'easeOut',
             }}
           >
-            <SearchMovieCard
-              movie={movie}
-              onMovieClick={onMovieClick}
-              variant={viewMode === 'list' ? 'list' : 'card'}
-            />
+            {viewMode === 'grid' ? (
+              <div onClick={() => onMovieClick(movie)}>
+                <MovieGridCard
+                  movie={movie}
+                  onAddToWatchlist={onAddToWatchlist || (() => {})}
+                  size="md"
+                  index={index}
+                />
+              </div>
+            ) : (
+              <SearchMovieCard
+                movie={movie}
+                onMovieClick={onMovieClick}
+                variant="list"
+              />
+            )}
           </motion.div>
         ))}
       </div>

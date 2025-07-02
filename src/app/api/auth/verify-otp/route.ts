@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
+import { logger } from '@/lib/logger'
 
 const verifyOtpSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (error) {
-      console.error('OTP verification error:', error)
+      logger.authError('OTP verification', error as Error)
 
       // Handle specific error cases
       if (error.message.includes('invalid') || error.message.includes('expired')) {
@@ -100,7 +101,7 @@ export async function POST(request: NextRequest) {
       })
 
       if (profileError) {
-        console.error('Profile creation error:', profileError)
+        logger.dbError('profile creation during auth', profileError as Error)
         // Don't fail auth if profile creation fails
       }
     }
@@ -115,7 +116,7 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Verify OTP error:', error)
+    logger.apiError('/api/auth/verify-otp', error as Error)
 
     if (error instanceof z.ZodError) {
       const fieldErrors = error.errors.map(err => err.message).join(', ')
