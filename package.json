@@ -75,8 +75,9 @@
     "health:check": "curl -f http://localhost:3000/api/healthz || exit 1",
     "build:analyze": "ANALYZE=true npm run build",
     "deploy:check": "node scripts/deployment-check.js",
+    "pre-launch:check": "node scripts/pre-launch-check.js",
     "deploy:staging": "npm run deploy:check && vercel --env=staging",
-    "deploy:production": "npm run deploy:check && vercel --prod",
+    "deploy:production": "npm run pre-launch:check && npm run deploy:check && vercel --prod",
     "prepare": "husky",
     "pre-commit": "lint-staged"
   },

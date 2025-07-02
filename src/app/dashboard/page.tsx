@@ -11,11 +11,14 @@ import { Sparkles } from 'lucide-react'
 // Removed ChatInterface - now using FloatingChatWidget instead
 
 const BehavioralInsightsPanel = dynamic(
-  () => import('@/components/dashboard/BehavioralInsightsPanel').then(m => ({ default: m.BehavioralInsightsPanel })),
+  () =>
+    import('@/components/dashboard/BehavioralInsightsPanel').then(m => ({
+      default: m.BehavioralInsightsPanel,
+    })),
   {
     ssr: false,
     loading: () => (
-      <div className="h-64 animate-pulse bg-base-200 rounded-lg flex items-center justify-center">
+      <div className="bg-base-200 flex h-64 animate-pulse items-center justify-center rounded-lg">
         <span className="loading loading-spinner text-primary"></span>
       </div>
     ),
@@ -25,11 +28,14 @@ const BehavioralInsightsPanel = dynamic(
 // Removed VoiceConversationWidget - now using FloatingVoiceButton instead
 
 const HyperPersonalizedSection = dynamic(
-  () => import('@/components/dashboard/HyperPersonalizedSection').then(m => ({ default: m.HyperPersonalizedSection })),
+  () =>
+    import('@/components/dashboard/HyperPersonalizedSection').then(m => ({
+      default: m.HyperPersonalizedSection,
+    })),
   {
     ssr: false,
     loading: () => (
-      <div className="h-48 animate-pulse bg-base-200 rounded-lg flex items-center justify-center">
+      <div className="bg-base-200 flex h-48 animate-pulse items-center justify-center rounded-lg">
         <span className="loading loading-spinner text-primary"></span>
       </div>
     ),
@@ -59,30 +65,30 @@ export default function DashboardPage() {
     try {
       // First try the details endpoint
       let response = await fetch(`/api/movies/details/${movieId}`)
-      
+
       if (!response.ok) {
         // Fallback to the general movies endpoint
         response = await fetch(`/api/movies/${movieId}`)
       }
-      
+
       if (response.ok) {
         const responseData = await response.json()
-        console.log('Movie data received:', responseData)
-        
+        // Movie data received successfully
+
         // Handle different response formats
         const movie = responseData.movie || responseData.data || responseData
-        
+
         if (movie) {
           setSelectedMovie(movie)
           setMovieModalOpen(true)
         } else {
-          console.error('No movie data in response:', responseData)
+          // No movie data in response
         }
       } else {
-        console.error('Failed to fetch movie details, status:', response.status)
+        // Failed to fetch movie details
       }
-    } catch (error) {
-      console.error('Error fetching movie details:', error)
+    } catch {
+      // Error fetching movie details
     }
   }
 
@@ -92,14 +98,14 @@ export default function DashboardPage() {
       const response = await fetch('/api/watchlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ movieId })
+        body: JSON.stringify({ movieId }),
       })
       if (response.ok) {
         // Show success feedback
-        console.log('Movie added to watchlist successfully')
+        // Movie added to watchlist successfully
       }
-    } catch (error) {
-      console.error('Failed to add to watchlist:', error)
+    } catch {
+      // Failed to add to watchlist
     }
   }
 
@@ -109,13 +115,13 @@ export default function DashboardPage() {
       const response = await fetch('/api/ratings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ movieId, rating })
+        body: JSON.stringify({ movieId, rating }),
       })
       if (response.ok) {
-        console.log('Movie rated successfully')
+        // Movie rated successfully
       }
-    } catch (error) {
-      console.error('Failed to rate movie:', error)
+    } catch {
+      // Failed to rate movie
     }
   }
 
@@ -124,17 +130,17 @@ export default function DashboardPage() {
   // Show loading while mounting or authenticating
   if (!mounted || isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 flex flex-col justify-center">
+      <div className="flex min-h-screen flex-col justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50">
         <div className="mx-auto text-center">
-          <div className="inline-flex items-center gap-3 mb-4">
-            <div className="h-12 w-12 rounded-2xl bg-gradient-to-r from-purple-500 to-blue-500 flex items-center justify-center shadow-lg">
+          <div className="mb-4 inline-flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-r from-purple-500 to-blue-500 shadow-lg">
               <Sparkles className="h-6 w-6 text-white" />
             </div>
-            <span className="text-2xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-2xl font-bold text-transparent">
               CineAI
             </span>
           </div>
-          <div className="flex justify-center mb-4">
+          <div className="mb-4 flex justify-center">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-purple-200 border-t-purple-500"></div>
           </div>
           <p className="text-slate-600">Loading your dashboard...</p>
@@ -153,19 +159,19 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50">
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 rounded-3xl overflow-hidden">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-12 text-center">
           <div className="mb-6">
-            <div className="inline-flex items-center gap-3 mb-4">
-              <div className="h-12 w-12 rounded-2xl bg-gradient-to-r from-purple-500 to-blue-500 flex items-center justify-center shadow-lg">
+            <div className="mb-4 inline-flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-r from-purple-500 to-blue-500 shadow-lg">
                 <Sparkles className="h-6 w-6 text-white" />
               </div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
+              <h1 className="bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-4xl font-bold text-transparent">
                 Welcome to CineAI!
               </h1>
             </div>
-            <p className="text-slate-600 text-lg max-w-2xl mx-auto">
+            <p className="mx-auto max-w-2xl text-lg text-slate-600">
               Your personal AI movie companion with intelligent recommendations and conversation
             </p>
           </div>
@@ -173,8 +179,8 @@ export default function DashboardPage() {
 
         {/* F-1 Hyper-Personalized Section - Main Feature */}
         <div className="mb-12">
-          <div className="bg-white/60 backdrop-blur-sm rounded-3xl border border-slate-200/50 shadow-xl p-6">
-            <HyperPersonalizedSection 
+          <div className="rounded-3xl border border-slate-200/50 bg-white/60 p-6 shadow-xl backdrop-blur-sm">
+            <HyperPersonalizedSection
               onMovieView={handleMovieView}
               onMovieSave={handleMovieSave}
               onMovieRate={handleMovieRate}
@@ -184,7 +190,7 @@ export default function DashboardPage() {
 
         {/* Behavioral Insights Panel */}
         <div className="mb-12">
-          <div className="bg-white/60 backdrop-blur-sm rounded-3xl border border-slate-200/50 shadow-xl p-6">
+          <div className="rounded-3xl border border-slate-200/50 bg-white/60 p-6 shadow-xl backdrop-blur-sm">
             <BehavioralInsightsPanel />
           </div>
         </div>

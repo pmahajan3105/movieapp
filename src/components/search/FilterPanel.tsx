@@ -37,23 +37,18 @@ export function FilterPanel({
   useEffect(() => {
     const loadGenres = async (attempt = 1) => {
       setGenresError(false)
-      
+
       try {
         if (process.env.NODE_ENV === 'development') {
-          console.log('🎬 FilterPanel: Loading genres... (attempt', attempt, ')')
+          // Loading genres
         }
         const response = await fetch('/api/movies/genres')
-        
+
         if (!response.ok) {
           if (process.env.NODE_ENV === 'development') {
-            console.error('🚨 FilterPanel: Genres API failed:', {
-              status: response.status,
-              statusText: response.statusText,
-              url: response.url,
-              attempt
-            })
+            // Genres API failed
           }
-          
+
           // Retry logic for failed requests
           if (attempt < 3) {
             setTimeout(() => loadGenres(attempt + 1), 1000 * attempt) // Exponential backoff
@@ -66,16 +61,16 @@ export function FilterPanel({
 
         const data = await response.json()
         if (process.env.NODE_ENV === 'development') {
-          console.log('🎬 FilterPanel: Genres loaded successfully:', data)
+          // Genres loaded successfully
         }
-        
+
         if (data.success) {
           setGenres(data.data || [])
           setGenresError(false)
           setGenresLoading(false) // Success - stop loading
         } else {
           if (process.env.NODE_ENV === 'development') {
-            console.warn('🟡 FilterPanel: Genres API returned success: false:', data)
+            // Genres API returned success: false
           }
           if (attempt < 3) {
             setTimeout(() => loadGenres(attempt + 1), 1000 * attempt)
@@ -84,16 +79,11 @@ export function FilterPanel({
             setGenresLoading(false)
           }
         }
-      } catch (error) {
+      } catch {
         if (process.env.NODE_ENV === 'development') {
-          console.error('🚨 FilterPanel: Error loading genres:', {
-            error: error instanceof Error ? error.message : String(error),
-            stack: error instanceof Error ? error.stack : undefined,
-            timestamp: new Date().toISOString(),
-            attempt
-          })
+          // Error loading genres
         }
-        
+
         // Retry on network errors
         if (attempt < 3) {
           setTimeout(() => loadGenres(attempt + 1), 1000 * attempt)
@@ -212,8 +202,8 @@ export function FilterPanel({
                 ))}
               </div>
             ) : genresError ? (
-              <div className="text-center py-4">
-                <p className="text-sm text-red-600 mb-2">Failed to load genres</p>
+              <div className="py-4 text-center">
+                <p className="mb-2 text-sm text-red-600">Failed to load genres</p>
                 <Button
                   variant="outline"
                   size="sm"
@@ -232,7 +222,10 @@ export function FilterPanel({
                       checked={filters.genres?.includes(genre.name) || false}
                       onCheckedChange={() => handleGenreToggle(genre.name)}
                     />
-                    <label htmlFor={`genre-${genre.name}`} className="flex-1 cursor-pointer text-sm">
+                    <label
+                      htmlFor={`genre-${genre.name}`}
+                      className="flex-1 cursor-pointer text-sm"
+                    >
                       {genre.name}
                     </label>
                   </div>
@@ -313,7 +306,11 @@ export function FilterPanel({
           <CollapsibleTrigger asChild>
             <Button variant="ghost" className="h-auto w-full justify-between p-0">
               <span className="font-medium">Sort By</span>
-              {expandedSections.sort ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              {expandedSections.sort ? (
+                <ChevronUp className="h-4 w-4" />
+              ) : (
+                <ChevronDown className="h-4 w-4" />
+              )}
             </Button>
           </CollapsibleTrigger>
           <CollapsibleContent className="mt-3 space-y-2">
@@ -327,7 +324,9 @@ export function FilterPanel({
                   id={`sort-${opt.value}`}
                   checked={filters.sortBy === opt.value}
                   onCheckedChange={() =>
-                    updateFilters({ sortBy: filters.sortBy === opt.value ? undefined : (opt.value as any) })
+                    updateFilters({
+                      sortBy: filters.sortBy === opt.value ? undefined : (opt.value as any),
+                    })
                   }
                 />
                 <label htmlFor={`sort-${opt.value}`} className="flex-1 cursor-pointer text-sm">
@@ -342,7 +341,9 @@ export function FilterPanel({
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => updateFilters({ sortOrder: filters.sortOrder === 'asc' ? 'desc' : 'asc' })}
+                  onClick={() =>
+                    updateFilters({ sortOrder: filters.sortOrder === 'asc' ? 'desc' : 'asc' })
+                  }
                 >
                   {filters.sortOrder === 'asc' ? 'Ascending' : 'Descending'}
                 </Button>

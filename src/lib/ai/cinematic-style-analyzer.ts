@@ -17,13 +17,20 @@ import type {
   ColorPalette,
   VisualMotif,
   StyleMatch,
-  AdvancedRecommendation
+  AdvancedRecommendation,
 } from '@/types/advanced-intelligence'
 import { DIRECTORIAL_STYLES, VISUAL_MOTIFS } from './thematic-taxonomy'
 
 export interface StyleAnalysisRequest {
   movieId: string
-  focusAreas?: ('cinematography' | 'editing' | 'sound' | 'production_design' | 'color' | 'direction')[]
+  focusAreas?: (
+    | 'cinematography'
+    | 'editing'
+    | 'sound'
+    | 'production_design'
+    | 'color'
+    | 'direction'
+  )[]
   analysisDepth: 'basic' | 'detailed' | 'comprehensive' | 'expert'
   compareToDirector?: string
   referenceMovies?: string[]
@@ -99,12 +106,12 @@ export class CinematicStyleAnalyzer {
    */
   async analyzeStyle(request: StyleAnalysisRequest): Promise<StyleAnalysisResponse> {
     const startTime = Date.now()
-    
+
     try {
-      logger.info('Starting cinematic style analysis', { 
-        movieId: request.movieId, 
+      logger.info('Starting cinematic style analysis', {
+        movieId: request.movieId,
         depth: request.analysisDepth,
-        focusAreas: request.focusAreas 
+        focusAreas: request.focusAreas,
       })
 
       // Check for existing analysis
@@ -122,33 +129,40 @@ export class CinematicStyleAnalyzer {
 
       // Perform comprehensive style analysis
       const cinematicStyle = await this.performStyleAnalysis(movie, request)
-      
+
       // Analyze directorial signature if director available
-      const directoralSignature = movie.director?.length > 0 ? 
-        await this.analyzeDirectorialSignature(movie, cinematicStyle, request) : undefined
-      
+      const directoralSignature =
+        movie.director && movie.director.length > 0
+          ? await this.analyzeDirectorialSignature(movie, cinematicStyle, request)
+          : undefined
+
       // Identify style influences
       const styleInfluences = await this.identifyStyleInfluences(movie, cinematicStyle, request)
-      
+
       // Detect innovations
       const innovations = await this.detectInnovations(movie, cinematicStyle, request)
-      
+
       // Store analysis results
       await this.storeStyleAnalysis(request.movieId, cinematicStyle, directoralSignature)
-      
+
       const metadata: StyleAnalysisMetadata = {
         analysisDate: new Date().toISOString(),
-        focusAreas: request.focusAreas || ['cinematography', 'editing', 'sound', 'production_design'],
+        focusAreas: request.focusAreas || [
+          'cinematography',
+          'editing',
+          'sound',
+          'production_design',
+        ],
         confidence: this.calculateStyleConfidence(cinematicStyle, directoralSignature),
         processingTime: Date.now() - startTime,
         dataSource: ['ai_analysis', 'film_studies', 'directorial_comparison'],
-        modelVersion: claudeConfig.defaultModel
+        modelVersion: claudeConfig.defaultModel,
       }
 
       logger.info('Cinematic style analysis completed', {
         movieId: request.movieId,
         confidence: metadata.confidence,
-        processingTime: metadata.processingTime
+        processingTime: metadata.processingTime,
       })
 
       return {
@@ -156,13 +170,12 @@ export class CinematicStyleAnalyzer {
         styleMetadata: metadata,
         directoralSignature,
         styleInfluences,
-        innovations
+        innovations,
       }
-
     } catch (error) {
       logger.error('Cinematic style analysis failed', {
         error: error instanceof Error ? error.message : String(error),
-        movieId: request.movieId
+        movieId: request.movieId,
       })
       throw error
     }
@@ -172,8 +185,12 @@ export class CinematicStyleAnalyzer {
    * Find movies with similar cinematic styles
    */
   async findSimilarStyles(
-    movieId: string, 
-    styleAspects: ('camera' | 'editing' | 'color' | 'composition')[] = ['camera', 'editing', 'color'],
+    movieId: string,
+    styleAspects: ('camera' | 'editing' | 'color' | 'composition')[] = [
+      'camera',
+      'editing',
+      'color',
+    ],
     limit: number = 10
   ): Promise<StyleSimilarityAnalysis> {
     try {
@@ -203,8 +220,8 @@ export class CinematicStyleAnalyzer {
       for (const styleData of allStyles || []) {
         const targetStyle = this.parseStoredStyle(styleData)
         const similarity = this.calculateStyleSimilarity(
-          sourceStyle.cinematicStyle, 
-          targetStyle, 
+          sourceStyle.cinematicStyle,
+          targetStyle,
           styleAspects
         )
 
@@ -217,7 +234,7 @@ export class CinematicStyleAnalyzer {
               similarity: similarity.score,
               sharedElements: similarity.sharedElements,
               distinctElements: similarity.distinctElements,
-              explanation: similarity.explanation
+              explanation: similarity.explanation,
             })
           }
         }
@@ -229,25 +246,27 @@ export class CinematicStyleAnalyzer {
 
       // Determine style cluster
       const styleCluster = this.identifyStyleCluster(sourceStyle.cinematicStyle, topSimilar)
-      
+
       // Provide evolutionary context
-      const evolutionaryContext = this.analyzeEvolutionaryContext(sourceStyle.cinematicStyle, topSimilar)
+      const evolutionaryContext = this.analyzeEvolutionaryContext(
+        sourceStyle.cinematicStyle,
+        topSimilar
+      )
 
       return {
         movies: topSimilar,
         styleCluster,
-        evolutionaryContext
+        evolutionaryContext,
       }
-
     } catch (error) {
       logger.error('Failed to find similar styles', {
         error: error instanceof Error ? error.message : String(error),
-        movieId
+        movieId,
       })
       return {
         movies: [],
         styleCluster: 'unknown',
-        evolutionaryContext: 'Unable to determine evolutionary context'
+        evolutionaryContext: 'Unable to determine evolutionary context',
       }
     }
   }
@@ -256,7 +275,7 @@ export class CinematicStyleAnalyzer {
    * Compare directorial styles between two directors
    */
   async compareDirectorialStyles(
-    director1: string, 
+    director1: string,
     director2: string,
     focusAspects: string[] = ['camera', 'editing', 'themes']
   ): Promise<DirectorialComparisonResult> {
@@ -280,9 +299,8 @@ export class CinematicStyleAnalyzer {
         director1: { name: director1, signature: signature1, movies: movies1 },
         director2: { name: director2, signature: signature2, movies: movies2 },
         comparison,
-        evolutionaryAnalysis: this.analyzeDirectorialEvolution(signature1, signature2)
+        evolutionaryAnalysis: this.analyzeDirectorialEvolution(signature1, signature2),
       }
-
     } catch (error) {
       logger.error('Failed to compare directorial styles', { error, director1, director2 })
       throw error
@@ -292,25 +310,30 @@ export class CinematicStyleAnalyzer {
   // Private helper methods
 
   private async performStyleAnalysis(
-    movie: Movie, 
+    movie: Movie,
     request: StyleAnalysisRequest
   ): Promise<CinematicStyle> {
     const prompt = this.buildStyleAnalysisPrompt(movie, request)
-    
+
     try {
       const response = await anthropic.messages.create({
         model: claudeConfig.defaultModel,
-        max_tokens: request.analysisDepth === 'expert' ? 4000 : 
-                   request.analysisDepth === 'comprehensive' ? 3000 : 2000,
-        messages: [{
-          role: 'user',
-          content: prompt
-        }]
+        max_tokens:
+          request.analysisDepth === 'expert'
+            ? 4000
+            : request.analysisDepth === 'comprehensive'
+              ? 3000
+              : 2000,
+        messages: [
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
       })
 
       const aiAnalysis = response.content[0].type === 'text' ? response.content[0].text : ''
       return this.parseStyleAnalysis(aiAnalysis, movie)
-
     } catch (error) {
       logger.warn('AI style analysis failed, using structured approach', { error })
       return this.structuredStyleAnalysis(movie, request)
@@ -405,39 +428,58 @@ Provide specific examples and technical details. Focus on what makes this film's
       cameraWork,
       editingStyle,
       soundDesign,
-      productionDesign
+      productionDesign,
     }
   }
 
   private extractCameraWork(text: string): CameraWork {
     const lowerText = text.toLowerCase()
-    
+
     // Determine movement style
     let movementStyle: CameraWork['movementStyle'] = 'dynamic'
     if (lowerText.includes('static') || lowerText.includes('fixed')) movementStyle = 'static'
     else if (lowerText.includes('fluid') || lowerText.includes('smooth')) movementStyle = 'fluid'
-    else if (lowerText.includes('kinetic') || lowerText.includes('energetic')) movementStyle = 'kinetic'
-    else if (lowerText.includes('contemplative') || lowerText.includes('meditative')) movementStyle = 'contemplative'
+    else if (lowerText.includes('kinetic') || lowerText.includes('energetic'))
+      movementStyle = 'kinetic'
+    else if (lowerText.includes('contemplative') || lowerText.includes('meditative'))
+      movementStyle = 'contemplative'
 
     // Determine frame composition
     let frameComposition: CameraWork['frameComposition'] = 'classical'
-    if (lowerText.includes('symmetrical') || lowerText.includes('balanced')) frameComposition = 'symmetrical'
-    else if (lowerText.includes('asymmetrical') || lowerText.includes('unbalanced')) frameComposition = 'asymmetrical'
-    else if (lowerText.includes('experimental') || lowerText.includes('unconventional')) frameComposition = 'experimental'
+    if (lowerText.includes('symmetrical') || lowerText.includes('balanced'))
+      frameComposition = 'symmetrical'
+    else if (lowerText.includes('asymmetrical') || lowerText.includes('unbalanced'))
+      frameComposition = 'asymmetrical'
+    else if (lowerText.includes('experimental') || lowerText.includes('unconventional'))
+      frameComposition = 'experimental'
 
     // Determine depth of field
     let depthOfField: CameraWork['depthOfField'] = 'variable'
-    if (lowerText.includes('shallow focus') || lowerText.includes('shallow depth')) depthOfField = 'shallow'
-    else if (lowerText.includes('deep focus') || lowerText.includes('deep depth')) depthOfField = 'deep'
+    if (lowerText.includes('shallow focus') || lowerText.includes('shallow depth'))
+      depthOfField = 'shallow'
+    else if (lowerText.includes('deep focus') || lowerText.includes('deep depth'))
+      depthOfField = 'deep'
 
     // Extract signature techniques
     const techniqueKeywords = [
-      'long take', 'tracking shot', 'crane shot', 'handheld', 'steadicam',
-      'close-up', 'wide shot', 'dutch angle', 'low angle', 'high angle',
-      'zoom', 'dolly', 'pan', 'tilt', 'rack focus'
+      'long take',
+      'tracking shot',
+      'crane shot',
+      'handheld',
+      'steadicam',
+      'close-up',
+      'wide shot',
+      'dutch angle',
+      'low angle',
+      'high angle',
+      'zoom',
+      'dolly',
+      'pan',
+      'tilt',
+      'rack focus',
     ]
-    
-    const signature = techniqueKeywords.filter(technique => 
+
+    const signature = techniqueKeywords.filter(technique =>
       lowerText.includes(technique.toLowerCase())
     )
 
@@ -445,13 +487,13 @@ Provide specific examples and technical details. Focus on what makes this film's
       movementStyle,
       frameComposition,
       depthOfField,
-      signature
+      signature,
     }
   }
 
   private extractEditingStyle(text: string): EditingStyle {
     const lowerText = text.toLowerCase()
-    
+
     // Determine pacing
     let pacing: EditingStyle['pacing'] = 'standard'
     if (lowerText.includes('slow paced') || lowerText.includes('deliberate')) pacing = 'slow'
@@ -460,74 +502,108 @@ Provide specific examples and technical details. Focus on what makes this film's
     else if (lowerText.includes('frantic') || lowerText.includes('rapid')) pacing = 'frantic'
 
     // Extract transitions
-    const transitionTypes = ['cut', 'fade', 'dissolve', 'wipe', 'match cut', 'jump cut', 'cross cut']
-    const transitions = transitionTypes.filter(transition => 
-      lowerText.includes(transition)
-    )
+    const transitionTypes = [
+      'cut',
+      'fade',
+      'dissolve',
+      'wipe',
+      'match cut',
+      'jump cut',
+      'cross cut',
+    ]
+    const transitions = transitionTypes.filter(transition => lowerText.includes(transition))
 
     // Determine rhythm
     let rhythm: EditingStyle['rhythm'] = 'dramatic'
     if (lowerText.includes('musical') || lowerText.includes('rhythmic')) rhythm = 'musical'
-    else if (lowerText.includes('naturalistic') || lowerText.includes('realistic')) rhythm = 'naturalistic'
-    else if (lowerText.includes('experimental') || lowerText.includes('abstract')) rhythm = 'experimental'
+    else if (lowerText.includes('naturalistic') || lowerText.includes('realistic'))
+      rhythm = 'naturalistic'
+    else if (lowerText.includes('experimental') || lowerText.includes('abstract'))
+      rhythm = 'experimental'
 
     // Determine continuity
     let continuity: EditingStyle['continuity'] = 'classical'
-    if (lowerText.includes('jump cut') || lowerText.includes('discontinuous')) continuity = 'jump_cuts'
-    else if (lowerText.includes('montage') || lowerText.includes('montage sequence')) continuity = 'montage'
-    else if (lowerText.includes('non-linear') || lowerText.includes('non linear')) continuity = 'non_linear'
+    if (lowerText.includes('jump cut') || lowerText.includes('discontinuous'))
+      continuity = 'jump_cuts'
+    else if (lowerText.includes('montage') || lowerText.includes('montage sequence'))
+      continuity = 'montage'
+    else if (lowerText.includes('non-linear') || lowerText.includes('non linear'))
+      continuity = 'non_linear'
 
     return {
       pacing,
       transitions: transitions.length > 0 ? transitions : ['cut', 'fade'],
       rhythm,
-      continuity
+      continuity,
     }
   }
 
   private extractSoundDesign(text: string): SoundDesign {
     const lowerText = text.toLowerCase()
-    
+
     // Extract music styles
     const musicKeywords = [
-      'orchestral', 'electronic', 'ambient', 'jazz', 'classical', 'minimalist',
-      'synthesizer', 'acoustic', 'experimental', 'pop', 'rock'
+      'orchestral',
+      'electronic',
+      'ambient',
+      'jazz',
+      'classical',
+      'minimalist',
+      'synthesizer',
+      'acoustic',
+      'experimental',
+      'pop',
+      'rock',
     ]
     const musicStyle = musicKeywords.filter(style => lowerText.includes(style))
 
     // Determine soundscape type
     let soundscapeType: SoundDesign['soundscapeType'] = 'realistic'
-    if (lowerText.includes('atmospheric') || lowerText.includes('immersive')) soundscapeType = 'atmospheric'
-    else if (lowerText.includes('stylized') || lowerText.includes('artificial')) soundscapeType = 'stylized'
-    else if (lowerText.includes('minimalist') || lowerText.includes('sparse')) soundscapeType = 'minimalist'
+    if (lowerText.includes('atmospheric') || lowerText.includes('immersive'))
+      soundscapeType = 'atmospheric'
+    else if (lowerText.includes('stylized') || lowerText.includes('artificial'))
+      soundscapeType = 'stylized'
+    else if (lowerText.includes('minimalist') || lowerText.includes('sparse'))
+      soundscapeType = 'minimalist'
 
     // Determine dialogue style
     let dialogueStyle: SoundDesign['dialogueStyle'] = 'naturalistic'
-    if (lowerText.includes('heightened') || lowerText.includes('theatrical')) dialogueStyle = 'heightened'
+    if (lowerText.includes('heightened') || lowerText.includes('theatrical'))
+      dialogueStyle = 'heightened'
     else if (lowerText.includes('poetic') || lowerText.includes('lyrical')) dialogueStyle = 'poetic'
-    else if (lowerText.includes('sparse') || lowerText.includes('minimal dialogue')) dialogueStyle = 'sparse'
+    else if (lowerText.includes('sparse') || lowerText.includes('minimal dialogue'))
+      dialogueStyle = 'sparse'
 
     // Calculate silence usage
     let silenceUsage = 0.3 // default
-    if (lowerText.includes('effective use of silence') || lowerText.includes('strategic silence')) silenceUsage = 0.8
-    else if (lowerText.includes('minimal silence') || lowerText.includes('constant sound')) silenceUsage = 0.1
+    if (lowerText.includes('effective use of silence') || lowerText.includes('strategic silence'))
+      silenceUsage = 0.8
+    else if (lowerText.includes('minimal silence') || lowerText.includes('constant sound'))
+      silenceUsage = 0.1
     else if (lowerText.includes('occasional silence')) silenceUsage = 0.5
 
     return {
       musicStyle,
       soundscapeType,
       dialogueStyle,
-      silenceUsage
+      silenceUsage,
     }
   }
 
   private extractProductionDesign(text: string): ProductionDesign {
     const lowerText = text.toLowerCase()
-    
+
     // Extract visual style elements
     const styleKeywords = [
-      'art deco', 'minimalist', 'baroque', 'industrial', 'futuristic',
-      'period accurate', 'stylized', 'realistic', 'surreal'
+      'art deco',
+      'minimalist',
+      'baroque',
+      'industrial',
+      'futuristic',
+      'period accurate',
+      'stylized',
+      'realistic',
+      'surreal',
     ]
     const visualStyle = styleKeywords.filter(style => lowerText.includes(style))
 
@@ -537,14 +613,22 @@ Provide specific examples and technical details. Focus on what makes this film's
     // Determine set design
     let setDesign: ProductionDesign['setDesign'] = 'realistic'
     if (lowerText.includes('stylized') || lowerText.includes('artificial')) setDesign = 'stylized'
-    else if (lowerText.includes('minimalist') || lowerText.includes('sparse')) setDesign = 'minimalist'
-    else if (lowerText.includes('elaborate') || lowerText.includes('detailed')) setDesign = 'elaborate'
+    else if (lowerText.includes('minimalist') || lowerText.includes('sparse'))
+      setDesign = 'minimalist'
+    else if (lowerText.includes('elaborate') || lowerText.includes('detailed'))
+      setDesign = 'elaborate'
 
     // Calculate costume significance
     let costumeSignificance = 0.5 // default
-    if (lowerText.includes('costume design') || lowerText.includes('wardrobe') || lowerText.includes('clothing')) {
-      if (lowerText.includes('symbolic') || lowerText.includes('significant')) costumeSignificance = 0.9
-      else if (lowerText.includes('functional') || lowerText.includes('basic')) costumeSignificance = 0.3
+    if (
+      lowerText.includes('costume design') ||
+      lowerText.includes('wardrobe') ||
+      lowerText.includes('clothing')
+    ) {
+      if (lowerText.includes('symbolic') || lowerText.includes('significant'))
+        costumeSignificance = 0.9
+      else if (lowerText.includes('functional') || lowerText.includes('basic'))
+        costumeSignificance = 0.3
       else costumeSignificance = 0.6
     }
 
@@ -552,46 +636,71 @@ Provide specific examples and technical details. Focus on what makes this film's
       visualStyle,
       colorPalette,
       setDesign,
-      costumeSignificance
+      costumeSignificance,
     }
   }
 
   private extractColorPalette(text: string): ColorPalette {
     const lowerText = text.toLowerCase()
-    
+
     // Extract dominant colors
-    const colorKeywords = ['red', 'blue', 'green', 'yellow', 'orange', 'purple', 'black', 'white', 'gray', 'brown']
+    const colorKeywords = [
+      'red',
+      'blue',
+      'green',
+      'yellow',
+      'orange',
+      'purple',
+      'black',
+      'white',
+      'gray',
+      'brown',
+    ]
     const dominant = colorKeywords.filter(color => lowerText.includes(color))
 
     // Extract symbolic meanings
     const symbolic: Record<string, string> = {}
-    if (lowerText.includes('red') && (lowerText.includes('passion') || lowerText.includes('danger'))) {
+    if (
+      lowerText.includes('red') &&
+      (lowerText.includes('passion') || lowerText.includes('danger'))
+    ) {
       symbolic.red = 'passion/danger'
     }
-    if (lowerText.includes('blue') && (lowerText.includes('melancholy') || lowerText.includes('cold'))) {
+    if (
+      lowerText.includes('blue') &&
+      (lowerText.includes('melancholy') || lowerText.includes('cold'))
+    ) {
       symbolic.blue = 'melancholy/isolation'
     }
-    if (lowerText.includes('green') && (lowerText.includes('nature') || lowerText.includes('growth'))) {
+    if (
+      lowerText.includes('green') &&
+      (lowerText.includes('nature') || lowerText.includes('growth'))
+    ) {
       symbolic.green = 'nature/growth'
     }
 
     // Determine temperature
     let temperature: ColorPalette['temperature'] = 'neutral'
-    if (lowerText.includes('warm colors') || lowerText.includes('warm palette')) temperature = 'warm'
-    else if (lowerText.includes('cool colors') || lowerText.includes('cool palette')) temperature = 'cool'
-    else if (lowerText.includes('contrasting') || lowerText.includes('opposing')) temperature = 'contrasting'
+    if (lowerText.includes('warm colors') || lowerText.includes('warm palette'))
+      temperature = 'warm'
+    else if (lowerText.includes('cool colors') || lowerText.includes('cool palette'))
+      temperature = 'cool'
+    else if (lowerText.includes('contrasting') || lowerText.includes('opposing'))
+      temperature = 'contrasting'
 
     // Determine saturation
     let saturation: ColorPalette['saturation'] = 'natural'
     if (lowerText.includes('muted') || lowerText.includes('desaturated')) saturation = 'muted'
-    else if (lowerText.includes('saturated') || lowerText.includes('vibrant')) saturation = 'saturated'
-    else if (lowerText.includes('high contrast') || lowerText.includes('stark')) saturation = 'high_contrast'
+    else if (lowerText.includes('saturated') || lowerText.includes('vibrant'))
+      saturation = 'saturated'
+    else if (lowerText.includes('high contrast') || lowerText.includes('stark'))
+      saturation = 'high_contrast'
 
     return {
       dominant,
       symbolic,
       temperature,
-      saturation
+      saturation,
     }
   }
 
@@ -600,10 +709,21 @@ Provide specific examples and technical details. Focus on what makes this film's
     const lowerText = text.toLowerCase()
 
     const visualKeywords = [
-      'symmetrical composition', 'asymmetrical framing', 'rule of thirds',
-      'leading lines', 'depth of field', 'bokeh', 'chiaroscuro',
-      'high contrast', 'low contrast', 'natural lighting', 'artificial lighting',
-      'golden hour', 'blue hour', 'harsh shadows', 'soft shadows'
+      'symmetrical composition',
+      'asymmetrical framing',
+      'rule of thirds',
+      'leading lines',
+      'depth of field',
+      'bokeh',
+      'chiaroscuro',
+      'high contrast',
+      'low contrast',
+      'natural lighting',
+      'artificial lighting',
+      'golden hour',
+      'blue hour',
+      'harsh shadows',
+      'soft shadows',
     ]
 
     visualKeywords.forEach(keyword => {
@@ -624,15 +744,21 @@ Provide specific examples and technical details. Focus on what makes this film's
     // Check for known directorial styles
     const signatures = Object.entries(DIRECTORIAL_STYLES)
     for (const [key, style] of signatures) {
-      if (style.name.toLowerCase().includes(director) || 
-          lowerText.includes(style.name.toLowerCase())) {
+      if (
+        style.name.toLowerCase().includes(director) ||
+        lowerText.includes(style.name.toLowerCase())
+      ) {
         return key
       }
     }
 
     // Check if director name is mentioned with style descriptors
-    if (lowerText.includes(director) && 
-        (lowerText.includes('style') || lowerText.includes('signature') || lowerText.includes('trademark'))) {
+    if (
+      lowerText.includes(director) &&
+      (lowerText.includes('style') ||
+        lowerText.includes('signature') ||
+        lowerText.includes('trademark'))
+    ) {
       return `${director}_style`
     }
 
@@ -646,7 +772,7 @@ Provide specific examples and technical details. Focus on what makes this film's
 
     // Genre-based style defaults
     const genreDefaults = this.getGenreStyleDefaults(genre)
-    
+
     // Era-based style defaults
     const eraDefaults = this.getEraStyleDefaults(year)
 
@@ -656,53 +782,53 @@ Provide specific examples and technical details. Focus on what makes this film's
 
   private getGenreStyleDefaults(genre: string): Partial<CinematicStyle> {
     const defaults: Record<string, Partial<CinematicStyle>> = {
-      'action': {
+      action: {
         cameraWork: {
           movementStyle: 'kinetic',
           frameComposition: 'asymmetrical',
           depthOfField: 'variable',
-          signature: ['handheld', 'quick cuts', 'close-ups']
+          signature: ['handheld', 'quick cuts', 'close-ups'],
         },
         editingStyle: {
           pacing: 'quick',
           transitions: ['cut', 'match cut'],
           rhythm: 'dramatic',
-          continuity: 'classical'
-        }
+          continuity: 'classical',
+        },
       },
-      'drama': {
+      drama: {
         cameraWork: {
           movementStyle: 'contemplative',
           frameComposition: 'classical',
           depthOfField: 'deep',
-          signature: ['medium shots', 'tracking shots']
+          signature: ['medium shots', 'tracking shots'],
         },
         editingStyle: {
           pacing: 'measured',
           transitions: ['cut', 'fade'],
           rhythm: 'naturalistic',
-          continuity: 'classical'
-        }
+          continuity: 'classical',
+        },
       },
-      'horror': {
+      horror: {
         cameraWork: {
           movementStyle: 'dynamic',
           frameComposition: 'asymmetrical',
           depthOfField: 'shallow',
-          signature: ['low angle', 'dutch angle', 'handheld']
+          signature: ['low angle', 'dutch angle', 'handheld'],
         },
         productionDesign: {
           visualStyle: ['dark', 'atmospheric'],
           colorPalette: {
             dominant: ['black', 'red'],
-            symbolic: { 'red': 'danger/blood', 'black': 'fear/unknown' },
+            symbolic: { red: 'danger/blood', black: 'fear/unknown' },
             temperature: 'cool',
-            saturation: 'high_contrast'
+            saturation: 'high_contrast',
           },
           setDesign: 'stylized',
-          costumeSignificance: 0.6
-        }
-      }
+          costumeSignificance: 0.6,
+        },
+      },
     }
 
     return defaults[genre] || defaults['drama']
@@ -715,14 +841,14 @@ Provide specific examples and technical details. Focus on what makes this film's
           movementStyle: 'static',
           frameComposition: 'classical',
           depthOfField: 'deep',
-          signature: ['wide shots', 'master shots']
+          signature: ['wide shots', 'master shots'],
         },
         editingStyle: {
           pacing: 'slow',
           transitions: ['cut', 'fade'],
           rhythm: 'dramatic',
-          continuity: 'classical'
-        }
+          continuity: 'classical',
+        },
       }
     } else if (year < 1980) {
       return {
@@ -730,8 +856,8 @@ Provide specific examples and technical details. Focus on what makes this film's
           movementStyle: 'dynamic',
           frameComposition: 'classical',
           depthOfField: 'variable',
-          signature: ['zoom', 'tracking shots']
-        }
+          signature: ['zoom', 'tracking shots'],
+        },
       }
     } else if (year < 2000) {
       return {
@@ -739,8 +865,8 @@ Provide specific examples and technical details. Focus on what makes this film's
           movementStyle: 'fluid',
           frameComposition: 'asymmetrical',
           depthOfField: 'variable',
-          signature: ['steadicam', 'crane shots']
-        }
+          signature: ['steadicam', 'crane shots'],
+        },
       }
     } else {
       return {
@@ -748,47 +874,61 @@ Provide specific examples and technical details. Focus on what makes this film's
           movementStyle: 'kinetic',
           frameComposition: 'experimental',
           depthOfField: 'shallow',
-          signature: ['handheld', 'digital effects']
+          signature: ['handheld', 'digital effects'],
         },
         editingStyle: {
           pacing: 'quick',
           transitions: ['cut', 'jump cut'],
           rhythm: 'experimental',
-          continuity: 'montage'
-        }
+          continuity: 'montage',
+        },
       }
     }
   }
 
   private mergeStyleDefaults(
-    genreDefaults: Partial<CinematicStyle>, 
+    genreDefaults: Partial<CinematicStyle>,
     eraDefaults: Partial<CinematicStyle>
   ): CinematicStyle {
     return {
       visualCharacteristics: [],
       cameraWork: {
-        movementStyle: genreDefaults.cameraWork?.movementStyle || eraDefaults.cameraWork?.movementStyle || 'dynamic',
-        frameComposition: genreDefaults.cameraWork?.frameComposition || eraDefaults.cameraWork?.frameComposition || 'classical',
-        depthOfField: genreDefaults.cameraWork?.depthOfField || eraDefaults.cameraWork?.depthOfField || 'variable',
+        movementStyle:
+          genreDefaults.cameraWork?.movementStyle ||
+          eraDefaults.cameraWork?.movementStyle ||
+          'dynamic',
+        frameComposition:
+          genreDefaults.cameraWork?.frameComposition ||
+          eraDefaults.cameraWork?.frameComposition ||
+          'classical',
+        depthOfField:
+          genreDefaults.cameraWork?.depthOfField ||
+          eraDefaults.cameraWork?.depthOfField ||
+          'variable',
         signature: [
           ...(genreDefaults.cameraWork?.signature || []),
-          ...(eraDefaults.cameraWork?.signature || [])
-        ]
+          ...(eraDefaults.cameraWork?.signature || []),
+        ],
       },
       editingStyle: {
-        pacing: genreDefaults.editingStyle?.pacing || eraDefaults.editingStyle?.pacing || 'standard',
+        pacing:
+          genreDefaults.editingStyle?.pacing || eraDefaults.editingStyle?.pacing || 'standard',
         transitions: [
           ...(genreDefaults.editingStyle?.transitions || []),
-          ...(eraDefaults.editingStyle?.transitions || ['cut', 'fade'])
+          ...(eraDefaults.editingStyle?.transitions || ['cut', 'fade']),
         ],
-        rhythm: genreDefaults.editingStyle?.rhythm || eraDefaults.editingStyle?.rhythm || 'dramatic',
-        continuity: genreDefaults.editingStyle?.continuity || eraDefaults.editingStyle?.continuity || 'classical'
+        rhythm:
+          genreDefaults.editingStyle?.rhythm || eraDefaults.editingStyle?.rhythm || 'dramatic',
+        continuity:
+          genreDefaults.editingStyle?.continuity ||
+          eraDefaults.editingStyle?.continuity ||
+          'classical',
       },
       soundDesign: {
         musicStyle: [],
         soundscapeType: 'realistic',
         dialogueStyle: 'naturalistic',
-        silenceUsage: 0.3
+        silenceUsage: 0.3,
       },
       productionDesign: {
         visualStyle: genreDefaults.productionDesign?.visualStyle || [],
@@ -796,11 +936,11 @@ Provide specific examples and technical details. Focus on what makes this film's
           dominant: [],
           symbolic: {},
           temperature: 'neutral',
-          saturation: 'natural'
+          saturation: 'natural',
         },
         setDesign: genreDefaults.productionDesign?.setDesign || 'realistic',
-        costumeSignificance: genreDefaults.productionDesign?.costumeSignificance || 0.5
-      }
+        costumeSignificance: genreDefaults.productionDesign?.costumeSignificance || 0.5,
+      },
     }
   }
 
@@ -835,7 +975,7 @@ Provide specific examples and technical details. Focus on what makes this film's
   }
 
   private calculateStyleConfidence(
-    style: CinematicStyle, 
+    style: CinematicStyle,
     signature?: DirectorialSignature
   ): number {
     let confidence = 0.6 // Base confidence
@@ -851,8 +991,8 @@ Provide specific examples and technical details. Focus on what makes this film's
 
   // Placeholder for additional private methods
   private async analyzeDirectorialSignature(
-    movie: Movie, 
-    style: CinematicStyle, 
+    movie: Movie,
+    style: CinematicStyle,
     request: StyleAnalysisRequest
   ): Promise<DirectorialSignature | undefined> {
     // Implementation placeholder
@@ -860,8 +1000,8 @@ Provide specific examples and technical details. Focus on what makes this film's
   }
 
   private async identifyStyleInfluences(
-    movie: Movie, 
-    style: CinematicStyle, 
+    movie: Movie,
+    style: CinematicStyle,
     request: StyleAnalysisRequest
   ): Promise<StyleInfluence[]> {
     // Implementation placeholder
@@ -869,8 +1009,8 @@ Provide specific examples and technical details. Focus on what makes this film's
   }
 
   private async detectInnovations(
-    movie: Movie, 
-    style: CinematicStyle, 
+    movie: Movie,
+    style: CinematicStyle,
     request: StyleAnalysisRequest
   ): Promise<FilmTechniqueInnovation[]> {
     // Implementation placeholder
@@ -878,8 +1018,8 @@ Provide specific examples and technical details. Focus on what makes this film's
   }
 
   private async storeStyleAnalysis(
-    movieId: string, 
-    style: CinematicStyle, 
+    movieId: string,
+    style: CinematicStyle,
     signature?: DirectorialSignature
   ): Promise<void> {
     // Implementation placeholder
@@ -891,26 +1031,20 @@ Provide specific examples and technical details. Focus on what makes this film's
   }
 
   private calculateStyleSimilarity(
-    style1: CinematicStyle, 
-    style2: CinematicStyle, 
+    style1: CinematicStyle,
+    style2: CinematicStyle,
     aspects: string[]
   ): { score: number; sharedElements: string[]; distinctElements: string[]; explanation: string } {
     // Implementation placeholder
     return { score: 0, sharedElements: [], distinctElements: [], explanation: '' }
   }
 
-  private identifyStyleCluster(
-    style: CinematicStyle, 
-    similarMovies: any[]
-  ): string {
+  private identifyStyleCluster(style: CinematicStyle, similarMovies: any[]): string {
     // Implementation placeholder
     return 'contemporary'
   }
 
-  private analyzeEvolutionaryContext(
-    style: CinematicStyle, 
-    similarMovies: any[]
-  ): string {
+  private analyzeEvolutionaryContext(style: CinematicStyle, similarMovies: any[]): string {
     // Implementation placeholder
     return 'Part of contemporary filmmaking trends'
   }

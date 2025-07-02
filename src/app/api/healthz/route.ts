@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server-client'
 import { PerformanceMonitor } from '@/lib/utils/performance-monitor'
+import { logger } from '@/lib/logger'
 
 export async function GET() {
   try {
@@ -54,7 +55,9 @@ export async function GET() {
 
     return NextResponse.json(healthData)
   } catch (error) {
-    console.error('Health check failed:', error)
+    logger.error('Health check failed:', {
+      error: error instanceof Error ? error.message : String(error),
+    })
 
     return NextResponse.json(
       {

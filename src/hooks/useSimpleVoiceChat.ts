@@ -11,17 +11,18 @@ interface UseSimpleVoiceChatOptions {
 export const useSimpleVoiceChat = ({
   onTranscript,
   onResponse,
-  onError
+  onError,
 }: UseSimpleVoiceChatOptions = {}) => {
   const [isListening, setIsListening] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
-  
+
   const recognitionRef = useRef<SpeechRecognition | null>(null)
   const synthesisRef = useRef<SpeechSynthesis | null>(null)
 
   // Check if browser supports speech recognition
-  const isSupported = typeof window !== 'undefined' && 
+  const isSupported =
+    typeof window !== 'undefined' &&
     ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)
 
   // Initialize speech recognition
@@ -30,7 +31,7 @@ export const useSimpleVoiceChat = ({
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
     const recognition = new SpeechRecognition()
-    
+
     recognition.continuous = true
     recognition.interimResults = true
     recognition.lang = 'en-US'
@@ -43,21 +44,24 @@ export const useSimpleVoiceChat = ({
       setIsListening(false)
     }
 
-    recognition.onerror = (event) => {
+    recognition.onerror = event => {
       setIsListening(false)
       onError?.(`Speech recognition error: ${event.error}`)
     }
 
-    recognition.onresult = (event) => {
+    recognition.onresult = event => {
       let finalTranscript = ''
       let interimTranscript = ''
 
       for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript
-        if (event.results[i].isFinal) {
-          finalTranscript += transcript
-        } else {
-          interimTranscript += transcript
+        const result = event.results[i]
+        if (result && result[0]) {
+          const transcript = result[0].transcript
+          if (result.isFinal) {
+            finalTranscript += transcript
+          } else {
+            interimTranscript += transcript
+          }
         }
       }
 
@@ -81,59 +85,64 @@ export const useSimpleVoiceChat = ({
   }, [isSupported, onTranscript, onError])
 
   // Process speech and get AI response
-  const processSpeech = useCallback(async (text: string) => {
-    if (!text.trim()) return
+  const processSpeech = useCallback(
+    async (text: string) => {
+      if (!text.trim()) return
 
-    setIsProcessing(true)
-    
-    try {
-      const response = await fetch('/api/ai/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: text,
-          voice: true // Flag to indicate this is a voice request
+      setIsProcessing(true)
+
+      try {
+        const response = await fetch('/api/ai/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: text,
+            voice: true, // Flag to indicate this is a voice request
+          }),
         })
-      })
 
-      if (!response.ok) throw new Error('Failed to get response')
-      
-      const data = await response.json()
-      const aiResponse = data.response || data.message || 'Sorry, I could not process that.'
-      
-      onResponse?.(aiResponse)
-      speak(aiResponse)
-      
-    } catch (error) {
-      const errorMsg = 'Sorry, I encountered an error processing your request.'
-      onError?.(errorMsg)
-      speak(errorMsg)
-    } finally {
-      setIsProcessing(false)
-    }
-  }, [onResponse, onError])
+        if (!response.ok) throw new Error('Failed to get response')
+
+        const data = await response.json()
+        const aiResponse = data.response || data.message || 'Sorry, I could not process that.'
+
+        onResponse?.(aiResponse)
+        speak(aiResponse)
+      } catch (error) {
+        const errorMsg = 'Sorry, I encountered an error processing your request.'
+        onError?.(errorMsg)
+        speak(errorMsg)
+      } finally {
+        setIsProcessing(false)
+      }
+    },
+    [onResponse, onError]
+  )
 
   // Text-to-speech
-  const speak = useCallback((text: string) => {
-    if (!synthesisRef.current || !text) return
+  const speak = useCallback(
+    (text: string) => {
+      if (!synthesisRef.current || !text) return
 
-    // Stop any current speech
-    synthesisRef.current.cancel()
+      // Stop any current speech
+      synthesisRef.current.cancel()
 
-    const utterance = new SpeechSynthesisUtterance(text)
-    utterance.rate = 0.9
-    utterance.pitch = 1
-    utterance.volume = 0.8
+      const utterance = new SpeechSynthesisUtterance(text)
+      utterance.rate = 0.9
+      utterance.pitch = 1
+      utterance.volume = 0.8
 
-    utterance.onstart = () => setIsSpeaking(true)
-    utterance.onend = () => setIsSpeaking(false)
-    utterance.onerror = () => {
-      setIsSpeaking(false)
-      onError?.('Speech synthesis error')
-    }
+      utterance.onstart = () => setIsSpeaking(true)
+      utterance.onend = () => setIsSpeaking(false)
+      utterance.onerror = () => {
+        setIsSpeaking(false)
+        onError?.('Speech synthesis error')
+      }
 
-    synthesisRef.current.speak(utterance)
-  }, [onError])
+      synthesisRef.current.speak(utterance)
+    },
+    [onError]
+  )
 
   // Start listening
   const startListening = useCallback(() => {
@@ -156,7 +165,7 @@ export const useSimpleVoiceChat = ({
   // Stop speaking
   const stopSpeaking = useCallback(() => {
     if (!synthesisRef.current) return
-    
+
     synthesisRef.current.cancel()
     setIsSpeaking(false)
   }, [])
@@ -181,6 +190,6 @@ export const useSimpleVoiceChat = ({
     stopListening,
     stopSpeaking,
     toggleVoiceChat,
-    speak
+    speak,
   }
 }

@@ -55,7 +55,7 @@ export class HyperPersonalizedEngine {
     temporal_weight: 0.2,
     exploration_weight: 0.15,
     quality_threshold_weight: 0.15,
-    recency_weight: 0.1
+    recency_weight: 0.1,
   }
 
   /**
@@ -72,27 +72,31 @@ export class HyperPersonalizedEngine {
     } = {}
   ): Promise<HyperPersonalizedRecommendation[]> {
     try {
-      logger.info('🤖 Starting hyper-personalized recommendation generation', { 
-        userId, 
+      logger.info('🤖 Starting hyper-personalized recommendation generation', {
+        userId,
         optionsCount: options.count,
-        context: options.context 
+        context: options.context,
       })
 
       // Get user behavioral profile
       const behaviorProfile = await analyzeCompleteUserBehavior(userId)
-      
+
       // Get candidate movies
-      const candidates = await this.getCandidateMovies(userId, options.excludeWatched, options.supabaseClient)
-      
-      // Apply real-time learning adjustments
-      const adjustedFactors = await this.adjustFactorsWithRealTimeLearning(
-        userId, 
-        { ...this.defaultFactors, ...options.factors }
+      const candidates = await this.getCandidateMovies(
+        userId,
+        options.excludeWatched,
+        options.supabaseClient
       )
+
+      // Apply real-time learning adjustments
+      const adjustedFactors = await this.adjustFactorsWithRealTimeLearning(userId, {
+        ...this.defaultFactors,
+        ...options.factors,
+      })
 
       // Score each candidate
       const scoredRecommendations = await Promise.all(
-        candidates.map(async (movie) => {
+        candidates.map(async movie => {
           const score = await this.calculatePersonalizationScore(
             movie,
             behaviorProfile,
@@ -115,18 +119,18 @@ export class HyperPersonalizedEngine {
         candidateCount: candidates.length,
         scoredCount: scoredRecommendations.length,
         finalCount: diversified.length,
-        averageConfidence: diversified.reduce((sum, r) => sum + r.confidence_score, 0) / diversified.length
+        averageConfidence:
+          diversified.reduce((sum, r) => sum + r.confidence_score, 0) / diversified.length,
       })
 
       return diversified.slice(0, options.count || 10)
-
-          } catch (error) {
-        logger.error('❌ Failed to generate hyper-personalized recommendations', { 
-          errorMessage: error instanceof Error ? error.message : String(error),
-          userId 
-        })
-        throw error
-      }
+    } catch (error) {
+      logger.error('❌ Failed to generate hyper-personalized recommendations', {
+        errorMessage: error instanceof Error ? error.message : String(error),
+        userId,
+      })
+      throw error
+    }
   }
 
   /**
@@ -144,18 +148,22 @@ export class HyperPersonalizedEngine {
       quality_prediction: this.predictQualityScore(movie, profile),
       temporal_fit_score: this.calculateTemporalFit(movie, profile, context),
       exploration_bonus: this.calculateExplorationBonus(movie, profile),
-      behavioral_consistency_score: this.calculateBehavioralConsistency(movie, profile)
+      behavioral_consistency_score: this.calculateBehavioralConsistency(movie, profile),
     }
 
     // Weighted combination
-    const confidence_score = Math.min(100, Math.max(0,
-      (scores.genre_affinity_score * factors.behavioral_weight * 100) +
-      (scores.director_affinity_score * factors.behavioral_weight * 80) +
-      (scores.quality_prediction * factors.quality_threshold_weight * 100) +
-      (scores.temporal_fit_score * factors.temporal_weight * 60) +
-      (scores.exploration_bonus * factors.exploration_weight * 40) +
-      (scores.behavioral_consistency_score * factors.recency_weight * 50)
-    ))
+    const confidence_score = Math.min(
+      100,
+      Math.max(
+        0,
+        scores.genre_affinity_score * factors.behavioral_weight * 100 +
+          scores.director_affinity_score * factors.behavioral_weight * 80 +
+          scores.quality_prediction * factors.quality_threshold_weight * 100 +
+          scores.temporal_fit_score * factors.temporal_weight * 60 +
+          scores.exploration_bonus * factors.exploration_weight * 40 +
+          scores.behavioral_consistency_score * factors.recency_weight * 50
+      )
+    )
 
     const reasoning = this.generateReasoning(movie, scores, profile)
     const explanation = this.generateExplanation(movie, scores, profile)
@@ -168,11 +176,11 @@ export class HyperPersonalizedEngine {
         genre: Math.round(scores.genre_affinity_score * 100) / 100,
         director: Math.round(scores.director_affinity_score * 100) / 100,
         quality: Math.round(scores.quality_prediction * 100) / 100,
-        exploration: Math.round(scores.exploration_bonus * 100) / 100
+        exploration: Math.round(scores.exploration_bonus * 100) / 100,
       },
       explanation,
       reasoningCount: reasoning.length,
-      userRatings: profile.rating_patterns.total_ratings
+      userRatings: profile.rating_patterns.total_ratings,
     })
 
     return {
@@ -180,7 +188,7 @@ export class HyperPersonalizedEngine {
       confidence_score: Math.round(confidence_score),
       personalization_factors: scores,
       explanation,
-      reasoning
+      reasoning,
     }
   }
 
@@ -244,15 +252,19 @@ export class HyperPersonalizedEngine {
   /**
    * Calculate temporal fit based on time patterns
    */
-  private calculateTemporalFit(movie: Movie, profile: UserBehaviorProfile, context?: string): number {
+  private calculateTemporalFit(
+    movie: Movie,
+    profile: UserBehaviorProfile,
+    context?: string
+  ): number {
     const now = new Date()
     const isWeekend = now.getDay() === 0 || now.getDay() === 6
 
     let temporalScore = 0.5 // base score
 
     if (movie.genre) {
-      const relevantGenres = isWeekend 
-        ? profile.temporal_patterns.weekend_genres 
+      const relevantGenres = isWeekend
+        ? profile.temporal_patterns.weekend_genres
         : profile.temporal_patterns.weekday_genres
 
       const genreMatch = movie.genre.some(g => relevantGenres.includes(g))
@@ -278,11 +290,11 @@ export class HyperPersonalizedEngine {
 
     // Users who explore more get bonus for unfamiliar genres/directors
     if (explorationRatio > 0.6) {
-      const hasUnfamiliarGenre = movie.genre?.some(g => 
-        !profile.rating_patterns.genre_rating_averages.has(g)
+      const hasUnfamiliarGenre = movie.genre?.some(
+        g => !profile.rating_patterns.genre_rating_averages.has(g)
       )
-      const hasUnfamiliarDirector = movie.director?.some(d => 
-        !profile.rating_patterns.director_rating_averages.has(d)
+      const hasUnfamiliarDirector = movie.director?.some(
+        d => !profile.rating_patterns.director_rating_averages.has(d)
       )
 
       if (hasUnfamiliarGenre || hasUnfamiliarDirector) return 0.8
@@ -298,10 +310,9 @@ export class HyperPersonalizedEngine {
     const consistencyScore = profile.intelligence_insights.taste_consistency_score
 
     // Highly consistent users get bonus for movies that match their patterns
-    if (consistencyScore > 0.8) {
-      const genreMatch = movie.genre?.some(g => 
-        profile.rating_patterns.genre_rating_averages.get(g) >= 4
-      )
+    if (consistencyScore > 0.8 && profile.rating_patterns?.genre_rating_averages) {
+      const genreAverages = profile.rating_patterns.genre_rating_averages
+      const genreMatch = movie.genre?.some(g => (genreAverages.get(g) || 0) >= 4)
       if (genreMatch) return 0.9
     }
 
@@ -312,16 +323,12 @@ export class HyperPersonalizedEngine {
    * Get candidate movies for recommendation
    */
   private async getCandidateMovies(
-    userId: string, 
+    userId: string,
     excludeWatched: boolean = true,
     supabaseClient?: any
   ): Promise<Movie[]> {
     const client = supabaseClient || supabase
-    let query = client
-      .from('movies')
-      .select('*')
-      .order('rating', { ascending: false })
-      .limit(500)
+    let query = client.from('movies').select('*').order('rating', { ascending: false }).limit(500)
 
     if (excludeWatched) {
       // Exclude movies the user has already rated or watched
@@ -338,17 +345,17 @@ export class HyperPersonalizedEngine {
         .eq('watched', true)
 
       const excludeMovieIds = new Set<string>()
-      
+
       // Add rated movie IDs
       if (ratedIds && ratedIds.length > 0) {
-        ratedIds.forEach(r => {
+        ratedIds.forEach((r: { movie_id?: string }) => {
           if (r.movie_id) excludeMovieIds.add(r.movie_id)
         })
       }
-      
+
       // Add watched movie IDs
       if (watchedIds && watchedIds.length > 0) {
-        watchedIds.forEach(w => {
+        watchedIds.forEach((w: { movie_id?: string }) => {
           if (w.movie_id) excludeMovieIds.add(w.movie_id)
         })
       }
@@ -358,14 +365,14 @@ export class HyperPersonalizedEngine {
         const movieIds = Array.from(excludeMovieIds)
         // Use Supabase's not() filter with in() operator
         query = query.not('id', 'in', `(${movieIds.join(',')})`)
-        
+
         logger.info('🚫 Excluding watched/rated movies from recommendations', {
           userId,
           excludedCount: excludeMovieIds.size,
           ratedMoviesCount: ratedIds?.length || 0,
           watchedMoviesCount: watchedIds?.length || 0,
           sampleExcludedIds: movieIds.slice(0, 5), // Show first 5 for debugging
-          queryFilter: `NOT id IN (${movieIds.slice(0, 3).join(',')}...)` // Debug the actual query
+          queryFilter: `NOT id IN (${movieIds.slice(0, 3).join(',')}...)`, // Debug the actual query
         })
       }
     }
@@ -416,12 +423,12 @@ export class HyperPersonalizedEngine {
       }
 
       return adjustedFactors
-         } catch (error) {
-       logger.warn('Failed to adjust factors with real-time learning', { 
-         errorMessage: error instanceof Error ? error.message : String(error) 
-       })
-       return baseFactor
-     }
+    } catch (error) {
+      logger.warn('Failed to adjust factors with real-time learning', {
+        errorMessage: error instanceof Error ? error.message : String(error),
+      })
+      return baseFactor
+    }
   }
 
   /**
@@ -457,25 +464,23 @@ export class HyperPersonalizedEngine {
     return diversified
   }
 
-     /**
-    * Generate human-readable reasoning for the recommendation
-    */
-   private generateReasoning(
-     movie: Movie,
-     scores: any,
-     _profile: UserBehaviorProfile
-   ): string[] {
+  /**
+   * Generate human-readable reasoning for the recommendation
+   */
+  private generateReasoning(movie: Movie, scores: any, _profile: UserBehaviorProfile): string[] {
     const reasoning: string[] = []
 
     if (scores.genre_affinity_score > 0.4) {
       const topGenres = movie.genre?.slice(0, 2).join(', ')
-      const strength = scores.genre_affinity_score > 0.7 ? 'consistently rated' : 'shown interest in'
+      const strength =
+        scores.genre_affinity_score > 0.7 ? 'consistently rated' : 'shown interest in'
       reasoning.push(`You've ${strength} ${topGenres} movies highly`)
     }
 
     if (scores.director_affinity_score > 0.4) {
       const topDirector = movie.director?.[0]
-      const strength = scores.director_affinity_score > 0.7 ? 'enjoy movies by' : 'shown interest in films by'
+      const strength =
+        scores.director_affinity_score > 0.7 ? 'enjoy movies by' : 'shown interest in films by'
       reasoning.push(`You ${strength} ${topDirector}`)
     }
 
@@ -502,19 +507,15 @@ export class HyperPersonalizedEngine {
   /**
    * Generate concise explanation for the recommendation
    */
-  private generateExplanation(
-    movie: Movie,
-    scores: any,
-    profile: UserBehaviorProfile
-  ): string {
+  private generateExplanation(movie: Movie, scores: any, profile: UserBehaviorProfile): string {
     const hasRatingHistory = profile.rating_patterns.total_ratings > 0
     const hasWatchlistHistory = profile.watchlist_patterns.completion_rate > 0
-    
+
     // For new users with no history
     if (!hasRatingHistory && !hasWatchlistHistory) {
       return `Popular ${movie.genre?.[0] || 'movie'} to help us learn your preferences`
     }
-    
+
     // For users with minimal history (1-5 ratings)
     if (profile.rating_patterns.total_ratings <= 5) {
       if (scores.genre_affinity_score > 0.3) {
@@ -525,21 +526,22 @@ export class HyperPersonalizedEngine {
 
     // Multi-factor explanations for established users
     const factors = []
-    
+
     if (scores.genre_affinity_score > 0.5) {
       const strength = scores.genre_affinity_score > 0.7 ? 'love for' : 'interest in'
       factors.push(`your ${strength} ${movie.genre?.[0]}`)
     }
-    
+
     if (scores.director_affinity_score > 0.5) {
-      const strength = scores.director_affinity_score > 0.7 ? 'proven enjoyment of' : 'positive response to'
+      const strength =
+        scores.director_affinity_score > 0.7 ? 'proven enjoyment of' : 'positive response to'
       factors.push(`${strength} ${movie.director?.[0]}'s work`)
     }
-    
+
     if (scores.quality_prediction > 0.7) {
       factors.push('its high quality rating')
     }
-    
+
     if (scores.exploration_bonus > 0.4) {
       factors.push('discovery potential')
     }
@@ -560,16 +562,14 @@ export class HyperPersonalizedEngine {
    */
   async recordLearningSignal(signal: RealTimeLearningSignal): Promise<void> {
     try {
-      await supabase
-        .from('user_behavior_signals')
-        .insert({
-          user_id: signal.userId,
-          movie_id: signal.movieId,
-          action: signal.action,
-          value: signal.value,
-          context: signal.context,
-          created_at: signal.timestamp
-        })
+      await supabase.from('user_behavior_signals').insert({
+        user_id: signal.userId,
+        movie_id: signal.movieId,
+        action: signal.action,
+        value: signal.value,
+        context: signal.context,
+        created_at: signal.timestamp,
+      })
 
       logger.info('📊 Learning signal recorded', { signal })
     } catch (error) {
@@ -579,4 +579,4 @@ export class HyperPersonalizedEngine {
 }
 
 // Export singleton instance
-export const hyperPersonalizedEngine = new HyperPersonalizedEngine() 
+export const hyperPersonalizedEngine = new HyperPersonalizedEngine()

@@ -27,7 +27,7 @@ const MovieCard = ({
   isInWatchlist: boolean
 }) => {
   return (
-    <Card className="group overflow-hidden transition-all duration-200 hover:shadow-lg rounded-xl">
+    <Card className="group overflow-hidden rounded-xl transition-all duration-200 hover:shadow-lg">
       <div className="relative aspect-[2/3] overflow-hidden rounded-t-xl">
         <Image
           src={
@@ -43,7 +43,7 @@ const MovieCard = ({
           }
           alt={movie.title}
           fill
-          className="object-cover transition-transform duration-200 group-hover:scale-105 rounded-t-xl"
+          className="rounded-t-xl object-cover transition-transform duration-200 group-hover:scale-105"
           sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
         />
 
@@ -54,7 +54,7 @@ const MovieCard = ({
         )}
       </div>
 
-      <CardContent className="p-3 flex flex-col">
+      <CardContent className="flex flex-col p-3">
         <h3
           className="hover:text-primary mb-2 line-clamp-2 cursor-pointer text-sm leading-tight font-semibold transition-colors"
           onClick={() => onMovieClick(movie)}
@@ -84,7 +84,7 @@ const MovieCard = ({
           </div>
         )}
 
-        <div className="flex gap-2 mt-4">
+        <div className="mt-4 flex gap-2">
           <Button
             variant="outline"
             size="sm"
@@ -132,9 +132,9 @@ export const TrendingMoviesGrid = ({ filters }: { filters?: SearchFilters }) => 
     queryKey: ['trending-movies', JSON.stringify(filters ?? {})],
     queryFn: async ({ pageParam = 1 }) => {
       if (process.env.NODE_ENV === 'development') {
-        console.log('🎬 TrendingMoviesGrid: Fetching movies page', pageParam)
+        // Fetching movies page
       }
-      
+
       const params = new URLSearchParams({
         limit: '20', // 20 movies for good performance
         page: pageParam.toString(),
@@ -147,23 +147,14 @@ export const TrendingMoviesGrid = ({ filters }: { filters?: SearchFilters }) => 
       if (!response.ok) {
         const errorText = await response.text()
         if (process.env.NODE_ENV === 'development') {
-          console.error('🚨 TrendingMoviesGrid: Movie fetch error:', {
-            status: response.status,
-            statusText: response.statusText,
-            url: response.url,
-            errorText
-          })
+          // Movie fetch error logged
         }
         logger.error('Movie fetch error', { status: response.status, errorText })
         throw new Error(`Failed to fetch movies: ${response.status} ${errorText}`)
       }
       const data = await response.json()
       if (process.env.NODE_ENV === 'development') {
-        console.log('🎬 TrendingMoviesGrid: Movies fetched successfully:', {
-          page: pageParam,
-          count: data.movies?.length || 0,
-          total: data.total
-        })
+        // Movies fetched successfully
       }
 
       // Transform response to match expected format
@@ -265,7 +256,7 @@ export const TrendingMoviesGrid = ({ filters }: { filters?: SearchFilters }) => 
   // Set up scroll listener (client-side only)
   useEffect(() => {
     if (typeof window === 'undefined') return // Guard against SSR
-    
+
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
   }, [handleScroll])
@@ -321,7 +312,8 @@ export const TrendingMoviesGrid = ({ filters }: { filters?: SearchFilters }) => 
       {/* Movies Count */}
       <div className="mb-6 flex items-center justify-between">
         <span className="text-sm text-gray-600">
-          Showing {processedMovies.length} of {totalMovies.toLocaleString()} trending movies • Scroll for more
+          Showing {processedMovies.length} of {totalMovies.toLocaleString()} trending movies •
+          Scroll for more
         </span>
       </div>
 
@@ -329,7 +321,7 @@ export const TrendingMoviesGrid = ({ filters }: { filters?: SearchFilters }) => 
       {isLoading && processedMovies.length === 0 ? (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4">
           {Array.from({ length: 20 }).map((_, i) => (
-            <div key={i} className="aspect-[2/3] bg-gray-200 animate-pulse rounded-lg" />
+            <div key={i} className="aspect-[2/3] animate-pulse rounded-lg bg-gray-200" />
           ))}
         </div>
       ) : processedMovies.length === 0 ? (
@@ -366,9 +358,7 @@ export const TrendingMoviesGrid = ({ filters }: { filters?: SearchFilters }) => 
           {/* End of results indicator */}
           {!hasNextPage && processedMovies.length > 0 && (
             <div className="mt-8 text-center">
-              <p className="text-gray-500">
-                🎬 You&apos;ve explored all trending movies!
-              </p>
+              <p className="text-gray-500">🎬 You&apos;ve explored all trending movies!</p>
             </div>
           )}
         </>

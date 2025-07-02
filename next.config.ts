@@ -2,12 +2,12 @@ import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
   typescript: {
-    // Temporarily ignore TypeScript errors during build until full migration is complete
-    ignoreBuildErrors: true,
+    // Only ignore in development to catch issues early
+    ignoreBuildErrors: process.env.NODE_ENV === 'development',
   },
   eslint: {
-    // Temporarily ignore ESLint errors during build to prevent hard failures
-    ignoreDuringBuilds: true,
+    // Only ignore in development to catch issues early
+    ignoreDuringBuilds: process.env.NODE_ENV === 'development',
   },
   images: {
     remotePatterns: [

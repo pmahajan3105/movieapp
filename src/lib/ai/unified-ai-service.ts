@@ -1,7 +1,7 @@
 /**
  * Unified AI Service Facade
  * Central orchestrator for all AI-powered features in CineAI
- * 
+ *
  * This service provides a single interface to:
  * - Movie recommendations (multiple algorithms)
  * - Explanations and reasoning
@@ -16,8 +16,8 @@ import { logger } from '@/lib/logger'
 
 // Import individual AI services
 import { ExplanationService } from './explanation-service'
-import { SmartRecommenderV2, type SmartRecommendationOptions, type SmartRecommendationResult } from './smart-recommender-v2'
-import { hyperPersonalizedEngine, type HyperPersonalizedRecommendation, type PersonalizationFactors } from './hyper-personalized-engine'
+import { SmartRecommenderV2, type SmartRecommendationOptions } from './smart-recommender-v2'
+import { hyperPersonalizedEngine, HyperPersonalizedEngine } from './hyper-personalized-engine'
 import { analyzeCompleteUserBehavior, type UserBehaviorProfile } from './behavioral-analysis'
 import { SmartSearchEngine } from './smart-search-engine'
 
@@ -91,14 +91,14 @@ export class UnifiedAIService {
   private smartRecommender: SmartRecommenderV2
   private hyperPersonalizedEngine: HyperPersonalizedEngine
   private searchEngine: SmartSearchEngine
-  
+
   private serviceHealth: AIServiceHealth = {
     explanationService: true,
     smartRecommender: true,
     hyperPersonalized: true,
     voiceService: true, // Web Speech API
     searchService: true,
-    overall: 'healthy'
+    overall: 'healthy',
   }
 
   private constructor() {
@@ -106,9 +106,9 @@ export class UnifiedAIService {
     this.smartRecommender = SmartRecommenderV2.getInstance()
     this.hyperPersonalizedEngine = hyperPersonalizedEngine
     this.searchEngine = new SmartSearchEngine()
-    
+
     // Voice service now handled by Web Speech API in UI components
-    
+
     this.updateOverallHealth()
   }
 
@@ -122,32 +122,34 @@ export class UnifiedAIService {
   /**
    * Get movie recommendations using the best available algorithm
    */
-  async getRecommendations(request: UnifiedRecommendationRequest): Promise<UnifiedRecommendationResponse> {
+  async getRecommendations(
+    request: UnifiedRecommendationRequest
+  ): Promise<UnifiedRecommendationResponse> {
     const startTime = Date.now()
     const algorithm = request.algorithm || 'hybrid'
-    
+
     try {
-      logger.info('Getting unified recommendations', { 
-        userId: request.userId, 
+      logger.info('Getting unified recommendations', {
+        userId: request.userId,
         algorithm,
-        context: request.context 
+        context: request.context,
       })
 
       let result: UnifiedRecommendationResponse
-      
+
       switch (algorithm) {
         case 'smart':
           result = await this.getSmartRecommendations(request)
           break
-          
+
         case 'hyper-personalized':
           result = await this.getHyperPersonalizedRecommendations(request)
           break
-          
+
         case 'behavioral':
           result = await this.getBehavioralRecommendations(request)
           break
-          
+
         case 'hybrid':
         default:
           result = await this.getHybridRecommendations(request)
@@ -158,34 +160,33 @@ export class UnifiedAIService {
       if (request.context?.includeExplanations && result.movies.length > 0) {
         try {
           const explanations = await this.explanationService.generateExplanationsForMovies(
-            request.userId, 
+            request.userId,
             result.movies
           )
           result.explanations = explanations
         } catch (error) {
-          logger.warn('Failed to generate explanations', { 
-            error: error instanceof Error ? error.message : String(error) 
+          logger.warn('Failed to generate explanations', {
+            error: error instanceof Error ? error.message : String(error),
           })
           // Continue without explanations
         }
       }
 
       result.performance.latency = Date.now() - startTime
-      
+
       return result
-      
     } catch (error) {
-      logger.error('Unified recommendations failed', { 
+      logger.error('Unified recommendations failed', {
         error: error instanceof Error ? error.message : String(error),
         userId: request.userId,
-        algorithm 
+        algorithm,
       })
-      
+
       // Fallback handling
       if (request.fallbackOptions?.enableFallback !== false) {
         return await this.getFallbackRecommendations(request, startTime)
       }
-      
+
       throw error
     }
   }
@@ -201,18 +202,18 @@ export class UnifiedAIService {
         request.movieMeta
       )
     } catch (error) {
-      logger.error('Failed to get explanation', { 
+      logger.error('Failed to get explanation', {
         error: error instanceof Error ? error.message : String(error),
         userId: request.userId,
-        movieId: request.movieId 
+        movieId: request.movieId,
       })
-      
+
       // Return fallback explanation
       return {
         primary_reason: 'Recommended based on your preferences',
         explanation_type: 'preference_match',
         confidence_score: 0.7,
-        discovery_factor: 0.5
+        discovery_factor: 0.5,
       }
     }
   }
@@ -225,13 +226,13 @@ export class UnifiedAIService {
       if (!this.serviceHealth.searchService) {
         return movies
       }
-      
+
       return await this.searchEngine.enhanceResults(userId, query, movies)
     } catch (error) {
-      logger.warn('Search enhancement failed', { 
+      logger.warn('Search enhancement failed', {
         error: error instanceof Error ? error.message : String(error),
         userId,
-        query 
+        query,
       })
       return movies
     }
@@ -244,9 +245,9 @@ export class UnifiedAIService {
     try {
       return await analyzeCompleteUserBehavior(userId)
     } catch (error) {
-      logger.error('Behavior analysis failed', { 
+      logger.error('Behavior analysis failed', {
         error: error instanceof Error ? error.message : String(error),
-        userId 
+        userId,
       })
       return null
     }
@@ -262,14 +263,14 @@ export class UnifiedAIService {
         this.testExplanationService(),
         this.testSmartRecommender(),
         this.testHyperPersonalized(),
-        this.testSearchService()
+        this.testSearchService(),
       ])
-      
+
       this.updateOverallHealth()
       return this.serviceHealth
     } catch (error) {
-      logger.error('Health check failed', { 
-        error: error instanceof Error ? error.message : String(error) 
+      logger.error('Health check failed', {
+        error: error instanceof Error ? error.message : String(error),
       })
       this.serviceHealth.overall = 'failed'
       return this.serviceHealth
@@ -281,35 +282,29 @@ export class UnifiedAIService {
   /**
    * Get thematic recommendations using deep theme analysis
    */
-  private async getThematicRecommendations(request: UnifiedRecommendationRequest): Promise<UnifiedRecommendationResponse> {
+  private async getThematicRecommendations(
+    request: UnifiedRecommendationRequest
+  ): Promise<UnifiedRecommendationResponse> {
     try {
       if (!request.context?.query) {
         throw new Error('Query required for thematic recommendations')
       }
 
-      // Process query for thematic understanding
-      const queryResult = await queryIntelligenceEngine.processAdvancedQuery(
-        request.context.query,
-        request.userId
-      )
+      // TODO: Process query for thematic understanding when dependencies are available
 
       // For now, return structure - actual movie matching would be implemented
       return {
         movies: [],
         algorithm: 'thematic',
         insights: {
-          primaryReasons: queryResult.prioritizedIntents.map(intent => intent.type),
-          confidence: queryResult.advancedQuery.confidence,
+          primaryReasons: ['Thematic analysis not yet implemented'],
+          confidence: 0.5,
           diversityScore: 0.7,
-          queryComplexity: queryResult.queryComplexity
         },
         performance: {
           latency: 0,
-          source: 'thematic-analysis-engine'
+          source: 'thematic-analysis-engine',
         },
-        advancedAnalysis: {
-          processedQuery: queryResult.advancedQuery
-        }
       }
     } catch (error) {
       logger.error('Thematic recommendations failed', { error, request })
@@ -320,7 +315,9 @@ export class UnifiedAIService {
   /**
    * Get advanced intelligence recommendations with full analysis pipeline
    */
-  private async getAdvancedIntelligenceRecommendations(request: UnifiedRecommendationRequest): Promise<UnifiedRecommendationResponse> {
+  private async getAdvancedIntelligenceRecommendations(
+    request: UnifiedRecommendationRequest
+  ): Promise<UnifiedRecommendationResponse> {
     try {
       if (!request.context?.query) {
         throw new Error('Query required for advanced intelligence recommendations')
@@ -340,20 +337,21 @@ export class UnifiedAIService {
           primaryReasons: queryResult.prioritizedIntents.map(intent => intent.type),
           confidence: queryResult.advancedQuery.confidence,
           diversityScore: 0.8,
-          queryComplexity: queryResult.queryComplexity
+          queryComplexity: queryResult.queryComplexity,
         },
         performance: {
           latency: 0,
-          source: 'advanced-intelligence-pipeline'
+          source: 'advanced-intelligence-pipeline',
         },
         advancedAnalysis: {
           processedQuery: queryResult.advancedQuery,
           thematicProfiles: {},
           emotionalJourneys: {},
           cinematicStyles: {},
-          educationalInsights: queryResult.requiresExplanation ? 
-            ['Educational insights would be provided here'] : undefined
-        }
+          educationalInsights: queryResult.requiresExplanation
+            ? ['Educational insights would be provided here']
+            : undefined,
+        },
       }
     } catch (error) {
       logger.error('Advanced intelligence recommendations failed', { error, request })
@@ -387,30 +385,34 @@ export class UnifiedAIService {
   }
 
   // Private helper methods
-  private async getSmartRecommendations(request: UnifiedRecommendationRequest): Promise<UnifiedRecommendationResponse> {
+  private async getSmartRecommendations(
+    request: UnifiedRecommendationRequest
+  ): Promise<UnifiedRecommendationResponse> {
     const options: SmartRecommendationOptions = {
       userId: request.userId,
       userQuery: request.context?.query,
       preferredGenres: request.context?.genres,
       mood: request.context?.mood,
       limit: request.context?.limit || 12,
-      diversityFactor: request.context?.diversityFactor || 0.3
+      diversityFactor: request.context?.diversityFactor || 0.3,
     }
-    
+
     const result = await this.smartRecommender.getRecommendations(options)
-    
+
     return {
       movies: result.movies,
       algorithm: 'smart',
       insights: result.insights,
       performance: {
         latency: 0, // Will be set by caller
-        source: 'smart-recommender-v2'
-      }
+        source: 'smart-recommender-v2',
+      },
     }
   }
 
-  private async getHyperPersonalizedRecommendations(request: UnifiedRecommendationRequest): Promise<UnifiedRecommendationResponse> {
+  private async getHyperPersonalizedRecommendations(
+    request: UnifiedRecommendationRequest
+  ): Promise<UnifiedRecommendationResponse> {
     const recommendations = await this.hyperPersonalizedEngine.getHyperPersonalizedRecommendations(
       request.userId,
       request.context?.limit || 12,
@@ -419,59 +421,64 @@ export class UnifiedAIService {
         temporal_weight: 0.3,
         exploration_weight: 0.2,
         quality_threshold_weight: 0.7,
-        recency_weight: 0.3
+        recency_weight: 0.3,
       }
     )
-    
+
     return {
       movies: recommendations.map(r => r.movie),
       algorithm: 'hyper-personalized',
       insights: {
         primaryReasons: recommendations.map(r => r.explanation),
-        confidence: recommendations.reduce((sum, r) => sum + r.confidence_score, 0) / recommendations.length,
+        confidence:
+          recommendations.reduce((sum, r) => sum + r.confidence_score, 0) / recommendations.length,
         diversityScore: this.calculateDiversityScore(recommendations.map(r => r.movie)),
-        personalizations: recommendations.map(r => r.personalization_factors)
+        personalizations: recommendations.map(r => r.personalization_factors),
       },
       performance: {
         latency: 0, // Will be set by caller
-        source: 'hyper-personalized-engine'
-      }
+        source: 'hyper-personalized-engine',
+      },
     }
   }
 
-  private async getBehavioralRecommendations(request: UnifiedRecommendationRequest): Promise<UnifiedRecommendationResponse> {
+  private async getBehavioralRecommendations(
+    request: UnifiedRecommendationRequest
+  ): Promise<UnifiedRecommendationResponse> {
     const recs = await this.smartRecommender.getEnhancedRecommendations({
       userId: request.userId,
       limit: request.context?.limit || 12,
-      includeBehavioral: true
+      includeBehavioral: true,
     })
-    
+
     return {
       movies: recs.movies,
       algorithm: 'behavioral',
       insights: {
         primaryReasons: ['Based on your viewing patterns'],
         confidence: 0.8,
-        diversityScore: this.calculateDiversityScore(recs.movies)
+        diversityScore: this.calculateDiversityScore(recs.movies),
       },
       performance: {
         latency: 0, // Will be set by caller
-        source: 'behavioral-analysis'
-      }
+        source: 'behavioral-analysis',
+      },
     }
   }
 
-  private async getHybridRecommendations(request: UnifiedRecommendationRequest): Promise<UnifiedRecommendationResponse> {
+  private async getHybridRecommendations(
+    request: UnifiedRecommendationRequest
+  ): Promise<UnifiedRecommendationResponse> {
     // Combine smart and hyper-personalized recommendations
     const [smartRecs, hyperRecs] = await Promise.allSettled([
       this.getSmartRecommendations(request),
-      this.getHyperPersonalizedRecommendations(request)
+      this.getHyperPersonalizedRecommendations(request),
     ])
-    
+
     // Merge and deduplicate results
     const allMovies: Movie[] = []
     const seenIds = new Set<string>()
-    
+
     // Add smart recommendations first (they're usually faster)
     if (smartRecs.status === 'fulfilled') {
       for (const movie of smartRecs.value.movies) {
@@ -481,7 +488,7 @@ export class UnifiedAIService {
         }
       }
     }
-    
+
     // Add hyper-personalized recommendations
     if (hyperRecs.status === 'fulfilled') {
       for (const movie of hyperRecs.value.movies) {
@@ -491,25 +498,28 @@ export class UnifiedAIService {
         }
       }
     }
-    
+
     return {
       movies: allMovies.slice(0, request.context?.limit || 12),
       algorithm: 'hybrid',
       insights: {
         primaryReasons: ['Hybrid algorithm combining multiple AI approaches'],
         confidence: 0.85,
-        diversityScore: this.calculateDiversityScore(allMovies)
+        diversityScore: this.calculateDiversityScore(allMovies),
       },
       performance: {
         latency: 0, // Will be set by caller
-        source: 'hybrid'
-      }
+        source: 'hybrid',
+      },
     }
   }
 
-  private async getFallbackRecommendations(request: UnifiedRecommendationRequest, startTime: number): Promise<UnifiedRecommendationResponse> {
+  private async getFallbackRecommendations(
+    request: UnifiedRecommendationRequest,
+    startTime: number
+  ): Promise<UnifiedRecommendationResponse> {
     logger.warn('Using fallback recommendations', { userId: request.userId })
-    
+
     try {
       // Simple fallback - return empty result with appropriate messaging
       return {
@@ -518,17 +528,17 @@ export class UnifiedAIService {
         insights: {
           primaryReasons: ['Service temporarily unavailable'],
           confidence: 0.5,
-          diversityScore: 0
+          diversityScore: 0,
         },
         performance: {
           latency: Date.now() - startTime,
           source: 'fallback',
-          fallback: true
-        }
+          fallback: true,
+        },
       }
     } catch (error) {
-      logger.error('Even fallback failed', { 
-        error: error instanceof Error ? error.message : String(error) 
+      logger.error('Even fallback failed', {
+        error: error instanceof Error ? error.message : String(error),
       })
       throw new Error('All recommendation services are currently unavailable')
     }
@@ -536,14 +546,14 @@ export class UnifiedAIService {
 
   private calculateDiversityScore(movies: Movie[]): number {
     if (movies.length === 0) return 0
-    
+
     const genres = new Set<string>()
     movies.forEach(movie => {
       if (movie.genre) {
         movie.genre.forEach(g => genres.add(g))
       }
     })
-    
+
     // Simple diversity score based on genre variety
     return Math.min(genres.size / 10, 1.0)
   }
@@ -552,7 +562,7 @@ export class UnifiedAIService {
     try {
       // Lightweight test - just check if service initializes
       this.serviceHealth.explanationService = true
-    } catch (error) {
+    } catch {
       this.serviceHealth.explanationService = false
     }
   }
@@ -561,7 +571,7 @@ export class UnifiedAIService {
     try {
       // Test if smart recommender is responsive
       this.serviceHealth.smartRecommender = true
-    } catch (error) {
+    } catch {
       this.serviceHealth.smartRecommender = false
     }
   }
@@ -570,7 +580,7 @@ export class UnifiedAIService {
     try {
       // Test if hyper-personalized engine is responsive
       this.serviceHealth.hyperPersonalized = true
-    } catch (error) {
+    } catch {
       this.serviceHealth.hyperPersonalized = false
     }
   }
@@ -579,7 +589,7 @@ export class UnifiedAIService {
     try {
       // Test if search service is responsive
       this.serviceHealth.searchService = true
-    } catch (error) {
+    } catch {
       this.serviceHealth.searchService = false
     }
   }
@@ -589,12 +599,12 @@ export class UnifiedAIService {
       this.serviceHealth.explanationService,
       this.serviceHealth.smartRecommender,
       this.serviceHealth.hyperPersonalized,
-      this.serviceHealth.searchService
+      this.serviceHealth.searchService,
     ]
-    
+
     const healthyCount = services.filter(Boolean).length
     const totalCount = services.length
-    
+
     if (healthyCount === totalCount) {
       this.serviceHealth.overall = 'healthy'
     } else if (healthyCount >= totalCount * 0.5) {
@@ -606,7 +616,9 @@ export class UnifiedAIService {
   /**
    * Static method for backward compatibility with tests
    */
-  static async getRecommendations(request: UnifiedRecommendationRequest): Promise<UnifiedRecommendationResponse> {
+  static async getRecommendations(
+    request: UnifiedRecommendationRequest
+  ): Promise<UnifiedRecommendationResponse> {
     const instance = UnifiedAIService.getInstance()
     return instance.getRecommendations(request)
   }
@@ -616,15 +628,23 @@ export class UnifiedAIService {
 export const unifiedAI = UnifiedAIService.getInstance()
 
 // Export convenience functions
-export async function getRecommendations(request: UnifiedRecommendationRequest): Promise<UnifiedRecommendationResponse> {
+export async function getRecommendations(
+  request: UnifiedRecommendationRequest
+): Promise<UnifiedRecommendationResponse> {
   return unifiedAI.getRecommendations(request)
 }
 
-export async function getExplanation(request: UnifiedExplanationRequest): Promise<RecommendationExplanation> {
+export async function getExplanation(
+  request: UnifiedExplanationRequest
+): Promise<RecommendationExplanation> {
   return unifiedAI.getExplanation(request)
 }
 
-export async function enhanceSearch(userId: string, query: string, movies: Movie[]): Promise<Movie[]> {
+export async function enhanceSearch(
+  userId: string,
+  query: string,
+  movies: Movie[]
+): Promise<Movie[]> {
   return unifiedAI.enhanceSearch(userId, query, movies)
 }
 
@@ -633,18 +653,30 @@ export async function getServiceHealth(): Promise<AIServiceHealth> {
 }
 
 // Enhanced convenience functions for advanced intelligence
-export async function processAdvancedQuery(query: string, userId: string): Promise<QueryProcessingResult> {
+export async function processAdvancedQuery(
+  query: string,
+  userId: string
+): Promise<QueryProcessingResult> {
   return unifiedAI.processAdvancedQuery(query, userId)
 }
 
-export async function getThematicAnalysis(movieId: string, analysisDepth?: 'basic' | 'standard' | 'comprehensive' | 'expert'): Promise<ThematicProfile> {
+export async function getThematicAnalysis(
+  movieId: string,
+  analysisDepth?: 'basic' | 'standard' | 'comprehensive' | 'expert'
+): Promise<ThematicProfile> {
   return unifiedAI.getThematicAnalysis(movieId, analysisDepth)
 }
 
-export async function getEmotionalAnalysis(movieId: string, userMoodContext?: string): Promise<EmotionalJourney> {
+export async function getEmotionalAnalysis(
+  movieId: string,
+  userMoodContext?: string
+): Promise<EmotionalJourney> {
   return unifiedAI.getEmotionalAnalysis(movieId, userMoodContext)
 }
 
-export async function getStyleAnalysis(movieId: string, focusAreas?: ('cinematography' | 'editing' | 'sound' | 'production_design')[]): Promise<CinematicStyle> {
+export async function getStyleAnalysis(
+  movieId: string,
+  focusAreas?: ('cinematography' | 'editing' | 'sound' | 'production_design')[]
+): Promise<CinematicStyle> {
   return unifiedAI.getStyleAnalysis(movieId, focusAreas)
 }

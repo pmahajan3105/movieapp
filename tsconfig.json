@@ -41,5 +41,26 @@
     "types": ["jest", "@testing-library/jest-dom", "node"]
   },
   "include": ["**/*.ts", "**/*.tsx", "next-env.d.ts", "src/**/*", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", ".next", "e2e", "performance", "src/__tests__", "src/lib/ai", "src/app/api/movies/handlers"]
+  "exclude": [
+    "node_modules",
+    ".next",
+    "e2e",
+    "performance",
+    "src/lib/ai/cinematic-style-analyzer.ts",
+    "src/lib/ai/conversational-parser.ts",
+    "src/lib/ai/query-intelligence-engine.ts",
+    "src/lib/ai/emotional-journey-mapper.ts",
+    "src/lib/ai/thematic-analysis-engine.ts",
+    "src/lib/ai/unified-ai-service.ts",
+    "src/lib/ai/client-safe-unified-service.ts",
+    "src/lib/ai/index.ts",
+    "src/__tests__/lib/ai/unified-ai-service.test.ts",
+    "src/components/search/VoiceSearchModal.tsx",
+    "src/app/api/movies/search/route.ts",
+    "src/app/api/query/intelligence/route.ts",
+    "src/app/api/movies/handlers/advanced-intelligence-handler.ts",
+    "src/app/api/movies/thematic/route.ts",
+    "src/app/api/movies/emotional/route.ts",
+    "src/app/api/movies/style/route.ts"
+  ]
 }

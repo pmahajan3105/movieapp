@@ -25,18 +25,25 @@ export async function POST(request: NextRequest) {
   try {
     // Parse and validate request
     const body = await request.json()
-    const { message: rawMessage, sessionId, stream: requestedStream } = chatRequestSchema.parse(body)
-    
+    const {
+      message: rawMessage,
+      sessionId,
+      stream: requestedStream,
+    } = chatRequestSchema.parse(body)
+
     // Sanitize and validate the message
     const validation = MessageValidationService.sanitizeAndValidateMessage(rawMessage)
     if (!validation.valid) {
-      return NextResponse.json({
-        success: false,
-        error: 'Invalid message content',
-        details: validation.errors
-      }, { status: 400 })
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Invalid message content',
+          details: validation.errors,
+        },
+        { status: 400 }
+      )
     }
-    
+
     const message = validation.sanitized
     let stream = requestedStream // Use mutable variable
 
@@ -53,7 +60,10 @@ export async function POST(request: NextRequest) {
 
     // Authenticate user
     const supabase = createRouteSupabaseClient(request)
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
 
     if (authError || !user) {
       logger.error(`❌ Authentication required for chat: ${authError?.message}`)
@@ -76,7 +86,8 @@ export async function POST(request: NextRequest) {
     if (sessionData.preferencesAlreadyExtracted) {
       return NextResponse.json({
         success: true,
-        message: "I've already gathered your preferences! You can now explore your personalized movie recommendations.",
+        message:
+          "I've already gathered your preferences! You can now explore your personalized movie recommendations.",
         sessionId: sessionData.sessionId,
         preferencesExtracted: true,
       })
@@ -84,37 +95,35 @@ export async function POST(request: NextRequest) {
 
     // Create user message
     const userMessage: ChatMessage = {
+      id: uuidv4(),
       role: 'user',
       content: message,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date(),
     }
 
     // Detect if this is a movie query
     const movieQuery = PreferenceExtractionService.detectMovieQuery(message)
-    
-    // Determine AI model to use
-    const modelInfo = getBestModelForTask('chat', {
-      complexity: movieQuery.isMovieQuery ? 'medium' : 'low',
-      requiresExtendedThinking: false,
-    })
 
-    logger.info(`🤖 Using AI model: ${modelInfo.model}`)
+    // Determine AI model to use
+    const modelId = getBestModelForTask('chat')
+
+    logger.info(`🤖 Using AI model: ${modelId}`)
 
     // Prepare conversation context
     const conversationHistory = sessionData.chatHistory.map(msg => ({
       role: msg.role,
-      content: msg.content
+      content: msg.content,
     }))
 
     // Add current message to conversation
     conversationHistory.push({
       role: 'user',
-      content: message
+      content: message,
     })
 
     // Prepare Anthropic API request
     const anthropicRequest = {
-      model: modelInfo.model,
+      model: modelId,
       max_tokens: 1000,
       temperature: 0.7,
       system: MOVIE_SYSTEM_PROMPT,
@@ -123,12 +132,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Add thinking support if available
-    if (supportsExtendedThinking(modelInfo.model)) {
+    if (supportsExtendedThinking(modelId)) {
       // anthropicRequest.thinking = true // Enable when available
     }
 
     logger.info('🚀 Sending request to Anthropic:', {
-      model: modelInfo.model,
+      model: modelId,
       messageCount: conversationHistory.length,
       stream,
     })
@@ -176,7 +185,6 @@ export async function POST(request: NextRequest) {
         process.env.ANTHROPIC_API_KEY
       )
     }
-
   } catch (error) {
     logger.error('❌ Chat API error:', {
       error: error instanceof Error ? error.message : String(error),
@@ -194,9 +202,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    return NextResponse.json(
-      { success: false, error: 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
 }
