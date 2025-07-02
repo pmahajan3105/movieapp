@@ -50,7 +50,6 @@
     "src/lib/ai/client-safe-unified-service.ts",
     "src/lib/ai/index.ts",
     "src/__tests__/lib/ai/unified-ai-service.test.ts",
-    "src/components/search/VoiceSearchModal.tsx",
     "src/app/api/movies/search/route.ts",
     "src/app/api/query/intelligence/route.ts",
     "src/app/api/movies/handlers/advanced-intelligence-handler.ts",
