@@ -10,7 +10,7 @@ export class RecommendationCacheManager {
   private static readonly CACHE_PREFIXES = [
     'hyper-personalized-recommendations',
     'progressive-movies',
-    'smart-recommendations'
+    'smart-recommendations',
   ]
 
   /**
@@ -35,13 +35,12 @@ export class RecommendationCacheManager {
       logger.info('🗑️ Cleared user recommendation cache', {
         userId,
         clearedEntries: clearedCount,
-        totalCacheSize: stats.size
+        totalCacheSize: stats.size,
       })
-
     } catch (error) {
       logger.error('❌ Failed to clear user recommendation cache', {
         userId,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       })
     }
   }
@@ -66,12 +65,11 @@ export class RecommendationCacheManager {
 
       logger.info('🗑️ Cleared all recommendation caches', {
         clearedEntries: clearedCount,
-        totalCacheSize: stats.size
+        totalCacheSize: stats.size,
       })
-
     } catch (error) {
       logger.error('❌ Failed to clear all recommendation caches', {
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       })
     }
   }
@@ -92,12 +90,14 @@ export class RecommendationCacheManager {
       for (const prefix of this.CACHE_PREFIXES) {
         if (key.startsWith(`${prefix}:`)) {
           recommendationEntries++
-          
+
           // Extract user ID from cache key (format: prefix:userId:params)
           const parts = key.split(':')
           if (parts.length >= 2) {
             const userId = parts[1]
-            userCacheMap[userId] = (userCacheMap[userId] || 0) + 1
+            if (userId) {
+              userCacheMap[userId] = (userCacheMap[userId] || 0) + 1
+            }
           }
           break
         }
@@ -107,7 +107,7 @@ export class RecommendationCacheManager {
     return {
       totalEntries: stats.size,
       recommendationEntries,
-      userCacheMap
+      userCacheMap,
     }
   }
 
@@ -117,10 +117,10 @@ export class RecommendationCacheManager {
    */
   static forceRefreshUserRecommendations(userId: string): void {
     this.clearUserRecommendations(userId)
-    
+
     logger.info('♻️ Forced recommendation refresh for user', {
       userId,
-      reason: 'Cache invalidation requested'
+      reason: 'Cache invalidation requested',
     })
   }
 }

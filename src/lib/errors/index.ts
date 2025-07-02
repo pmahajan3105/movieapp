@@ -7,14 +7,14 @@
 export abstract class AppError extends Error {
   abstract readonly code: string
   abstract readonly statusCode: number
-  
+
   constructor(
     message: string,
     public readonly context?: Record<string, unknown>
   ) {
     super(message)
     this.name = this.constructor.name
-    
+
     // Maintain proper stack trace for V8
     if (Error.captureStackTrace) {
       Error.captureStackTrace(this, this.constructor)
@@ -66,7 +66,7 @@ export class ValidationError extends AppError {
   readonly statusCode = 400
 
   constructor(
-    message = 'Validation failed', 
+    message = 'Validation failed',
     public readonly errors: string[] = [],
     context?: Record<string, unknown>
   ) {
@@ -97,12 +97,8 @@ export class RecordNotFoundError extends AppError {
   readonly code = 'RECORD_NOT_FOUND'
   readonly statusCode = 404
 
-  constructor(
-    resource: string,
-    identifier?: string | number,
-    context?: Record<string, unknown>
-  ) {
-    const message = identifier 
+  constructor(resource: string, identifier?: string | number, context?: Record<string, unknown>) {
+    const message = identifier
       ? `${resource} with ID '${identifier}' not found`
       : `${resource} not found`
     super(message, { ...context, resource, identifier })
@@ -133,27 +129,29 @@ export class ExternalAPIError extends AppError {
   }
 }
 
-export class TMDBAPIError extends ExternalAPIError {
+export class TMDBAPIError extends AppError {
   readonly code = 'TMDB_API_ERROR'
+  readonly statusCode = 502
 
   constructor(
     message = 'TMDB service unavailable',
-    originalStatus?: number,
+    public readonly originalStatus?: number,
     context?: Record<string, unknown>
   ) {
-    super('TMDB', message, originalStatus, context)
+    super(message, { ...context, service: 'TMDB', originalStatus })
   }
 }
 
-export class AnthropicAPIError extends ExternalAPIError {
+export class AnthropicAPIError extends AppError {
   readonly code = 'ANTHROPIC_API_ERROR'
+  readonly statusCode = 502
 
   constructor(
     message = 'AI service unavailable',
-    originalStatus?: number,
+    public readonly originalStatus?: number,
     context?: Record<string, unknown>
   ) {
-    super('Anthropic', message, originalStatus, context)
+    super(message, { ...context, service: 'Anthropic', originalStatus })
   }
 }
 
@@ -190,10 +188,7 @@ export class EnvironmentError extends AppError {
     message?: string,
     context?: Record<string, unknown>
   ) {
-    super(
-      message || `Required environment variable ${envVar} is not set`,
-      { ...context, envVar }
-    )
+    super(message || `Required environment variable ${envVar} is not set`, { ...context, envVar })
   }
 }
 
@@ -250,10 +245,11 @@ export class TimeoutError extends AppError {
     message?: string,
     context?: Record<string, unknown>
   ) {
-    super(
-      message || `Operation '${operation}' timed out after ${timeoutMs}ms`,
-      { ...context, operation, timeoutMs }
-    )
+    super(message || `Operation '${operation}' timed out after ${timeoutMs}ms`, {
+      ...context,
+      operation,
+      timeoutMs,
+    })
   }
 }
 
@@ -299,14 +295,13 @@ export class ServiceUnavailableError extends AppError {
  * Error factory for creating appropriate error instances
  */
 export class ErrorFactory {
-  
   /**
    * Create an error from a Supabase error
    */
   static fromSupabaseError(error: any, context?: Record<string, unknown>): AppError {
     const code = error?.code
     const message = error?.message || 'Database operation failed'
-    
+
     switch (code) {
       case 'PGRST116': // Row not found
         return new RecordNotFoundError('Resource', undefined, { ...context, supabaseCode: code })
@@ -323,13 +318,13 @@ export class ErrorFactory {
    * Create an error from an HTTP response
    */
   static fromHttpResponse(
-    response: Response, 
-    service: string, 
+    response: Response,
+    service: string,
     context?: Record<string, unknown>
   ): AppError {
     const status = response.status
     const message = `${service} API error: ${status}`
-    
+
     if (status === 401) {
       return new AuthenticationError(message, context)
     } else if (status === 403) {
@@ -338,11 +333,7 @@ export class ErrorFactory {
       return new NotFoundError(message, context)
     } else if (status === 429) {
       const retryAfter = response.headers.get('retry-after')
-      return new RateLimitError(
-        retryAfter ? parseInt(retryAfter) : undefined,
-        message,
-        context
-      )
+      return new RateLimitError(retryAfter ? parseInt(retryAfter) : undefined, message, context)
     } else if (status >= 500) {
       return new ExternalAPIError(service, message, status, context)
     } else {
@@ -353,7 +344,11 @@ export class ErrorFactory {
   /**
    * Create a timeout error
    */
-  static timeout(operation: string, timeoutMs: number, context?: Record<string, unknown>): TimeoutError {
+  static timeout(
+    operation: string,
+    timeoutMs: number,
+    context?: Record<string, unknown>
+  ): TimeoutError {
     return new TimeoutError(operation, timeoutMs, undefined, context)
   }
 }

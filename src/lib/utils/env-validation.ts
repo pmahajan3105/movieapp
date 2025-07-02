@@ -13,11 +13,11 @@ import { EnvironmentError } from '@/lib/errors'
  */
 export function getRequiredEnvVar(name: string, fallback?: string): string {
   const value = process.env[name]
-  
+
   if (!value && !fallback) {
     throw new EnvironmentError(name)
   }
-  
+
   return value || fallback!
 }
 
@@ -38,10 +38,10 @@ export function getOptionalEnvVar(name: string, fallback: string = ''): string {
  */
 export function validateRequiredEnvVars(envVars: string[]): void {
   const missing = envVars.filter(name => !process.env[name])
-  
+
   if (missing.length > 0) {
     throw new EnvironmentError(
-      missing[0],
+      missing[0] || 'unknown',
       `Missing required environment variables: ${missing.join(', ')}`
     )
   }
@@ -55,9 +55,9 @@ export function validateRequiredEnvVars(envVars: string[]): void {
  */
 export function getEnvNumber(name: string, fallback: number): number {
   const value = process.env[name]
-  
+
   if (!value) return fallback
-  
+
   const parsed = parseInt(value, 10)
   return isNaN(parsed) ? fallback : parsed
 }
@@ -70,9 +70,9 @@ export function getEnvNumber(name: string, fallback: number): number {
  */
 export function getEnvBoolean(name: string, fallback: boolean = false): boolean {
   const value = process.env[name]?.toLowerCase()
-  
+
   if (!value) return fallback
-  
+
   return value === 'true' || value === '1' || value === 'yes'
 }
 
@@ -80,7 +80,6 @@ export function getEnvBoolean(name: string, fallback: boolean = false): boolean 
  * Safe string parsing utilities
  */
 export class SafeParser {
-  
   /**
    * Safely parse an integer from a string with validation
    * @param input String to parse
@@ -90,23 +89,23 @@ export class SafeParser {
    * @returns Parsed and validated integer
    */
   static parseInt(
-    input: string | undefined | null, 
-    fallback: number, 
-    min?: number, 
+    input: string | undefined | null,
+    fallback: number,
+    min?: number,
     max?: number
   ): number {
     if (!input || typeof input !== 'string') return fallback
-    
+
     const parsed = parseInt(input.trim(), 10)
-    
+
     if (isNaN(parsed)) return fallback
-    
+
     if (min !== undefined && parsed < min) return fallback
     if (max !== undefined && parsed > max) return fallback
-    
+
     return parsed
   }
-  
+
   /**
    * Safely parse a float from a string with validation
    * @param input String to parse
@@ -116,23 +115,23 @@ export class SafeParser {
    * @returns Parsed and validated float
    */
   static parseFloat(
-    input: string | undefined | null, 
-    fallback: number, 
-    min?: number, 
+    input: string | undefined | null,
+    fallback: number,
+    min?: number,
     max?: number
   ): number {
     if (!input || typeof input !== 'string') return fallback
-    
+
     const parsed = parseFloat(input.trim())
-    
+
     if (isNaN(parsed)) return fallback
-    
+
     if (min !== undefined && parsed < min) return fallback
     if (max !== undefined && parsed > max) return fallback
-    
+
     return parsed
   }
-  
+
   /**
    * Safely extract a value from a regex match
    * @param match RegExpMatchArray or null
@@ -141,8 +140,8 @@ export class SafeParser {
    * @returns Extracted string or fallback
    */
   static extractMatch(
-    match: RegExpMatchArray | null, 
-    index: number = 1, 
+    match: RegExpMatchArray | null,
+    index: number = 1,
     fallback: string = ''
   ): string {
     if (!match || !match[index]) return fallback

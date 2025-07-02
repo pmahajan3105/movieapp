@@ -8,7 +8,7 @@ import {
   handleLegacyRequest,
   handleRealTimeMovies,
   handleSmartRecommendations,
-  handleBehavioralRecommendations
+  // handleBehavioralRecommendations  // Temporarily disabled - AI service under maintenance
 } from './handlers'
 
 async function handleMoviesRequest(request: NextRequest): Promise<NextResponse> {
@@ -33,7 +33,9 @@ async function handleMoviesRequest(request: NextRequest): Promise<NextResponse> 
     const thematicMode = searchParams.get('thematic') === 'true'
     const advancedMode = searchParams.get('advanced') === 'true'
     const enableAdvancedQuery = searchParams.get('enableAdvancedQuery') === 'true'
-    const analysisDepth = searchParams.get('analysisDepth') as 'basic' | 'standard' | 'comprehensive' | 'expert' || 'standard'
+    const analysisDepth =
+      (searchParams.get('analysisDepth') as 'basic' | 'standard' | 'comprehensive' | 'expert') ||
+      'standard'
 
     // TODO: Re-enable after fixing hydration issues
     // if (advancedMode && query) {
@@ -45,8 +47,14 @@ async function handleMoviesRequest(request: NextRequest): Promise<NextResponse> 
     // }
 
     if (behavioralMode) {
-      const response = await handleBehavioralRecommendations(supabase, limit, page, includeExplanations, includePreferenceInsights)
-      // Cache behavioral recommendations for 5 minutes
+      // Temporarily disabled - AI service under maintenance
+      // const response = await handleBehavioralRecommendations(supabase, limit, page, includeExplanations, includePreferenceInsights)
+      // // Cache behavioral recommendations for 5 minutes
+      // response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
+      // return response
+
+      // Fallback to smart recommendations for now
+      const response = await handleSmartRecommendations(supabase, limit, page, query, mood, genres)
       response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
       return response
     }
@@ -89,8 +97,8 @@ async function handleMoviesRequest(request: NextRequest): Promise<NextResponse> 
         mood: mood,
         genres: genres.join(','),
         limit: limit,
-        page: page
-      }
+        page: page,
+      },
     })
   }
 }
@@ -105,9 +113,9 @@ export const GET = withErrorRecovery(handleMoviesRequest, {
     pagination: {
       currentPage: 1,
       hasMore: false,
-      totalPages: 0
+      totalPages: 0,
     },
     source: 'fallback',
-    message: 'Movies temporarily unavailable. Please try again later.'
-  }
+    message: 'Movies temporarily unavailable. Please try again later.',
+  },
 })

@@ -211,9 +211,9 @@ export class UnifiedAIService {
       // Return fallback explanation
       return {
         primary_reason: 'Recommended based on your preferences',
-        explanation_type: 'preference_match',
+        explanation_type: 'pattern',
         confidence_score: 0.7,
-        discovery_factor: 0.5,
+        discovery_factor: 'safe',
       }
     }
   }

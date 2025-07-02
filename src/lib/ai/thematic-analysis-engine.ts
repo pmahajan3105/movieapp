@@ -187,7 +187,7 @@ export class ThematicAnalysisEngine {
 
     try {
       const response = await anthropic.messages.create({
-        model: claudeConfig.defaultModel,
+        model: claudeConfig.model,
         max_tokens: depth === 'expert' ? 4000 : depth === 'comprehensive' ? 3000 : 2000,
         messages: [
           {

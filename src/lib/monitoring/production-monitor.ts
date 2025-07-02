@@ -255,7 +255,7 @@ class ProductionMonitor {
           if (!groupedMetrics[metric.name]) {
             groupedMetrics[metric.name] = []
           }
-          groupedMetrics[metric.name].push(metric)
+          groupedMetrics[metric.name]?.push(metric)
         }
 
         for (const [metricName, metricList] of Object.entries(groupedMetrics)) {

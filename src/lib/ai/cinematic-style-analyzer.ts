@@ -156,7 +156,7 @@ export class CinematicStyleAnalyzer {
         confidence: this.calculateStyleConfidence(cinematicStyle, directoralSignature),
         processingTime: Date.now() - startTime,
         dataSource: ['ai_analysis', 'film_studies', 'directorial_comparison'],
-        modelVersion: claudeConfig.defaultModel,
+        modelVersion: claudeConfig.model,
       }
 
       logger.info('Cinematic style analysis completed', {

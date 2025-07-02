@@ -167,7 +167,9 @@ export class EmotionalJourneyMapper {
 
         // Accumulate preferences for this mood
         Object.entries(entry.preferences).forEach(([pref, value]) => {
-          patterns[mood].preferences[pref] = (patterns[mood].preferences[pref] || 0) + value
+          if (patterns[mood]) {
+            patterns[mood].preferences[pref] = (patterns[mood].preferences[pref] || 0) + value
+          }
         })
       })
 
@@ -237,7 +239,7 @@ export class EmotionalJourneyMapper {
 
     try {
       const response = await anthropic.messages.create({
-        model: claudeConfig.fastModel, // Use faster model for emotional analysis
+        model: claudeConfig.model, // Use faster model for emotional analysis
         max_tokens: request.analysisDepth === 'comprehensive' ? 3000 : 2000,
         messages: [
           {

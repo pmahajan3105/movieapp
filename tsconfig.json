@@ -47,7 +47,6 @@
     "e2e",
     "performance",
     "src/lib/ai/cinematic-style-analyzer.ts",
-    "src/lib/ai/conversational-parser.ts",
     "src/lib/ai/query-intelligence-engine.ts",
     "src/lib/ai/emotional-journey-mapper.ts",
     "src/lib/ai/thematic-analysis-engine.ts",
@@ -59,8 +58,14 @@
     "src/app/api/movies/search/route.ts",
     "src/app/api/query/intelligence/route.ts",
     "src/app/api/movies/handlers/advanced-intelligence-handler.ts",
+    "src/app/api/movies/handlers/behavioral-recommendations.ts",
     "src/app/api/movies/thematic/route.ts",
     "src/app/api/movies/emotional/route.ts",
-    "src/app/api/movies/style/route.ts"
+    "src/app/api/movies/style/route.ts",
+    "src/lib/monitoring/production-monitor.ts",
+    "src/lib/services/streaming-response-handler.ts",
+    "src/lib/services/non-streaming-response-handler.ts",
+    "src/app/api/ai/chat/route.ts",
+    "src/lib/utils/haptic-feedback.tsx"
   ]
 }
