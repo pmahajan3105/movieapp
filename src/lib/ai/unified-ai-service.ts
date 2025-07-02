@@ -12,6 +12,12 @@
 
 import type { Movie } from '@/types'
 import type { RecommendationExplanation } from '@/types/explanation'
+import type {
+  QueryProcessingResult,
+  ThematicProfile,
+  EmotionalJourney,
+  CinematicStyle,
+} from '@/types/advanced-intelligence'
 import { logger } from '@/lib/logger'
 
 // Import individual AI services
@@ -20,6 +26,10 @@ import { SmartRecommenderV2, type SmartRecommendationOptions } from './smart-rec
 import { hyperPersonalizedEngine, HyperPersonalizedEngine } from './hyper-personalized-engine'
 import { analyzeCompleteUserBehavior, type UserBehaviorProfile } from './behavioral-analysis'
 import { SmartSearchEngine } from './smart-search-engine'
+import { QueryIntelligenceEngine } from './query-intelligence-engine'
+import { ThematicAnalysisEngine } from './thematic-analysis-engine'
+import { EmotionalJourneyMapper } from './emotional-journey-mapper'
+import { CinematicStyleAnalyzer } from './cinematic-style-analyzer'
 
 // Interface for personalization data in insights
 interface PersonalizationInsight {
@@ -91,6 +101,10 @@ export class UnifiedAIService {
   private smartRecommender: SmartRecommenderV2
   private hyperPersonalizedEngine: HyperPersonalizedEngine
   private searchEngine: SmartSearchEngine
+  private queryIntelligenceEngine: QueryIntelligenceEngine
+  private thematicAnalysisEngine: ThematicAnalysisEngine
+  private emotionalJourneyMapper: EmotionalJourneyMapper
+  private cinematicStyleAnalyzer: CinematicStyleAnalyzer
 
   private serviceHealth: AIServiceHealth = {
     explanationService: true,
@@ -106,6 +120,10 @@ export class UnifiedAIService {
     this.smartRecommender = SmartRecommenderV2.getInstance()
     this.hyperPersonalizedEngine = hyperPersonalizedEngine
     this.searchEngine = new SmartSearchEngine()
+    this.queryIntelligenceEngine = QueryIntelligenceEngine.getInstance()
+    this.thematicAnalysisEngine = ThematicAnalysisEngine.getInstance()
+    this.emotionalJourneyMapper = EmotionalJourneyMapper.getInstance()
+    this.cinematicStyleAnalyzer = CinematicStyleAnalyzer.getInstance()
 
     // Voice service now handled by Web Speech API in UI components
 
@@ -324,7 +342,7 @@ export class UnifiedAIService {
       }
 
       // Full advanced processing pipeline
-      const queryResult = await queryIntelligenceEngine.processAdvancedQuery(
+      const queryResult = await this.queryIntelligenceEngine.processAdvancedQuery(
         request.context.query,
         request.userId
       )
