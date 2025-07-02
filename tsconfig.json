@@ -47,7 +47,6 @@
     "e2e",
     "performance",
     "src/lib/ai/unified-ai-service.ts",
-    "src/lib/ai/index.ts",
     "src/__tests__/lib/ai/unified-ai-service.test.ts",
     "src/app/api/movies/search/route.ts",
     "src/app/api/query/intelligence/route.ts",
