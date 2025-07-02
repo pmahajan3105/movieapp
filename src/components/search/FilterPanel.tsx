@@ -25,25 +25,82 @@ export function FilterPanel({
 }: FilterPanelProps) {
   const [genres, setGenres] = useState<GenreOption[]>([])
   const [genresLoading, setGenresLoading] = useState(true)
+  const [genresError, setGenresError] = useState(false)
   const [expandedSections, setExpandedSections] = useState({
     genres: true,
     years: true,
     rating: true,
+    sort: true,
   })
 
-  // Load available genres
+  // Load available genres with retry logic
   useEffect(() => {
-    const loadGenres = async () => {
+    const loadGenres = async (attempt = 1) => {
+      setGenresError(false)
+      
       try {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('🎬 FilterPanel: Loading genres... (attempt', attempt, ')')
+        }
         const response = await fetch('/api/movies/genres')
+        
+        if (!response.ok) {
+          if (process.env.NODE_ENV === 'development') {
+            console.error('🚨 FilterPanel: Genres API failed:', {
+              status: response.status,
+              statusText: response.statusText,
+              url: response.url,
+              attempt
+            })
+          }
+          
+          // Retry logic for failed requests
+          if (attempt < 3) {
+            setTimeout(() => loadGenres(attempt + 1), 1000 * attempt) // Exponential backoff
+            return
+          } else {
+            setGenresError(true)
+            return
+          }
+        }
+
         const data = await response.json()
+        if (process.env.NODE_ENV === 'development') {
+          console.log('🎬 FilterPanel: Genres loaded successfully:', data)
+        }
+        
         if (data.success) {
           setGenres(data.data || [])
+          setGenresError(false)
+          setGenresLoading(false) // Success - stop loading
+        } else {
+          if (process.env.NODE_ENV === 'development') {
+            console.warn('🟡 FilterPanel: Genres API returned success: false:', data)
+          }
+          if (attempt < 3) {
+            setTimeout(() => loadGenres(attempt + 1), 1000 * attempt)
+          } else {
+            setGenresError(true)
+            setGenresLoading(false)
+          }
         }
       } catch (error) {
-        console.error('Error loading genres:', error)
-      } finally {
-        setGenresLoading(false)
+        if (process.env.NODE_ENV === 'development') {
+          console.error('🚨 FilterPanel: Error loading genres:', {
+            error: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
+            timestamp: new Date().toISOString(),
+            attempt
+          })
+        }
+        
+        // Retry on network errors
+        if (attempt < 3) {
+          setTimeout(() => loadGenres(attempt + 1), 1000 * attempt)
+        } else {
+          setGenresError(true)
+          setGenresLoading(false)
+        }
       }
     }
 
@@ -86,8 +143,8 @@ export function FilterPanel({
       query: filters.query, // Keep the search query
       limit: filters.limit,
       offset: filters.offset,
-      sortBy: filters.sortBy,
-      sortOrder: filters.sortOrder,
+      sortBy: undefined,
+      sortOrder: undefined,
     })
   }
 
@@ -98,6 +155,7 @@ export function FilterPanel({
     filters.minRating || filters.maxRating ? 1 : 0,
     filters.directors?.length || 0,
     filters.actors?.length || 0,
+    filters.sortBy ? 1 : 0,
   ].reduce((sum, count) => sum + count, 0)
 
   const toggleSection = (section: keyof typeof expandedSections) => {
@@ -108,7 +166,7 @@ export function FilterPanel({
   }
 
   return (
-    <Card className={`w-full ${className}`}>
+    <Card className={`w-full rounded-xl ${className}`}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-lg">
@@ -153,6 +211,18 @@ export function FilterPanel({
                   <div key={i} className="h-4 animate-pulse rounded bg-gray-200" />
                 ))}
               </div>
+            ) : genresError ? (
+              <div className="text-center py-4">
+                <p className="text-sm text-red-600 mb-2">Failed to load genres</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.location.reload()}
+                  className="text-xs"
+                >
+                  Retry
+                </Button>
+              </div>
             ) : (
               <div className="max-h-48 space-y-2 overflow-y-auto">
                 {genres.slice(0, 20).map(genre => (
@@ -162,12 +232,8 @@ export function FilterPanel({
                       checked={filters.genres?.includes(genre.name) || false}
                       onCheckedChange={() => handleGenreToggle(genre.name)}
                     />
-                    <label
-                      htmlFor={`genre-${genre.name}`}
-                      className="flex-1 cursor-pointer text-sm"
-                    >
+                    <label htmlFor={`genre-${genre.name}`} className="flex-1 cursor-pointer text-sm">
                       {genre.name}
-                      <span className="ml-1 text-gray-400">({genre.count})</span>
                     </label>
                   </div>
                 ))}
@@ -239,6 +305,49 @@ export function FilterPanel({
                 {(filters.maxRating ?? 10).toFixed(1)}
               </div>
             </div>
+          </CollapsibleContent>
+        </Collapsible>
+
+        {/* Sort Order */}
+        <Collapsible open={expandedSections.sort} onOpenChange={() => toggleSection('sort')}>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" className="h-auto w-full justify-between p-0">
+              <span className="font-medium">Sort By</span>
+              {expandedSections.sort ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-3 space-y-2">
+            {[
+              { value: 'popularity', label: 'Popularity' },
+              { value: 'rating', label: 'Rating' },
+              { value: 'year', label: 'Release Year' },
+            ].map(opt => (
+              <div key={opt.value} className="flex items-center space-x-2">
+                <Checkbox
+                  id={`sort-${opt.value}`}
+                  checked={filters.sortBy === opt.value}
+                  onCheckedChange={() =>
+                    updateFilters({ sortBy: filters.sortBy === opt.value ? undefined : (opt.value as any) })
+                  }
+                />
+                <label htmlFor={`sort-${opt.value}`} className="flex-1 cursor-pointer text-sm">
+                  {opt.label}
+                </label>
+              </div>
+            ))}
+            {/* Sort order toggle */}
+            {filters.sortBy && (
+              <div className="flex items-center space-x-2 pt-2">
+                <span className="text-sm">Order:</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => updateFilters({ sortOrder: filters.sortOrder === 'asc' ? 'desc' : 'asc' })}
+                >
+                  {filters.sortOrder === 'asc' ? 'Ascending' : 'Descending'}
+                </Button>
+              </div>
+            )}
           </CollapsibleContent>
         </Collapsible>
       </CardContent>

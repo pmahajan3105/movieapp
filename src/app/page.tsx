@@ -9,9 +9,9 @@ export default function Home() {
   const { user, isLoading } = useAuth()
   const router = useRouter()
 
-  // Redirect authenticated users to dashboard
+  // Redirect authenticated users to dashboard (only if actually on root page)
   useEffect(() => {
-    if (!isLoading && user) {
+    if (!isLoading && user && typeof window !== 'undefined' && window.location.pathname === '/') {
       router.push('/dashboard')
     }
   }, [user, isLoading, router])

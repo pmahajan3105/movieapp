@@ -30,6 +30,15 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   override componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    // Log detailed error information to console for debugging
+    console.error('🚨 ErrorBoundary caught error:', {
+      message: error.message,
+      stack: error.stack,
+      componentStack: errorInfo.componentStack,
+      currentURL: typeof window !== 'undefined' ? window.location.href : 'unknown',
+      timestamp: new Date().toISOString()
+    })
+
     // Report to error recovery system if available
     let errorId: string | undefined
     if (this.props.reportError) {
@@ -49,6 +58,7 @@ class ErrorBoundary extends Component<Props, State> {
       error: error.message,
       stack: error.stack,
       componentStack: errorInfo.componentStack,
+      currentURL: typeof window !== 'undefined' ? window.location.href : 'unknown',
     })
   }
 

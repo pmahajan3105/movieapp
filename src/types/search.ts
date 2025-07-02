@@ -10,7 +10,7 @@ export interface SearchFilters {
   actors?: string[]
   limit?: number
   offset?: number
-  sortBy?: 'relevance' | 'rating' | 'year' | 'title'
+  sortBy?: 'relevance' | 'rating' | 'year' | 'title' | 'popularity'
   sortOrder?: 'asc' | 'desc'
 }
 

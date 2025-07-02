@@ -52,7 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     userUpdateTimeoutRef.current = setTimeout(() => {
       setUser(newUser)
-      setIsLoading(false)
+      // Don't set isLoading to false here - it should be set synchronously
     }, 100) // 100ms debounce
   }, [])
 
@@ -135,15 +135,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (data.session?.user) {
           const enriched = await loadUserProfile(data.session.user)
-          debouncedSetUser(enriched)
+          // For the very first load we want user to be available before we flip the loading flag
+          setUser(enriched)
         } else {
-          debouncedSetUser(null)
+          setUser(null)
         }
+        // Loading finished only after user (or null) has been committed
+        setIsLoading(false)
       } catch (e) {
         logger.warn('getSession priming call failed', {
           error: e instanceof Error ? e.message : String(e),
         })
-      } finally {
+        // Set loading to false even if auth check failed
         setIsLoading(false)
       }
 
@@ -162,11 +165,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           } else {
             debouncedSetUser(null)
           }
+          // Ensure loading is false after auth state change is processed
+          setIsLoading(false)
         } catch (err) {
           logger.error('Error handling auth state change', {
             error: err instanceof Error ? err.message : String(err),
           })
           debouncedSetUser(null)
+          setIsLoading(false)
         }
       }).data.subscription
     }

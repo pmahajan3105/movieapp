@@ -10,6 +10,44 @@ import type {
 } from '@/types/advanced-intelligence';
 import { ThematicTaxonomy } from './thematic-taxonomy';
 
+// Interface for advanced analysis response
+interface AdvancedAnalysisResponse {
+  themes?: string[];
+  visual_style?: string[];
+  narrative_structure?: string[];
+  emotional_pattern?: string;
+  cultural_context?: string[];
+  cinematic_techniques?: string[];
+  negations?: string[];
+  comparative_context?: {
+    better_than?: string[];
+    different_from?: string[];
+    similar_but?: string[];
+  };
+}
+
+// Type guard for string arrays
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every(item => typeof item === 'string');
+}
+
+// Type guard for valid intents
+function isValidIntent(value: unknown): value is ConversationalQuery['intent'] {
+  const validIntents = ['search', 'recommendation', 'filter', 'mood_based', 'thematic_explore', 'style_match', 'educational', 'compare'];
+  return typeof value === 'string' && validIntents.includes(value);
+}
+
+// Type guard for valid strategies
+function isValidStrategy(value: unknown): value is ConversationalQuery['search_strategy'] {
+  const validStrategies = ['semantic', 'filter', 'hybrid', 'thematic', 'advanced'];
+  return typeof value === 'string' && validStrategies.includes(value);
+}
+
+// Type guard for valid complexity levels
+function isValidComplexityLevel(value: unknown): value is 'light' | 'medium' | 'complex' {
+  return typeof value === 'string' && ['light', 'medium', 'complex'].includes(value);
+}
+
 export interface ConversationalQuery {
   original_text: string;
   intent: 'search' | 'recommendation' | 'filter' | 'mood_based' | 'thematic_explore' | 'style_match' | 'educational' | 'compare';
@@ -144,7 +182,7 @@ export class ConversationalParser {
   /**
    * Perform advanced thematic and cinematic analysis
    */
-  private async performAdvancedAnalysis(query: string, basicAnalysis: Partial<ConversationalQuery>): Promise<any> {
+  private async performAdvancedAnalysis(query: string, basicAnalysis: Partial<ConversationalQuery>): Promise<AdvancedAnalysisResponse> {
     const response = await anthropic.messages.create({
       model: claudeConfig.defaultModel,
       messages: [{
@@ -319,66 +357,77 @@ Focus on extracting sophisticated cinematic and thematic understanding. Return o
     return moodTerms.some(term => query.includes(term));
   }
 
-  private validateIntent(intent: any): ConversationalQuery['intent'] {
-    const validIntents = ['search', 'recommendation', 'filter', 'mood_based'];
-    return validIntents.includes(intent) ? intent : 'search';
+  private validateIntent(intent: unknown): ConversationalQuery['intent'] {
+    return isValidIntent(intent) ? intent : 'search';
   }
 
-  private validateStrategy(strategy: any): ConversationalQuery['search_strategy'] {
-    const validStrategies = ['semantic', 'filter', 'hybrid'];
-    return validStrategies.includes(strategy) ? strategy : 'hybrid';
+  private validateStrategy(strategy: unknown): ConversationalQuery['search_strategy'] {
+    return isValidStrategy(strategy) ? strategy : 'hybrid';
   }
 
-  private validateConfidence(confidence: any): number {
-    const num = parseFloat(confidence);
-    if (isNaN(num)) return 0.7;
-    return Math.max(0, Math.min(1, num));
+  private validateConfidence(confidence: unknown): number {
+    if (typeof confidence === 'number') {
+      return Math.max(0, Math.min(1, confidence));
+    }
+    if (typeof confidence === 'string') {
+      const num = parseFloat(confidence);
+      if (!isNaN(num)) {
+        return Math.max(0, Math.min(1, num));
+      }
+    }
+    return 0.7;
   }
 
-  private validateCriteria(criteria: any): ConversationalQuery['extracted_criteria'] {
+  private validateCriteria(criteria: unknown): ConversationalQuery['extracted_criteria'] {
     const validated: ConversationalQuery['extracted_criteria'] = {};
     
-    if (Array.isArray(criteria.genres)) {
-      validated.genres = criteria.genres.filter((g: any) => typeof g === 'string');
+    if (typeof criteria !== 'object' || criteria === null) {
+      return validated;
     }
     
-    if (Array.isArray(criteria.moods)) {
-      validated.moods = criteria.moods.filter((m: any) => typeof m === 'string');
+    const criteriaObj = criteria as Record<string, unknown>;
+    
+    if (isStringArray(criteriaObj.genres)) {
+      validated.genres = criteriaObj.genres;
     }
     
-    if (Array.isArray(criteria.similar_to)) {
-      validated.similar_to = criteria.similar_to.filter((s: any) => typeof s === 'string');
+    if (isStringArray(criteriaObj.moods)) {
+      validated.moods = criteriaObj.moods;
     }
     
-    if (typeof criteria.time_context === 'string') {
-      validated.time_context = criteria.time_context;
+    if (isStringArray(criteriaObj.similar_to)) {
+      validated.similar_to = criteriaObj.similar_to;
     }
     
-    if (typeof criteria.emotional_tone === 'string') {
-      validated.emotional_tone = criteria.emotional_tone;
+    if (typeof criteriaObj.time_context === 'string') {
+      validated.time_context = criteriaObj.time_context;
     }
     
-    if (['light', 'medium', 'complex'].includes(criteria.complexity_level)) {
-      validated.complexity_level = criteria.complexity_level;
+    if (typeof criteriaObj.emotional_tone === 'string') {
+      validated.emotional_tone = criteriaObj.emotional_tone;
     }
     
-    if (Array.isArray(criteria.year_range) && criteria.year_range.length === 2) {
-      const [start, end] = criteria.year_range;
+    if (isValidComplexityLevel(criteriaObj.complexity_level)) {
+      validated.complexity_level = criteriaObj.complexity_level;
+    }
+    
+    if (Array.isArray(criteriaObj.year_range) && criteriaObj.year_range.length === 2) {
+      const [start, end] = criteriaObj.year_range;
       if (typeof start === 'number' && typeof end === 'number') {
         validated.year_range = [start, end];
       }
     }
     
-    if (Array.isArray(criteria.actors)) {
-      validated.actors = criteria.actors.filter((a: any) => typeof a === 'string');
+    if (isStringArray(criteriaObj.actors)) {
+      validated.actors = criteriaObj.actors;
     }
     
-    if (Array.isArray(criteria.directors)) {
-      validated.directors = criteria.directors.filter((d: any) => typeof d === 'string');
+    if (isStringArray(criteriaObj.directors)) {
+      validated.directors = criteriaObj.directors;
     }
     
-    if (Array.isArray(criteria.keywords)) {
-      validated.keywords = criteria.keywords.filter((k: any) => typeof k === 'string');
+    if (isStringArray(criteriaObj.keywords)) {
+      validated.keywords = criteriaObj.keywords;
     }
     
     return validated;

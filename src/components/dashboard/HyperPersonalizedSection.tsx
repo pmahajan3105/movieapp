@@ -127,11 +127,13 @@ const HyperPersonalizedSectionInternal: React.FC<HyperPersonalizedSectionProps> 
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <Brain className="w-6 h-6 text-primary" />
-            <h2 className="text-2xl font-bold text-base-content">F-1 Hyper-Personalized</h2>
+            <h2 className="text-2xl font-bold text-base-content">Personalized Recommendations</h2>
           </div>
-          <div className="badge badge-primary badge-sm gap-1">
-            <Zap className="w-3 h-3" />
-            AI Powered
+          <div className="tooltip" data-tip="Our advanced AI analyzes your behavior, preferences and quality standards to generate hyper-personalized suggestions. Every interaction makes recommendations smarter.">
+            <div className="badge badge-primary badge-sm gap-1 cursor-help">
+              <Zap className="w-3 h-3" />
+              AI Powered
+            </div>
           </div>
         </div>
 
@@ -337,20 +339,6 @@ const HyperPersonalizedSectionInternal: React.FC<HyperPersonalizedSectionProps> 
       {/* Recommendations Grid */}
       {!isLoading && recommendations.length > 0 && (
         <div>
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold">Your Personalized Recommendations</h3>
-              <p className="text-sm text-base-content/70">
-                Based on advanced behavioral analysis and real-time learning
-              </p>
-            </div>
-            {metadata && (
-              <div className="text-xs text-base-content/60">
-                Generated: {new Date(metadata.generatedAt).toLocaleTimeString()}
-              </div>
-            )}
-          </div>
-
           <HyperPersonalizedMovieGrid
             recommendations={recommendations}
             context={{
@@ -389,21 +377,6 @@ const HyperPersonalizedSectionInternal: React.FC<HyperPersonalizedSectionProps> 
           </div>
         </div>
       )}
-
-      {/* AI Info Footer */}
-      <div className="mt-8 p-4 bg-primary/5 rounded-lg border border-primary/10">
-        <div className="flex items-start gap-3">
-          <Zap className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
-          <div>
-            <h4 className="font-medium text-primary mb-1">How the F-1 Engine Works</h4>
-            <p className="text-sm text-base-content/80">
-              Our advanced AI analyzes your behavioral patterns, temporal preferences, and quality standards 
-              to generate hyper-personalized recommendations. Every interaction helps the engine learn and 
-              improve its suggestions for you.
-            </p>
-          </div>
-        </div>
-      </div>
     </div>
   )
 }

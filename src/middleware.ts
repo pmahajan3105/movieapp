@@ -3,26 +3,25 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getRequiredEnvVar } from '@/lib/utils/env-validation'
 
 export async function middleware(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({
-    request,
-  })
+  let supabaseResponse = NextResponse.next()
 
   const supabase = createServerClient(
     getRequiredEnvVar('NEXT_PUBLIC_SUPABASE_URL'),
     getRequiredEnvVar('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
     {
       cookies: {
+        /**
+         * Supabase SSR helper expects getAll / setAll pattern.
+         * We proxy those to NextRequest/NextResponse cookies APIs.
+         */
         getAll() {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({
-            request,
-          })
-          cookiesToSet.forEach(({ name, value, options }) =>
+          // Ensure we have a response object to attach cookies to
+          cookiesToSet.forEach(({ name, value, options }) => {
             supabaseResponse.cookies.set(name, value, options)
-          )
+          })
         },
       },
     }
@@ -35,14 +34,14 @@ export async function middleware(request: NextRequest) {
 
   // Only check auth for dashboard and specific protected routes
   if (isDashboardRoute || isWatchlistRoute) {
-    // Get user session
+    // Get current session (will refresh tokens if needed)
     const {
-      data: { user },
+      data: { session },
       error,
-    } = await supabase.auth.getUser()
+    } = await supabase.auth.getSession()
 
-    // If no user, redirect to login
-    if (!user || error) {
+    // If no valid session/user, redirect to login
+    if (!session?.user || error) {
       const loginUrl = new URL('/auth/login', request.url)
 
       // Add return URL for after login

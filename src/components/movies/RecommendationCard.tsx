@@ -124,7 +124,7 @@ export function RecommendationCard({
 
   return (
     <Card
-      className={`group overflow-hidden border border-gray-200 transition-all hover:shadow-lg ${className}`}
+      className={`group overflow-hidden border border-gray-200 transition-all hover:shadow-lg rounded-xl ${className}`}
     >
       <div className="relative">
         {/* Position Badge */}
@@ -143,20 +143,20 @@ export function RecommendationCard({
         </div>
 
         {/* Movie Poster */}
-        <div className="aspect-[2/3] w-full overflow-hidden">
+        <div className="aspect-[2/3] w-full overflow-hidden rounded-t-xl">
           {movie.poster_url ? (
             <Image
               src={movie.poster_url}
               alt={movie.title}
               fill
-              className="cursor-pointer object-cover transition-transform group-hover:scale-105"
+              className="cursor-pointer object-cover transition-transform group-hover:scale-105 rounded-t-xl"
               onClick={() => onMovieClick(movie)}
               sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
               loading="lazy"
             />
           ) : (
             <div
-              className="flex h-full w-full cursor-pointer items-center justify-center bg-gray-200 transition-colors group-hover:bg-gray-300"
+              className="flex h-full w-full cursor-pointer items-center justify-center bg-gray-200 transition-colors group-hover:bg-gray-300 rounded-t-xl"
               onClick={() => onMovieClick(movie)}
             >
               <Play className="h-12 w-12 text-gray-400" />

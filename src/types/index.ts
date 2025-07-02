@@ -144,17 +144,6 @@ export interface ChatBarProps {
   className?: string
 }
 
-export interface CategoryRowProps {
-  category: {
-    category_name: string
-    ai_description: string
-    generated_date: string
-  }
-  movies: Movie[]
-  onRate: (movieId: string, interested: boolean) => void
-  className?: string
-}
-
 export interface MovieGridCardProps {
   movie: Movie
   userRating?: Rating
@@ -165,12 +154,6 @@ export interface MovieGridCardProps {
   className?: string
   priority?: boolean // For above-the-fold image loading
   index?: number // For determining image priority
-}
-
-export interface QuickRateCardProps {
-  movie: Movie
-  onRate: (interested: boolean) => void
-  className?: string
 }
 
 // API Response Types

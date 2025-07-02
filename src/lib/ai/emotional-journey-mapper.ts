@@ -14,29 +14,36 @@ import type {
   MoodHistoryEntry,
   EmotionalPreference
 } from '@/types/advanced-intelligence'
+import type {
+  ConfidenceScore,
+  CompatibilityScore, 
+  AnalysisDepth,
+  AnalysisRequest,
+  AnalysisResponse
+} from '@/types/ai-primitives'
 import { EMOTIONAL_PATTERNS, ATMOSPHERIC_QUALITIES } from './thematic-taxonomy'
 
-export interface EmotionalAnalysisRequest {
+export interface EmotionalAnalysisRequest extends AnalysisRequest {
   movieId: string
   plotSummary?: string
   reviewTexts?: string[]
   userMoodContext?: string
-  analysisDepth: 'basic' | 'detailed' | 'comprehensive'
+  depth: AnalysisDepth
 }
 
 export interface EmotionalCompatibilityRequest {
   userEmotionalProfile: EmotionalPreference[]
   currentMood?: string
   desiredEmotionalOutcome?: 'uplifting' | 'cathartic' | 'contemplative' | 'intense' | 'any'
-  intensityTolerance?: number // 0-1
+  intensityTolerance?: ConfidenceScore
 }
 
 export interface EmotionalRecommendationScore {
-  compatibilityScore: number // 0-1
-  moodAlignment: number // 0-1
-  intensityMatch: number // 0-1
-  journeyFit: number // 0-1
-  catharticPotential: number // 0-1
+  compatibilityScore: CompatibilityScore
+  moodAlignment: ConfidenceScore
+  intensityMatch: ConfidenceScore
+  journeyFit: ConfidenceScore
+  catharticPotential: ConfidenceScore
   explanation: string
 }
 

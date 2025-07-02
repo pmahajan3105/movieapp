@@ -26,7 +26,10 @@ export {
   analyzeTemporalGenreAffinity
 } from './behavioral-analysis'
 
-// Types
+// Shared AI primitives (use these for new services)
+export type * from '@/types/ai-primitives'
+
+// Service-specific types
 export type {
   UnifiedRecommendationRequest,
   UnifiedRecommendationResponse,

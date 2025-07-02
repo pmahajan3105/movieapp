@@ -1,27 +1,29 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { LoginForm } from '@/components/auth/LoginForm'
 import { MagicLinkSentForm } from '@/components/auth/MagicLinkSentForm'
 import { RefreshCw } from 'lucide-react'
 
-export default function LoginPage() {
+function LoginPageContent() {
   const [step, setStep] = useState<'login' | 'magic-link-sent'>('login')
   const [email, setEmail] = useState('')
   const [isRedirecting, setIsRedirecting] = useState(false)
   
   const { user, isLoading } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const nextPath = searchParams.get('next') || '/dashboard'
 
   // Redirect authenticated users to dashboard
   useEffect(() => {
     if (!isLoading && user) {
       setIsRedirecting(true)
-      router.push('/dashboard')
+      router.push(nextPath)
     }
-  }, [user, isLoading, router])
+  }, [user, isLoading, nextPath, router])
 
   const handleMagicLinkSent = (sentEmail: string) => {
     setEmail(sentEmail)
@@ -30,39 +32,63 @@ export default function LoginPage() {
 
   const handleBackToLogin = () => {
     setStep('login')
-    setEmail('')
   }
 
-  // Show loading while checking authentication or redirecting
+  // Show loading while checking auth or redirecting
   if (isLoading || isRedirecting) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50">
-        <div className="flex flex-col items-center gap-4">
-          <RefreshCw className="h-8 w-8 animate-spin text-blue-600" />
-          <p className="text-gray-600">
-            {isRedirecting ? 'Redirecting to dashboard...' : 'Checking authentication...'}
-          </p>
+      <div className="hero min-h-screen bg-base-200">
+        <div className="hero-content text-center">
+          <div className="max-w-md">
+            <RefreshCw className="mx-auto mb-4 h-8 w-8 animate-spin text-primary" />
+            <p>{isRedirecting ? 'Redirecting...' : 'Loading...'}</p>
+          </div>
         </div>
       </div>
     )
   }
 
-  // If user is authenticated, don't render the login form (redirect should happen)
+  // Don't render login form if user is authenticated
   if (user) {
     return null
   }
 
   return (
-    <div className="flex min-h-screen flex-col justify-center bg-gray-50 py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white px-4 py-8 shadow sm:rounded-lg sm:px-10">
-          {step === 'login' ? (
-            <LoginForm onMagicLinkSent={handleMagicLinkSent} />
-          ) : (
-            <MagicLinkSentForm email={email} onBackToLogin={handleBackToLogin} />
-          )}
+    <div className="hero min-h-screen bg-base-200">
+      <div className="hero-content flex-col lg:flex-row-reverse">
+        <div className="text-center lg:text-left">
+          <h1 className="text-5xl font-bold">🎬 CineAI</h1>
+          <p className="py-6">
+            Your personal AI movie recommendation assistant. Sign in to get started with personalized movie recommendations.
+          </p>
+        </div>
+        <div className="card flex-shrink-0 w-full max-w-sm shadow-2xl bg-base-100">
+          <div className="card-body">
+            {step === 'login' ? (
+              <LoginForm onMagicLinkSent={handleMagicLinkSent} />
+            ) : (
+              <MagicLinkSentForm email={email} onBackToLogin={handleBackToLogin} />
+            )}
+          </div>
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="hero min-h-screen bg-base-200">
+        <div className="hero-content text-center">
+          <div className="max-w-md">
+            <RefreshCw className="mx-auto mb-4 h-8 w-8 animate-spin text-primary" />
+            <p>Loading...</p>
+          </div>
+        </div>
+      </div>
+    }>
+      <LoginPageContent />
+    </Suspense>
   )
 }

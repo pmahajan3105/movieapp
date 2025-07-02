@@ -126,32 +126,32 @@ export function NavigationHeader() {
 
   return (
     <header className="sticky top-0 z-50 w-full bg-gradient-to-r from-slate-50 to-blue-50 backdrop-blur-md border-b border-slate-200/50 shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         {/* Top Bar */}
-        <div className="flex h-16 items-center justify-between">
+        <div className="flex h-14 sm:h-16 items-center justify-between gap-2 sm:gap-4">
           {/* Logo */}
-          <Link href="/" className="flex items-center space-x-3 group">
+          <Link href="/" className="flex items-center space-x-2 sm:space-x-3 group flex-shrink-0">
             <div className="relative">
-              <Sparkles className="h-8 w-8 text-purple-600 group-hover:text-purple-700 transition-colors" />
+              <Sparkles className="h-6 w-6 sm:h-8 sm:w-8 text-purple-600 group-hover:text-purple-700 transition-colors" />
               <div className="absolute -inset-1 bg-purple-100 rounded-full opacity-0 group-hover:opacity-100 transition-opacity -z-10"></div>
             </div>
-            <span className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+            <span className="text-lg sm:text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
               CineAI
             </span>
           </Link>
 
           {/* Center Section - Search */}
           {user && (
-            <div className="flex-1 max-w-2xl mx-8 hidden lg:block">
+            <div className="flex-1 max-w-2xl mx-4 sm:mx-8 hidden lg:block">
               <SearchInterface onSearch={handleSearch} />
             </div>
           )}
 
           {/* Right Section - User */}
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 sm:space-x-4">
             {/* Search for smaller screens */}
             {user && (
-              <div className="lg:hidden">
+              <div className="lg:hidden flex-1 max-w-[200px]">
                 <SearchInterface onSearch={handleSearch} />
               </div>
             )}
@@ -163,12 +163,12 @@ export function NavigationHeader() {
               <div className="relative" ref={dropdownRef}>
                 <button
                   onClick={() => setIsAccountDropdownOpen(!isAccountDropdownOpen)}
-                  className="flex items-center space-x-3 rounded-full bg-white/80 backdrop-blur-sm px-4 py-2 text-sm shadow-sm ring-1 ring-slate-200 hover:shadow-md transition-all duration-200 min-h-[44px] touch-manipulation"
+                  className="flex items-center space-x-2 sm:space-x-3 rounded-full bg-white/80 backdrop-blur-sm px-3 sm:px-4 py-2 text-sm shadow-sm ring-1 ring-slate-200 hover:shadow-md transition-all duration-200 min-h-[44px] touch-manipulation"
                 >
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-r from-purple-500 to-blue-500 text-white shadow-sm">
+                  <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-gradient-to-r from-purple-500 to-blue-500 text-white shadow-sm">
                     <User className="h-4 w-4" />
                   </div>
-                  <span className="hidden font-medium text-slate-700 sm:block max-w-[120px] truncate">
+                  <span className="hidden font-medium text-slate-700 sm:block max-w-[80px] sm:max-w-[120px] truncate">
                     {userDisplayName}
                   </span>
                   <ChevronDown className="h-4 w-4 text-slate-500" />
@@ -230,18 +230,18 @@ export function NavigationHeader() {
         {/* Navigation Bar */}
         {user && (
           <div className="border-t border-slate-200/50 bg-white/30 backdrop-blur-sm">
-            <nav className="flex space-x-1 px-2 py-3 overflow-x-auto scrollbar-hide">
+            <nav className="flex space-x-1 px-3 sm:px-2 py-2 sm:py-3 overflow-x-auto scrollbar-hide">
               {navItems.map(item => (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center space-x-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all duration-200 whitespace-nowrap ${
+                  className={`flex items-center space-x-2 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-medium transition-all duration-200 whitespace-nowrap ${
                     pathname === item.href
                       ? 'bg-gradient-to-r from-purple-500 to-blue-500 text-white shadow-md'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                   }`}
                 >
-                  <item.icon className="h-4 w-4" />
+                  <item.icon className="h-4 w-4 flex-shrink-0" />
                   <span>{item.label}</span>
                 </Link>
               ))}

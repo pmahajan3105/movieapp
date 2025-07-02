@@ -21,6 +21,16 @@ import { hyperPersonalizedEngine, type HyperPersonalizedRecommendation, type Per
 import { analyzeCompleteUserBehavior, type UserBehaviorProfile } from './behavioral-analysis'
 import { SmartSearchEngine } from './smart-search-engine'
 
+// Interface for personalization data in insights
+interface PersonalizationInsight {
+  genre_affinity_score: number
+  director_affinity_score: number
+  quality_prediction: number
+  temporal_boost?: number
+  behavioral_alignment?: number
+  exploration_factor?: number
+}
+
 // Unified interfaces
 export interface UnifiedRecommendationRequest {
   userId: string
@@ -47,7 +57,7 @@ export interface UnifiedRecommendationResponse {
     primaryReasons: string[]
     confidence: number
     diversityScore: number
-    personalizations?: any
+    personalizations?: PersonalizationInsight[]
   }
   performance: {
     latency: number
@@ -59,7 +69,7 @@ export interface UnifiedRecommendationResponse {
 export interface UnifiedExplanationRequest {
   userId: string
   movieId: string
-  movieMeta: any
+  movieMeta: Movie
   batchMode?: boolean
 }
 

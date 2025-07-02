@@ -186,7 +186,7 @@ export interface ContextualFactor {
   influence: number // 0-1, how much this should influence recommendations
 }
 
-// Advanced recommendation types
+// Advanced recommendation types  
 export interface AdvancedRecommendation {
   movie: Movie // Your existing Movie type
   thematicMatch: ThematicMatch
@@ -194,7 +194,7 @@ export interface AdvancedRecommendation {
   emotionalMatch: EmotionalMatch
   narrativeMatch: NarrativeMatch
   overallScore: number // 0-1, composite relevance score
-  explanation: AdvancedExplanation
+  explanation: import('@/types/explanation').RecommendationExplanation
   educationalInsights?: EducationalInsight[]
 }
 
@@ -226,16 +226,6 @@ export interface NarrativeMatch {
   innovationLevel: number // 0-1
 }
 
-export interface AdvancedExplanation {
-  primaryReason: string
-  thematicReasons: string[]
-  styleReasons: string[]
-  emotionalReasons: string[]
-  narrativeReasons: string[]
-  culturalReasons: string[]
-  personalizedInsights: string[]
-  comparisonToLikedMovies?: string[]
-}
 
 export interface EducationalInsight {
   type: 'film_technique' | 'historical_context' | 'thematic_analysis' | 'directorial_style' | 'genre_evolution'

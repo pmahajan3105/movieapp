@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { useAuth } from '@/contexts/AuthContext'
 import { useMoviesWatchlist } from '@/hooks/useMoviesWatchlist'
@@ -11,6 +11,7 @@ import { Loader2, Bookmark, BookmarkCheck } from 'lucide-react'
 import Image from 'next/image'
 import { MovieDetailsModal } from '@/components/movies/MovieDetailsModal'
 import type { Movie } from '@/types'
+import type { SearchFilters } from '@/types/search'
 import { logger } from '@/lib/logger'
 
 // Simple Movie Card Component - Inline for performance
@@ -26,8 +27,8 @@ const MovieCard = ({
   isInWatchlist: boolean
 }) => {
   return (
-    <Card className="group overflow-hidden transition-all duration-200 hover:shadow-lg">
-      <div className="relative aspect-[2/3] overflow-hidden">
+    <Card className="group overflow-hidden transition-all duration-200 hover:shadow-lg rounded-xl">
+      <div className="relative aspect-[2/3] overflow-hidden rounded-t-xl">
         <Image
           src={
             movie.poster_url ||
@@ -42,7 +43,7 @@ const MovieCard = ({
           }
           alt={movie.title}
           fill
-          className="object-cover transition-transform duration-200 group-hover:scale-105"
+          className="object-cover transition-transform duration-200 group-hover:scale-105 rounded-t-xl"
           sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
         />
 
@@ -53,7 +54,7 @@ const MovieCard = ({
         )}
       </div>
 
-      <CardContent className="p-3">
+      <CardContent className="p-3 flex flex-col">
         <h3
           className="hover:text-primary mb-2 line-clamp-2 cursor-pointer text-sm leading-tight font-semibold transition-colors"
           onClick={() => onMovieClick(movie)}
@@ -83,7 +84,7 @@ const MovieCard = ({
           </div>
         )}
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 mt-4">
           <Button
             variant="outline"
             size="sm"
@@ -111,7 +112,7 @@ const MovieCard = ({
 }
 
 // Main Trending Movies Grid Component
-export const TrendingMoviesGrid = () => {
+export const TrendingMoviesGrid = ({ filters }: { filters?: SearchFilters }) => {
   const { user, isLoading: authLoading } = useAuth()
   const { watchlistIds, toggleWatchlist } = useMoviesWatchlist()
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null)
@@ -128,8 +129,12 @@ export const TrendingMoviesGrid = () => {
     isError,
     error,
   } = useInfiniteQuery({
-    queryKey: ['trending-movies'], // Simple key - no complex dependencies
+    queryKey: ['trending-movies', JSON.stringify(filters ?? {})],
     queryFn: async ({ pageParam = 1 }) => {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🎬 TrendingMoviesGrid: Fetching movies page', pageParam)
+      }
+      
       const params = new URLSearchParams({
         limit: '20', // 20 movies for good performance
         page: pageParam.toString(),
@@ -141,10 +146,25 @@ export const TrendingMoviesGrid = () => {
       const response = await fetch(`/api/movies?${params}`)
       if (!response.ok) {
         const errorText = await response.text()
+        if (process.env.NODE_ENV === 'development') {
+          console.error('🚨 TrendingMoviesGrid: Movie fetch error:', {
+            status: response.status,
+            statusText: response.statusText,
+            url: response.url,
+            errorText
+          })
+        }
         logger.error('Movie fetch error', { status: response.status, errorText })
         throw new Error(`Failed to fetch movies: ${response.status} ${errorText}`)
       }
       const data = await response.json()
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🎬 TrendingMoviesGrid: Movies fetched successfully:', {
+          page: pageParam,
+          count: data.movies?.length || 0,
+          total: data.total
+        })
+      }
 
       // Transform response to match expected format
       return {
@@ -166,15 +186,67 @@ export const TrendingMoviesGrid = () => {
     staleTime: 2 * 60 * 1000, // 2 minutes cache
     initialPageParam: 1,
     retry: 2, // Simple retry
-    enabled: !!user, // Only authenticated users can access dashboard
+    enabled: !authLoading && !!user, // Wait for auth to finish loading and require user
   })
 
   // Flatten all pages into a single array
   const movies = data?.pages.flatMap(page => page.data) || []
-  const totalMovies = data?.pages[0]?.total || 0
+
+  // Apply client-side filtering & sorting
+  const processedMovies = useMemo(() => {
+    let list = [...movies]
+
+    if (filters) {
+      // Genres
+      if (filters.genres && filters.genres.length) {
+        list = list.filter(m => {
+          if (!m.genre) return false
+          return filters.genres!.some((g: string) => (m.genre || []).includes(g))
+        })
+      }
+
+      // Year range
+      if (filters.yearRange) {
+        const [minY, maxY] = filters.yearRange
+        list = list.filter(m => {
+          if (!m.year) return false
+          return m.year >= minY && m.year <= maxY
+        })
+      }
+
+      // Rating
+      if (filters.minRating !== undefined) {
+        list = list.filter(m => (m.rating ?? 0) >= filters.minRating!)
+      }
+      if (filters.maxRating !== undefined) {
+        list = list.filter(m => (m.rating ?? 0) <= filters.maxRating!)
+      }
+
+      // Sorting
+      if (filters.sortBy) {
+        const orderMultiplier = filters.sortOrder === 'asc' ? 1 : -1
+        list.sort((a, b) => {
+          switch (filters.sortBy) {
+            case 'rating':
+              return ((a.rating ?? 0) - (b.rating ?? 0)) * orderMultiplier
+            case 'year':
+              return ((a.year ?? 0) - (b.year ?? 0)) * orderMultiplier
+            case 'popularity':
+            default:
+              return ((a.popularity ?? 0) - (b.popularity ?? 0)) * orderMultiplier
+          }
+        })
+      }
+    }
+
+    return list
+  }, [movies, filters])
+
+  const totalMovies = processedMovies.length
 
   // Simple infinite scroll handler with debounce
   const handleScroll = useCallback(() => {
+    if (typeof window === 'undefined') return // Guard against SSR
     if (debounceRef.current) clearTimeout(debounceRef.current)
 
     debounceRef.current = setTimeout(() => {
@@ -190,8 +262,10 @@ export const TrendingMoviesGrid = () => {
     }, 100) // Faster debounce
   }, [hasNextPage, isFetchingNextPage, fetchNextPage, isLoading])
 
-  // Set up scroll listener
+  // Set up scroll listener (client-side only)
   useEffect(() => {
+    if (typeof window === 'undefined') return // Guard against SSR
+    
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
   }, [handleScroll])
@@ -247,18 +321,18 @@ export const TrendingMoviesGrid = () => {
       {/* Movies Count */}
       <div className="mb-6 flex items-center justify-between">
         <span className="text-sm text-gray-600">
-          Showing {movies.length} of {totalMovies.toLocaleString()} trending movies • Scroll for more
+          Showing {processedMovies.length} of {totalMovies.toLocaleString()} trending movies • Scroll for more
         </span>
       </div>
 
       {/* Movies Grid */}
-      {isLoading && movies.length === 0 ? (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+      {isLoading && processedMovies.length === 0 ? (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4">
           {Array.from({ length: 20 }).map((_, i) => (
             <div key={i} className="aspect-[2/3] bg-gray-200 animate-pulse rounded-lg" />
           ))}
         </div>
-      ) : movies.length === 0 ? (
+      ) : processedMovies.length === 0 ? (
         <div className="flex h-64 flex-col items-center justify-center">
           <div className="mb-4 text-6xl text-gray-300">🎬</div>
           <h3 className="mb-2 text-xl font-semibold text-gray-700">No movies found</h3>
@@ -267,8 +341,8 @@ export const TrendingMoviesGrid = () => {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-            {movies.map((movie: Movie, index) => (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4">
+            {processedMovies.map((movie: Movie, index) => (
               <MovieCard
                 key={`${movie.id}-${index}`}
                 movie={movie}
@@ -290,7 +364,7 @@ export const TrendingMoviesGrid = () => {
           )}
 
           {/* End of results indicator */}
-          {!hasNextPage && movies.length > 0 && (
+          {!hasNextPage && processedMovies.length > 0 && (
             <div className="mt-8 text-center">
               <p className="text-gray-500">
                 🎬 You&apos;ve explored all trending movies!

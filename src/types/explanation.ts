@@ -6,8 +6,17 @@ export interface RecommendationExplanation {
   optimal_viewing_time?: string
   supporting_movies?: string[]
 
-  // New optional contextual hits surfaced by the recommender
+  // Contextual hits surfaced by the recommender
   memory_hit?: string
   storyline_match?: string
   review_match?: string
+
+  // Advanced explanation fields (optional for backward compatibility)
+  thematic_reasons?: string[]
+  style_reasons?: string[]
+  emotional_reasons?: string[]
+  narrative_reasons?: string[]
+  cultural_reasons?: string[]
+  personalized_insights?: string[]
+  comparison_to_liked_movies?: string[]
 } 

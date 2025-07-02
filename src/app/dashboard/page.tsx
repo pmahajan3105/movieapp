@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
-import { logger } from '@/lib/logger'
 
 import { useAuth } from '@/contexts/AuthContext'
 import { MovieDetailsModal } from '@/components/movies/MovieDetailsModal'
@@ -38,7 +37,7 @@ const HyperPersonalizedSection = dynamic(
 )
 
 export default function DashboardPage() {
-  const { user, isLoading, refreshUser } = useAuth()
+  const { user, isLoading } = useAuth()
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null)
   const [movieModalOpen, setMovieModalOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
@@ -154,7 +153,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50">
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 rounded-3xl overflow-hidden">
         {/* Header */}
         <div className="mb-12 text-center">
           <div className="mb-6">
