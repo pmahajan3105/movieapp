@@ -17,11 +17,16 @@ import type {
   StyleFilter,
   EmotionalFilter,
   NarrativeFilter,
-  CulturalFilter
+  CulturalFilter,
 } from '@/types/advanced-intelligence'
 import type { Movie } from '@/types'
-import { ThematicTaxonomy, PSYCHOLOGICAL_THEMES, NARRATIVE_STRUCTURES, EMOTIONAL_PATTERNS } from './thematic-taxonomy'
-import { conversationalParser } from './conversational-parser'
+import {
+  ThematicTaxonomy,
+  PSYCHOLOGICAL_THEMES,
+  NARRATIVE_STRUCTURES,
+  EMOTIONAL_PATTERNS,
+} from './thematic-taxonomy'
+import { ConversationalParser } from './conversational-parser'
 
 export interface QueryProcessingResult {
   advancedQuery: AdvancedQuery
@@ -67,25 +72,28 @@ export class QueryIntelligenceEngine {
    */
   async processAdvancedQuery(query: string, userId: string): Promise<QueryProcessingResult> {
     const startTime = Date.now()
-    
+
     try {
       logger.info('Starting advanced query processing', { query, userId })
 
       // Step 1: Parse query with conversational parser
-      const conversationalQuery = await conversationalParser.parseAdvancedQuery(query, userId)
-      
+      const conversationalQuery = await ConversationalParser.getInstance().parseAdvancedQuery(
+        query,
+        userId
+      )
+
       // Step 2: Enhance with entity extraction
       const entities = await this.extractEntities(query, conversationalQuery)
-      
+
       // Step 3: Analyze intent hierarchy
       const intentAnalysis = this.analyzeIntentHierarchy(conversationalQuery.detectedIntents)
-      
+
       // Step 4: Generate search filters
       const searchFilters = this.generateAdvancedFilters(conversationalQuery, entities)
-      
+
       // Step 5: Determine recommendation strategy
       const strategy = this.determineStrategy(intentAnalysis, conversationalQuery)
-      
+
       // Step 6: Assess complexity and explanation needs
       const complexity = this.assessQueryComplexity(conversationalQuery, intentAnalysis)
       const requiresExplanation = this.shouldProvideExplanation(conversationalQuery, intentAnalysis)
@@ -97,7 +105,7 @@ export class QueryIntelligenceEngine {
         strategy,
         complexity,
         processingTime,
-        primaryIntent: intentAnalysis.primaryIntent.type
+        primaryIntent: intentAnalysis.primaryIntent.type,
       })
 
       return {
@@ -106,15 +114,14 @@ export class QueryIntelligenceEngine {
         recommendationStrategy: strategy,
         prioritizedIntents: [intentAnalysis.primaryIntent, ...intentAnalysis.secondaryIntents],
         queryComplexity: complexity,
-        requiresExplanation
+        requiresExplanation,
       }
-
     } catch (error) {
-      logger.error('Advanced query processing failed', { 
+      logger.error('Advanced query processing failed', {
         error: error instanceof Error ? error.message : String(error),
-        query 
+        query,
       })
-      
+
       // Fallback to basic processing
       return this.createFallbackProcessing(query, userId)
     }
@@ -123,25 +130,29 @@ export class QueryIntelligenceEngine {
   /**
    * Extract and classify entities from query
    */
-  async extractEntities(query: string, advancedQuery: AdvancedQuery): Promise<EntityExtractionResult> {
+  async extractEntities(
+    query: string,
+    advancedQuery: AdvancedQuery
+  ): Promise<EntityExtractionResult> {
     try {
       const prompt = this.buildEntityExtractionPrompt(query)
-      
+
       const response = await anthropic.messages.create({
-        model: claudeConfig.fastModel,
+        model: claudeConfig.model,
         max_tokens: 1000,
-        messages: [{
-          role: 'user',
-          content: prompt
-        }]
+        messages: [
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
       })
 
       const aiAnalysis = response.content[0].type === 'text' ? response.content[0].text : ''
       const extracted = this.parseEntityExtractionResponse(aiAnalysis)
-      
+
       // Enhance with existing entities from advanced query
       return this.mergeEntityResults(extracted, advancedQuery.extractedEntities)
-
     } catch (error) {
       logger.warn('Entity extraction failed, using fallback', { error })
       return this.fallbackEntityExtraction(query, advancedQuery.extractedEntities)
@@ -158,7 +169,7 @@ export class QueryIntelligenceEngine {
         secondaryIntents: [],
         intentHierarchy: ['discover'],
         conflictingIntents: [],
-        intentConfidence: 0.5
+        intentConfidence: 0.5,
       }
     }
 
@@ -173,21 +184,21 @@ export class QueryIntelligenceEngine {
 
     // Detect conflicting intents
     const conflictingIntents = this.detectIntentConflicts(sortedIntents)
-    
+
     // Build intent hierarchy
     const intentHierarchy = sortedIntents.map(intent => intent.type)
-    
+
     // Calculate overall confidence
-    const intentConfidence = sortedIntents.reduce((sum, intent) => 
-      sum + (intent.confidence * intent.priority), 0
-    ) / sortedIntents.reduce((sum, intent) => sum + intent.priority, 0)
+    const intentConfidence =
+      sortedIntents.reduce((sum, intent) => sum + intent.confidence * intent.priority, 0) /
+      sortedIntents.reduce((sum, intent) => sum + intent.priority, 0)
 
     return {
       primaryIntent,
       secondaryIntents,
       intentHierarchy,
       conflictingIntents,
-      intentConfidence
+      intentConfidence,
     }
   }
 
@@ -195,56 +206,66 @@ export class QueryIntelligenceEngine {
    * Generate advanced search filters from query analysis
    */
   generateAdvancedFilters(
-    advancedQuery: AdvancedQuery, 
+    advancedQuery: AdvancedQuery,
     entities: EntityExtractionResult
   ): AdvancedSearchFilters {
     const filters: AdvancedSearchFilters = {}
 
     // Thematic filters
     if (entities.themes.length > 0) {
-      filters.thematicFilters = [{
-        themes: entities.themes,
-        operator: 'OR',
-        minRelevance: 0.6
-      }]
+      filters.thematicFilters = [
+        {
+          themes: entities.themes,
+          operator: 'OR',
+          minRelevance: 0.6,
+        },
+      ]
     }
 
     // Style filters
     if (entities.directors.length > 0 || entities.styles.length > 0) {
-      filters.styleFilters = [{
-        directors: entities.directors.length > 0 ? entities.directors : undefined,
-        visualStyles: entities.styles.length > 0 ? entities.styles : undefined
-      }]
+      filters.styleFilters = [
+        {
+          directors: entities.directors.length > 0 ? entities.directors : undefined,
+          visualStyles: entities.styles.length > 0 ? entities.styles : undefined,
+        },
+      ]
     }
 
     // Emotional filters
-    const emotionalPrefs = advancedQuery.implicitPreferences.filter(pref => 
-      pref.category === 'mood' || pref.category === 'theme'
+    const emotionalPrefs = advancedQuery.implicitPreferences.filter(
+      pref => pref.category === 'mood' || pref.category === 'theme'
     )
     if (emotionalPrefs.length > 0) {
-      filters.emotionalFilters = [{
-        moodRange: entities.moods,
-        intensityRange: this.inferIntensityRange(advancedQuery)
-      }]
+      filters.emotionalFilters = [
+        {
+          moodRange: entities.moods,
+          intensityRange: this.inferIntensityRange(advancedQuery),
+        },
+      ]
     }
 
     // Narrative filters
-    const narrativePrefs = advancedQuery.implicitPreferences.filter(pref => 
-      pref.category === 'complexity' || pref.category === 'style'
+    const narrativePrefs = advancedQuery.implicitPreferences.filter(
+      pref => pref.category === 'complexity' || pref.category === 'style'
     )
     if (narrativePrefs.length > 0) {
-      filters.narrativeFilters = [{
-        complexityRange: this.inferComplexityRange(advancedQuery),
-        linearityPreference: this.inferLinearityPreference(advancedQuery)
-      }]
+      filters.narrativeFilters = [
+        {
+          complexityRange: this.inferComplexityRange(advancedQuery),
+          linearityPreference: this.inferLinearityPreference(advancedQuery),
+        },
+      ]
     }
 
     // Cultural filters
     if (entities.periods.length > 0) {
-      filters.culturalFilters = [{
-        periods: entities.periods,
-        relevanceToPresent: this.inferContemporaryRelevance(advancedQuery)
-      }]
+      filters.culturalFilters = [
+        {
+          periods: entities.periods,
+          relevanceToPresent: this.inferContemporaryRelevance(advancedQuery),
+        },
+      ]
     }
 
     // Exclusion filters
@@ -262,7 +283,7 @@ export class QueryIntelligenceEngine {
    * Determine optimal recommendation strategy
    */
   determineStrategy(
-    intentAnalysis: IntentAnalysisResult, 
+    intentAnalysis: IntentAnalysisResult,
     advancedQuery: AdvancedQuery
   ): 'thematic' | 'stylistic' | 'emotional' | 'hybrid' | 'educational' {
     const primaryIntent = intentAnalysis.primaryIntent.type
@@ -273,16 +294,16 @@ export class QueryIntelligenceEngine {
     }
 
     // Count preference categories to determine strategy
-    const thematicPrefs = advancedQuery.implicitPreferences.filter(pref => 
-      pref.category === 'theme' || pref.category === 'genre'
+    const thematicPrefs = advancedQuery.implicitPreferences.filter(
+      pref => pref.category === 'theme' || pref.category === 'genre'
     ).length
 
-    const stylisticPrefs = advancedQuery.implicitPreferences.filter(pref => 
-      pref.category === 'style' || pref.category === 'era'
+    const stylisticPrefs = advancedQuery.implicitPreferences.filter(
+      pref => pref.category === 'style' || pref.category === 'era'
     ).length
 
-    const emotionalPrefs = advancedQuery.implicitPreferences.filter(pref => 
-      pref.category === 'mood' || pref.category === 'emotional'
+    const emotionalPrefs = advancedQuery.implicitPreferences.filter(
+      pref => pref.category === 'mood' || pref.category === 'emotional'
     ).length
 
     // Determine primary strategy
@@ -336,7 +357,7 @@ Return only valid JSON.
       }
 
       const parsed = JSON.parse(jsonMatch[0])
-      
+
       return {
         movies: Array.isArray(parsed.movies) ? parsed.movies : [],
         directors: Array.isArray(parsed.directors) ? parsed.directors : [],
@@ -346,7 +367,7 @@ Return only valid JSON.
         moods: Array.isArray(parsed.moods) ? parsed.moods : [],
         styles: Array.isArray(parsed.styles) ? parsed.styles : [],
         periods: Array.isArray(parsed.periods) ? parsed.periods : [],
-        techniques: Array.isArray(parsed.techniques) ? parsed.techniques : []
+        techniques: Array.isArray(parsed.techniques) ? parsed.techniques : [],
       }
     } catch (error) {
       logger.warn('Failed to parse entity extraction response', { error })
@@ -355,7 +376,7 @@ Return only valid JSON.
   }
 
   private mergeEntityResults(
-    extracted: EntityExtractionResult, 
+    extracted: EntityExtractionResult,
     queryEntities: QueryEntity[]
   ): EntityExtractionResult {
     const merged = { ...extracted }
@@ -408,12 +429,15 @@ Return only valid JSON.
     return merged
   }
 
-  private fallbackEntityExtraction(query: string, queryEntities: QueryEntity[]): EntityExtractionResult {
+  private fallbackEntityExtraction(
+    query: string,
+    queryEntities: QueryEntity[]
+  ): EntityExtractionResult {
     const result = this.createEmptyEntityResult()
-    
+
     // Simple keyword-based extraction
     const lowerQuery = query.toLowerCase()
-    
+
     // Extract themes using taxonomy
     const extractedThemes = ThematicTaxonomy.extractThemesFromText(query)
     result.themes = extractedThemes
@@ -421,14 +445,30 @@ Return only valid JSON.
     // Extract from query entities
     queryEntities.forEach(entity => {
       switch (entity.type) {
-        case 'movie': result.movies.push(entity.value); break
-        case 'director': result.directors.push(entity.value); break
-        case 'actor': result.actors.push(entity.value); break
-        case 'theme': result.themes.push(entity.value); break
-        case 'genre': result.genres.push(entity.value); break
-        case 'mood': result.moods.push(entity.value); break
-        case 'style': result.styles.push(entity.value); break
-        case 'period': result.periods.push(entity.value); break
+        case 'movie':
+          result.movies.push(entity.value)
+          break
+        case 'director':
+          result.directors.push(entity.value)
+          break
+        case 'actor':
+          result.actors.push(entity.value)
+          break
+        case 'theme':
+          result.themes.push(entity.value)
+          break
+        case 'genre':
+          result.genres.push(entity.value)
+          break
+        case 'mood':
+          result.moods.push(entity.value)
+          break
+        case 'style':
+          result.styles.push(entity.value)
+          break
+        case 'period':
+          result.periods.push(entity.value)
+          break
       }
     })
 
@@ -445,24 +485,24 @@ Return only valid JSON.
       moods: [],
       styles: [],
       periods: [],
-      techniques: []
+      techniques: [],
     }
   }
 
   private detectIntentConflicts(intents: QueryIntent[]): string[] {
     const conflicts: string[] = []
-    
+
     // Define conflicting intent pairs
     const conflictPairs = [
       ['discover', 'similar_to'],
       ['educational', 'mood_match'],
-      ['compare', 'discover']
+      ['compare', 'discover'],
     ]
 
     for (const [intent1, intent2] of conflictPairs) {
       const hasIntent1 = intents.some(i => i.type === intent1)
       const hasIntent2 = intents.some(i => i.type === intent2)
-      
+
       if (hasIntent1 && hasIntent2) {
         conflicts.push(`${intent1} vs ${intent2}`)
       }
@@ -472,7 +512,7 @@ Return only valid JSON.
   }
 
   private assessQueryComplexity(
-    advancedQuery: AdvancedQuery, 
+    advancedQuery: AdvancedQuery,
     intentAnalysis: IntentAnalysisResult
   ): 'simple' | 'moderate' | 'complex' | 'expert' {
     let complexityScore = 0
@@ -503,18 +543,19 @@ Return only valid JSON.
   }
 
   private shouldProvideExplanation(
-    advancedQuery: AdvancedQuery, 
+    advancedQuery: AdvancedQuery,
     intentAnalysis: IntentAnalysisResult
   ): boolean {
     // Always explain for educational queries
-    if (intentAnalysis.primaryIntent.type === 'educational' || 
-        intentAnalysis.primaryIntent.type === 'compare') {
+    if (
+      intentAnalysis.primaryIntent.type === 'educational' ||
+      intentAnalysis.primaryIntent.type === 'compare'
+    ) {
       return true
     }
 
     // Explain for complex queries
-    if (advancedQuery.complexityLevel === 'complex' || 
-        advancedQuery.complexityLevel === 'expert') {
+    if (advancedQuery.complexityLevel === 'complex' || advancedQuery.complexityLevel === 'expert') {
       return true
     }
 
@@ -532,14 +573,12 @@ Return only valid JSON.
   }
 
   private inferIntensityRange(advancedQuery: AdvancedQuery): [number, number] {
-    const moodPrefs = advancedQuery.implicitPreferences.filter(pref => 
-      pref.category === 'mood'
-    )
+    const moodPrefs = advancedQuery.implicitPreferences.filter(pref => pref.category === 'mood')
 
     if (moodPrefs.length === 0) return [0.3, 0.8]
 
     const avgStrength = moodPrefs.reduce((sum, pref) => sum + pref.strength, 0) / moodPrefs.length
-    
+
     if (avgStrength > 0.8) return [0.7, 1.0] // High intensity
     if (avgStrength > 0.6) return [0.5, 0.9] // Medium-high intensity
     if (avgStrength > 0.4) return [0.3, 0.7] // Medium intensity
@@ -547,29 +586,31 @@ Return only valid JSON.
   }
 
   private inferComplexityRange(advancedQuery: AdvancedQuery): [number, number] {
-    const complexityPrefs = advancedQuery.implicitPreferences.filter(pref => 
-      pref.category === 'complexity'
+    const complexityPrefs = advancedQuery.implicitPreferences.filter(
+      pref => pref.category === 'complexity'
     )
 
     if (complexityPrefs.length === 0) {
-      return advancedQuery.complexityLevel === 'expert' ? [0.7, 1.0] :
-             advancedQuery.complexityLevel === 'complex' ? [0.5, 0.8] :
-             advancedQuery.complexityLevel === 'moderate' ? [0.3, 0.6] : [0.1, 0.4]
+      return advancedQuery.complexityLevel === 'expert'
+        ? [0.7, 1.0]
+        : advancedQuery.complexityLevel === 'complex'
+          ? [0.5, 0.8]
+          : advancedQuery.complexityLevel === 'moderate'
+            ? [0.3, 0.6]
+            : [0.1, 0.4]
     }
 
-    const avgComplexity = complexityPrefs.reduce((sum, pref) => sum + pref.strength, 0) / complexityPrefs.length
+    const avgComplexity =
+      complexityPrefs.reduce((sum, pref) => sum + pref.strength, 0) / complexityPrefs.length
     const rangeSize = 0.3
-    
-    return [
-      Math.max(0, avgComplexity - rangeSize/2),
-      Math.min(1, avgComplexity + rangeSize/2)
-    ]
+
+    return [Math.max(0, avgComplexity - rangeSize / 2), Math.min(1, avgComplexity + rangeSize / 2)]
   }
 
-  private inferLinearityPreference(advancedQuery: AdvancedQuery): 'linear' | 'non_linear' | 'either' {
-    const stylePrefs = advancedQuery.implicitPreferences.filter(pref => 
-      pref.category === 'style'
-    )
+  private inferLinearityPreference(
+    advancedQuery: AdvancedQuery
+  ): 'linear' | 'non_linear' | 'either' {
+    const stylePrefs = advancedQuery.implicitPreferences.filter(pref => pref.category === 'style')
 
     for (const pref of stylePrefs) {
       if (pref.preference.includes('non-linear') || pref.preference.includes('complex')) {
@@ -584,34 +625,39 @@ Return only valid JSON.
   }
 
   private inferContemporaryRelevance(advancedQuery: AdvancedQuery): number {
-    const culturalFactors = advancedQuery.contextualFactors.filter(factor => 
-      factor.type === 'social' || factor.type === 'temporal'
+    const culturalFactors = advancedQuery.contextualFactors.filter(
+      factor => factor.type === 'social' || factor.type === 'temporal'
     )
 
     if (culturalFactors.length === 0) return 0.5
 
-    const avgInfluence = culturalFactors.reduce((sum, factor) => sum + factor.influence, 0) / culturalFactors.length
+    const avgInfluence =
+      culturalFactors.reduce((sum, factor) => sum + factor.influence, 0) / culturalFactors.length
     return avgInfluence
   }
 
-  private async createFallbackProcessing(query: string, userId: string): Promise<QueryProcessingResult> {
+  private async createFallbackProcessing(
+    query: string,
+    userId: string
+  ): Promise<QueryProcessingResult> {
     try {
-      const basicQuery = await conversationalParser.parseQuery(query, userId)
-      
+      const parser = ConversationalParser.getInstance()
+      const basicQuery = await parser.parseQuery(query, userId)
+
       return {
-        advancedQuery: conversationalParser.convertToAdvancedQuery ? 
-          await conversationalParser.convertToAdvancedQuery(basicQuery) :
-          this.createBasicAdvancedQuery(query, basicQuery),
+        advancedQuery: this.createBasicAdvancedQuery(query, basicQuery),
         searchFilters: { minConfidence: 0.5 },
         recommendationStrategy: 'hybrid',
-        prioritizedIntents: [{
-          type: 'discover',
-          confidence: 0.5,
-          parameters: {},
-          priority: 5
-        }],
+        prioritizedIntents: [
+          {
+            type: 'discover',
+            confidence: 0.5,
+            parameters: {},
+            priority: 5,
+          },
+        ],
         queryComplexity: 'simple',
-        requiresExplanation: false
+        requiresExplanation: false,
       }
     } catch (error) {
       logger.error('Fallback processing also failed', { error, query })
@@ -627,19 +673,21 @@ Return only valid JSON.
         expandedTerms: [],
         synonyms: {},
         relatedConcepts: [],
-        negativeFilters: []
+        negativeFilters: [],
       },
       extractedEntities: [],
-      detectedIntents: [{
-        type: 'discover',
-        confidence: 0.5,
-        parameters: {},
-        priority: 5
-      }],
+      detectedIntents: [
+        {
+          type: 'discover',
+          confidence: 0.5,
+          parameters: {},
+          priority: 5,
+        },
+      ],
       implicitPreferences: [],
       contextualFactors: [],
       complexityLevel: 'simple',
-      confidence: 0.5
+      confidence: 0.5,
     }
   }
 }
