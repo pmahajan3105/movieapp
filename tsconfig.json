@@ -48,7 +48,6 @@
     "performance",
     "src/lib/ai/cinematic-style-analyzer.ts",
     "src/lib/ai/query-intelligence-engine.ts",
-    "src/lib/ai/emotional-journey-mapper.ts",
     "src/lib/ai/thematic-analysis-engine.ts",
     "src/lib/ai/unified-ai-service.ts",
     "src/lib/ai/client-safe-unified-service.ts",
