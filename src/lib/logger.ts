@@ -13,6 +13,7 @@ type LogContextValue =
   | Date
   | LogContextValue[]
   | { [key: string]: LogContextValue }
+  | unknown
 
 type LogContext = Record<string, LogContextValue>
 

@@ -158,11 +158,13 @@ export interface CategoryRowProps {
 export interface MovieGridCardProps {
   movie: Movie
   userRating?: Rating
-  onRate: (movieId: string, interested: boolean, rating?: number) => void
+  onRate?: (movieId: string, interested: boolean, rating?: number) => void
   onAddToWatchlist: (movieId: string) => void
   size?: 'sm' | 'md' | 'lg'
   showRating?: boolean
   className?: string
+  priority?: boolean // For above-the-fold image loading
+  index?: number // For determining image priority
 }
 
 export interface QuickRateCardProps {
