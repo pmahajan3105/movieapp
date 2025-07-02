@@ -317,7 +317,7 @@ export class CinematicStyleAnalyzer {
 
     try {
       const response = await anthropic.messages.create({
-        model: claudeConfig.defaultModel,
+        model: claudeConfig.model,
         max_tokens:
           request.analysisDepth === 'expert'
             ? 4000
