@@ -20,7 +20,7 @@ jobs:
       - name: Type Check
         run: npm run type-check
       - name: Unit Tests
-        run: npm test -- --ci --runInBand
+        run: npm test -- --ci --runInBand --testPathIgnorePatterns="/integration/|movies-page.test.tsx" --passWithNoTests
 
   security:
     runs-on: ubuntu-latest

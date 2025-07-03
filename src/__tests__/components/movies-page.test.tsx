@@ -223,7 +223,7 @@ describe('MoviesPage Integration Test', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByText('Real-time Movie Discovery')).toBeInTheDocument()
+      expect(screen.getByText('Trending Movies')).toBeInTheDocument()
     })
   })
 

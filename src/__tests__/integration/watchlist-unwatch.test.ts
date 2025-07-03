@@ -12,26 +12,42 @@ const TEST_MOVIE = {
   genre: ['Action'],
 }
 
+// Skip test if environment variables are not properly configured
+const shouldRunIntegrationTests = supabaseUrl && 
+  supabaseServiceKey && 
+  !supabaseUrl.includes('placeholder') && 
+  !supabaseServiceKey.includes('placeholder')
+
 describe('Watchlist PATCH supports watchlist_id', () => {
-  const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
+  beforeAll(() => {
+    if (!shouldRunIntegrationTests) {
+      console.log('Skipping integration tests - Supabase not configured')
+    }
   })
+
+  const runTest = shouldRunIntegrationTests ? it : it.skip
+
+  const supabase = shouldRunIntegrationTests ? createClient(supabaseUrl, supabaseServiceKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  }) : null
 
   let watchlistId: string
 
-  beforeAll(async () => {
-    await supabase.from('movies').delete().eq('id', TEST_MOVIE.id)
-    await supabase.from('movies').insert(TEST_MOVIE)
-  })
+  if (shouldRunIntegrationTests) {
+    beforeAll(async () => {
+      await supabase!.from('movies').delete().eq('id', TEST_MOVIE.id)
+      await supabase!.from('movies').insert(TEST_MOVIE)
+    })
 
-  afterAll(async () => {
-    await supabase.from('watchlist').delete().eq('id', watchlistId)
-    await supabase.from('movies').delete().eq('id', TEST_MOVIE.id)
-  })
+    afterAll(async () => {
+      await supabase!.from('watchlist').delete().eq('id', watchlistId)
+      await supabase!.from('movies').delete().eq('id', TEST_MOVIE.id)
+    })
+  }
 
-  it('can unwatch using watchlist_id', async () => {
+  runTest('can unwatch using watchlist_id', async () => {
     // Add to watchlist and mark watched
-    const { data: added, error: insertError } = await supabase
+    const { data: added, error: insertError } = await supabase!
       .from('watchlist')
       .insert({ user_id: TEST_USER_ID, movie_id: TEST_MOVIE.id, watched: true })
       .select('id')
@@ -44,7 +60,7 @@ describe('Watchlist PATCH supports watchlist_id', () => {
     watchlistId = added.id
 
     // Call PATCH with watchlist_id only
-    const { data: updated, error } = await supabase
+    const { data: updated, error } = await supabase!
       .from('watchlist')
       .update({ watched: false })
       .eq('id', watchlistId)

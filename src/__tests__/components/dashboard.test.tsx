@@ -12,22 +12,22 @@ import { toast } from 'react-hot-toast'
 // Mock dependencies
 jest.mock('@/contexts/AuthContext')
 jest.mock('react-hot-toast')
-jest.mock('@/components/chat/ChatInterface', () => ({
-  ChatInterface: ({
-    onPreferencesExtracted,
-  }: {
-    onPreferencesExtracted: (preferences: unknown) => void
-  }) => (
-    <div data-testid="chat-interface">
-      <div>Mock Chat Interface</div>
-      <button
-        onClick={() => onPreferencesExtracted({ genres: ['Action'] })}
-        data-testid="simulate-preferences"
-      >
-        Simulate Preferences Extracted
-      </button>
-    </div>
+
+// Mock the dynamic components
+jest.mock('@/components/dashboard/BehavioralInsightsPanel', () => ({
+  BehavioralInsightsPanel: () => (
+    <div data-testid="behavioral-insights">Behavioral Insights</div>
   ),
+}))
+
+jest.mock('@/components/dashboard/HyperPersonalizedSection', () => ({
+  HyperPersonalizedSection: () => (
+    <div data-testid="hyper-personalized">Hyper Personalized Section</div>
+  ),
+}))
+
+jest.mock('@/components/movies/MovieDetailsModal', () => ({
+  MovieDetailsModal: () => <div data-testid="movie-modal">Movie Modal</div>,
 }))
 
 const mockUseAuth = useAuth as jest.MockedFunction<typeof useAuth>
@@ -69,58 +69,25 @@ describe('DashboardPage', () => {
 
       render(<DashboardPage />)
 
-      // When loading, the page still renders but user might not be authenticated
-      // Just check that loading state is handled gracefully
-      expect(document.body).toBeInTheDocument()
+      expect(screen.getByText('Loading your dashboard...')).toBeInTheDocument()
     })
   })
 
   describe('Main Dashboard', () => {
-    it('renders welcome message and chat interface', () => {
+    it('renders welcome message and description', () => {
       render(<DashboardPage />)
 
-      expect(screen.getByText('Welcome to CineAI! 🎬')).toBeInTheDocument()
+      expect(screen.getByText('Welcome to CineAI!')).toBeInTheDocument()
       expect(
-        screen.getByText('Chat with our AI to discover your perfect movies')
-      ).toBeInTheDocument()
-      expect(screen.getByText('Chat with CineAI')).toBeInTheDocument()
-      expect(screen.getByTestId('chat-interface')).toBeInTheDocument()
-    })
-
-    it('shows navigation cards', () => {
-      render(<DashboardPage />)
-
-      // Check for Smart Movies card
-      expect(screen.getByText('Smart Movies')).toBeInTheDocument()
-      expect(screen.getByText('AI-powered recommendations with explanations')).toBeInTheDocument()
-    })
-
-    it('displays navigation description text', () => {
-      render(<DashboardPage />)
-
-      expect(
-        screen.getByText('Chat with our AI to discover your perfect movies')
+        screen.getByText('Your personal AI movie companion with intelligent recommendations and conversation')
       ).toBeInTheDocument()
     })
-  })
 
-  describe('Chat Interface Integration', () => {
-    it('renders the ChatInterface component', () => {
+    it('shows main dashboard sections', () => {
       render(<DashboardPage />)
 
-      expect(screen.getByTestId('chat-interface')).toBeInTheDocument()
-      expect(screen.getByText('Mock Chat Interface')).toBeInTheDocument()
-    })
-
-    it('handles preference extraction gracefully', () => {
-      render(<DashboardPage />)
-
-      // Verify the chat interface is present
-      const chatInterface = screen.getByTestId('chat-interface')
-      expect(chatInterface).toBeInTheDocument()
-
-      // Test passes if component renders without errors
-      expect(screen.getByText('Mock Chat Interface')).toBeInTheDocument()
+      expect(screen.getByTestId('hyper-personalized')).toBeInTheDocument()
+      expect(screen.getByTestId('behavioral-insights')).toBeInTheDocument()
     })
   })
 
@@ -128,7 +95,7 @@ describe('DashboardPage', () => {
     it('has proper max-width container', () => {
       render(<DashboardPage />)
 
-      const container = document.querySelector('.max-w-4xl')
+      const container = document.querySelector('.max-w-7xl')
       expect(container).toBeInTheDocument()
     })
 
@@ -139,12 +106,11 @@ describe('DashboardPage', () => {
       expect(centerContainer).toBeInTheDocument()
     })
 
-    it('has proper chat interface container', () => {
+    it('has proper dashboard sections', () => {
       render(<DashboardPage />)
 
-      // Chat interface is rendered and visible
-      const chatInterface = screen.getByTestId('chat-interface')
-      expect(chatInterface).toBeInTheDocument()
+      expect(screen.getByTestId('hyper-personalized')).toBeInTheDocument()
+      expect(screen.getByTestId('behavioral-insights')).toBeInTheDocument()
     })
   })
 
@@ -156,10 +122,10 @@ describe('DashboardPage', () => {
       expect(responsiveContainer).toBeInTheDocument()
     })
 
-    it('has responsive card layout', () => {
+    it('has responsive container layout', () => {
       render(<DashboardPage />)
 
-      const cardContainer = document.querySelector('.max-w-4xl')
+      const cardContainer = document.querySelector('.max-w-7xl')
       expect(cardContainer).toBeInTheDocument()
     })
   })
@@ -169,14 +135,14 @@ describe('DashboardPage', () => {
       render(<DashboardPage />)
 
       const h1 = screen.getByRole('heading', { level: 1 })
-      expect(h1).toHaveTextContent('Welcome to CineAI! 🎬')
+      expect(h1).toHaveTextContent('Welcome to CineAI!')
     })
 
     it('has descriptive text for screen readers', () => {
       render(<DashboardPage />)
 
       expect(
-        screen.getByText('Chat with our AI to discover your perfect movies')
+        screen.getByText('Your personal AI movie companion with intelligent recommendations and conversation')
       ).toBeInTheDocument()
     })
   })
