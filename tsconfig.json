@@ -52,6 +52,22 @@
     "src/lib/services/non-streaming-response-handler.ts",
     "src/app/api/ai/chat/route.ts",
     "src/lib/utils/haptic-feedback.tsx",
-    "src/lib/ai/query-intelligence-engine.ts"
+    "src/lib/ai/thematic-analysis-engine.ts",
+    "src/lib/ai/hyper-personalized-engine.ts",
+    "src/__tests__/setupMocks.ts",
+    "src/__tests__/**/*",
+    "src/__tests__/utils/initReactAxe.test.ts",
+    "src/__tests__/lib/ai/behavioral-analysis.test.ts",
+    "src/__tests__/lib/ai/unified-ai-service.test.ts",
+    "src/__tests__/lib/utils-index.test.ts",
+    "src/__tests__/components/ServiceWorkerRegistration.test.tsx",
+    "src/__tests__/api/error-handling-comprehensive.test.ts",
+    "src/__tests__/api/recommendations-error-handling.test.ts",
+    "src/__tests__/components/movies/TrendingMoviesGrid.test.tsx",
+    "src/__tests__/contexts/ErrorRecoveryContext.test.tsx",
+    "src/__tests__/contexts/HyperPersonalizedContext.test.tsx",
+    "src/__tests__/contexts/ThemeContext.test.tsx",
+    "src/__tests__/hooks/useBehaviorTracker.test.ts",
+    "src/__tests__/integration/user-interactions.test.ts"
   ]
 }

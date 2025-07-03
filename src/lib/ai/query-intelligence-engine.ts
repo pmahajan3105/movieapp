@@ -335,18 +335,18 @@ export class QueryIntelligenceEngine {
       return 'educational'
     }
 
-    // Count preference categories to determine strategy
-    const thematicPrefs = advancedQuery.implicitPreferences.filter(
-      pref => pref.category === 'theme' || pref.category === 'genre'
-    ).length
+    // Count preference categories based on conversational query
+    const thematicPrefs =
+      (conversationalQuery.extracted_criteria.themes || []).length +
+      (conversationalQuery.extracted_criteria.genres || []).length
 
-    const stylisticPrefs = advancedQuery.implicitPreferences.filter(
-      pref => pref.category === 'style' || pref.category === 'era'
-    ).length
+    const stylisticPrefs =
+      (conversationalQuery.extracted_criteria.visual_style || []).length +
+      (conversationalQuery.extracted_criteria.directors || []).length
 
-    const emotionalPrefs = advancedQuery.implicitPreferences.filter(
-      pref => pref.category === 'mood' || pref.category === 'emotional'
-    ).length
+    const emotionalPrefs =
+      (conversationalQuery.extracted_criteria.moods || []).length +
+      (conversationalQuery.extracted_criteria.emotional_tone ? 1 : 0)
 
     // Determine primary strategy
     if (primaryIntent === 'thematic_explore' || thematicPrefs > stylisticPrefs + emotionalPrefs) {
@@ -563,20 +563,27 @@ Return only valid JSON.
     complexityScore += intentAnalysis.secondaryIntents.length * 0.2
     complexityScore += intentAnalysis.conflictingIntents.length * 0.3
 
-    // Entity complexity
-    const totalEntities = advancedQuery.extractedEntities.length
-    complexityScore += Math.min(totalEntities * 0.1, 0.5)
+    // Entity complexity based on conversational query criteria
+    const totalCriteria = Object.keys(conversationalQuery.extracted_criteria).length
+    complexityScore += Math.min(totalCriteria * 0.1, 0.5)
 
-    // Preference complexity
-    const totalPreferences = advancedQuery.implicitPreferences.length
-    complexityScore += Math.min(totalPreferences * 0.15, 0.4)
+    // Complexity based on query length and structure
+    const queryLength = conversationalQuery.original_text.length
+    complexityScore += Math.min(queryLength / 500, 0.3)
 
-    // Query processing complexity
-    const negativeFilters = advancedQuery.processedQuery.negativeFilters.length
-    complexityScore += negativeFilters * 0.1
+    // Negative filters complexity
+    const negativeFilters = conversationalQuery.extracted_criteria.negations || []
+    complexityScore += negativeFilters.length * 0.1
 
-    // Contextual factors
-    complexityScore += advancedQuery.contextualFactors.length * 0.1
+    // Multi-intent complexity
+    if (conversationalQuery.multi_intent) {
+      complexityScore += 0.2
+    }
+
+    // Use existing complexity score if available
+    if (conversationalQuery.complexity_score) {
+      complexityScore = Math.max(complexityScore, conversationalQuery.complexity_score)
+    }
 
     if (complexityScore < 0.3) return 'simple'
     if (complexityScore < 0.6) return 'moderate'
@@ -596,8 +603,14 @@ Return only valid JSON.
       return true
     }
 
+    // Use existing requires_explanation if available
+    if (conversationalQuery.requires_explanation) {
+      return true
+    }
+
     // Explain for complex queries
-    if (advancedQuery.complexityLevel === 'complex' || advancedQuery.complexityLevel === 'expert') {
+    const complexity = this.assessQueryComplexity(conversationalQuery, intentAnalysis)
+    if (complexity === 'complex' || complexity === 'expert') {
       return true
     }
 
@@ -614,12 +627,27 @@ Return only valid JSON.
     return false
   }
 
-  private inferIntensityRange(advancedQuery: AdvancedQuery): [number, number] {
-    const moodPrefs = advancedQuery.implicitPreferences.filter(pref => pref.category === 'mood')
+  private inferIntensityRange(conversationalQuery: ConversationalQuery): [number, number] {
+    const moodPrefs = conversationalQuery.extracted_criteria.moods || []
 
     if (moodPrefs.length === 0) return [0.3, 0.8]
 
-    const avgStrength = moodPrefs.reduce((sum, pref) => sum + pref.strength, 0) / moodPrefs.length
+    // Simple intensity mapping based on mood keywords
+    const intensityMap: Record<string, number> = {
+      intense: 0.9,
+      strong: 0.8,
+      powerful: 0.8,
+      light: 0.3,
+      mild: 0.4,
+      subtle: 0.3,
+      overwhelming: 1.0,
+    }
+
+    const avgStrength =
+      moodPrefs.reduce((sum, mood) => {
+        const strength = intensityMap[mood.toLowerCase()] || 0.6
+        return sum + strength
+      }, 0) / moodPrefs.length
 
     if (avgStrength > 0.8) return [0.7, 1.0] // High intensity
     if (avgStrength > 0.6) return [0.5, 0.9] // Medium-high intensity
@@ -627,55 +655,82 @@ Return only valid JSON.
     return [0.1, 0.5] // Low intensity
   }
 
-  private inferComplexityRange(advancedQuery: AdvancedQuery): [number, number] {
-    const complexityPrefs = advancedQuery.implicitPreferences.filter(
-      pref => pref.category === 'complexity'
-    )
+  private inferComplexityRange(conversationalQuery: ConversationalQuery): [number, number] {
+    const complexityLevel = conversationalQuery.extracted_criteria.complexity_level
 
-    if (complexityPrefs.length === 0) {
-      return advancedQuery.complexityLevel === 'expert'
-        ? [0.7, 1.0]
-        : advancedQuery.complexityLevel === 'complex'
-          ? [0.5, 0.8]
-          : advancedQuery.complexityLevel === 'moderate'
-            ? [0.3, 0.6]
-            : [0.1, 0.4]
+    if (complexityLevel === 'complex') {
+      return [0.7, 1.0]
+    } else if (complexityLevel === 'medium') {
+      return [0.4, 0.7]
+    } else if (complexityLevel === 'light') {
+      return [0.1, 0.4]
     }
 
-    const avgComplexity =
-      complexityPrefs.reduce((sum, pref) => sum + pref.strength, 0) / complexityPrefs.length
-    const rangeSize = 0.3
+    // Default based on narrative structure complexity
+    const narrativeStructure = conversationalQuery.extracted_criteria.narrative_structure || []
+    const hasComplexNarrative = narrativeStructure.some(
+      structure => structure.includes('non-linear') || structure.includes('complex')
+    )
 
-    return [Math.max(0, avgComplexity - rangeSize / 2), Math.min(1, avgComplexity + rangeSize / 2)]
+    return hasComplexNarrative ? [0.5, 0.8] : [0.3, 0.6]
   }
 
   private inferLinearityPreference(
-    advancedQuery: AdvancedQuery
+    conversationalQuery: ConversationalQuery
   ): 'linear' | 'non_linear' | 'either' {
-    const stylePrefs = advancedQuery.implicitPreferences.filter(pref => pref.category === 'style')
+    const narrativeStructure = conversationalQuery.extracted_criteria.narrative_structure || []
+    const visualStyle = conversationalQuery.extracted_criteria.visual_style || []
 
-    for (const pref of stylePrefs) {
-      if (pref.preference.includes('non-linear') || pref.preference.includes('complex')) {
-        return 'non_linear'
-      }
-      if (pref.preference.includes('simple') || pref.preference.includes('straightforward')) {
-        return 'linear'
-      }
-    }
+    // Check for non-linear indicators
+    const hasNonLinear =
+      narrativeStructure.some(
+        structure => structure.includes('non-linear') || structure.includes('complex')
+      ) || visualStyle.some(style => style.includes('complex') || style.includes('artistic'))
 
+    // Check for linear indicators
+    const hasLinear =
+      narrativeStructure.some(
+        structure => structure.includes('simple') || structure.includes('straightforward')
+      ) || visualStyle.some(style => style.includes('minimalist') || style.includes('clean'))
+
+    if (hasNonLinear && !hasLinear) return 'non_linear'
+    if (hasLinear && !hasNonLinear) return 'linear'
     return 'either'
   }
 
-  private inferContemporaryRelevance(advancedQuery: AdvancedQuery): number {
-    const culturalFactors = advancedQuery.contextualFactors.filter(
-      factor => factor.type === 'social' || factor.type === 'temporal'
+  private inferContemporaryRelevance(conversationalQuery: ConversationalQuery): number {
+    const culturalContext = conversationalQuery.extracted_criteria.cultural_context || []
+    const yearRange = conversationalQuery.extracted_criteria.year_range
+
+    if (culturalContext.length === 0 && !yearRange) return 0.5
+
+    // Check for contemporary relevance indicators
+    const hasContemporaryContext = culturalContext.some(
+      context =>
+        context.includes('modern') ||
+        context.includes('contemporary') ||
+        context.includes('current')
     )
 
-    if (culturalFactors.length === 0) return 0.5
+    const hasHistoricalContext = culturalContext.some(
+      context =>
+        context.includes('classic') || context.includes('vintage') || context.includes('period')
+    )
 
-    const avgInfluence =
-      culturalFactors.reduce((sum, factor) => sum + factor.influence, 0) / culturalFactors.length
-    return avgInfluence
+    // Check year range
+    const currentYear = new Date().getFullYear()
+    let yearRelevance = 0.5
+
+    if (yearRange) {
+      const [start, end] = yearRange
+      const avgYear = (start + end) / 2
+      const yearDistance = Math.abs(currentYear - avgYear)
+      yearRelevance = Math.max(0, 1 - yearDistance / 50) // Closer to current year = higher relevance
+    }
+
+    if (hasContemporaryContext) return Math.max(0.7, yearRelevance)
+    if (hasHistoricalContext) return Math.min(0.3, yearRelevance)
+    return yearRelevance
   }
 
   private async createFallbackProcessing(
