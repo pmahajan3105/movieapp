@@ -48,13 +48,7 @@
     "performance",
 
     "src/__tests__/lib/ai/unified-ai-service.test.ts",
-    "src/app/api/movies/search/route.ts",
-    "src/app/api/query/intelligence/route.ts",
-    "src/app/api/movies/handlers/advanced-intelligence-handler.ts",
-    "src/app/api/movies/handlers/behavioral-recommendations.ts",
-    "src/app/api/movies/thematic/route.ts",
-    "src/app/api/movies/emotional/route.ts",
-    "src/app/api/movies/style/route.ts",
+
     "src/lib/monitoring/production-monitor.ts",
     "src/lib/services/streaming-response-handler.ts",
     "src/lib/services/non-streaming-response-handler.ts",

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Advanced Intelligence Handler
  * Handles requests using the full advanced intelligence pipeline
@@ -9,7 +8,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 import { logger } from '@/lib/logger'
 import { getUserId } from '@/lib/user-utils'
-import { unifiedAI, processAdvancedQuery } from '@/lib/ai/unified-ai-service'
+import { UnifiedAIService } from '@/lib/ai'
 import { APIErrorHandler } from '@/lib/error-handling'
 
 export async function handleAdvancedIntelligenceRequest(
@@ -19,7 +18,7 @@ export async function handleAdvancedIntelligenceRequest(
   analysisDepth: 'basic' | 'standard' | 'comprehensive' | 'expert' = 'standard'
 ): Promise<NextResponse> {
   const startTime = Date.now()
-  
+
   try {
     const userId = await getUserId(supabase)
     if (!userId) {
@@ -29,15 +28,16 @@ export async function handleAdvancedIntelligenceRequest(
       )
     }
 
-    logger.info('Processing advanced intelligence request', { 
-      userId, 
-      query, 
-      limit, 
-      analysisDepth 
+    logger.info('Processing advanced intelligence request', {
+      userId,
+      query,
+      limit,
+      analysisDepth,
     })
 
     // Process query with full advanced intelligence pipeline
-    const queryResult = await processAdvancedQuery(query, userId)
+    const unifiedAI = UnifiedAIService.getInstance()
+    const queryResult = await unifiedAI.processAdvancedQuery(query, userId)
 
     // Get recommendations using advanced algorithm
     const recommendations = await unifiedAI.getRecommendations({
@@ -52,8 +52,8 @@ export async function handleAdvancedIntelligenceRequest(
         enableStyleMatching: true,
         enableEmotionalJourney: true,
         analysisDepth,
-        requireEducationalInsights: queryResult.requiresExplanation
-      }
+        requireEducationalInsights: queryResult.requiresExplanation,
+      },
     })
 
     const processingTime = Date.now() - startTime
@@ -65,36 +65,38 @@ export async function handleAdvancedIntelligenceRequest(
       page: 1,
       limit,
       algorithm: recommendations.algorithm,
-      
+
       // Advanced intelligence insights
       queryAnalysis: {
         originalQuery: query,
         processedQuery: queryResult.advancedQuery.processedQuery,
         complexity: queryResult.queryComplexity,
         detectedIntents: queryResult.prioritizedIntents,
-        confidence: queryResult.advancedQuery.confidence
+        confidence: queryResult.advancedQuery.confidence,
       },
-      
+
       insights: {
         ...recommendations.insights,
         recommendationStrategy: queryResult.recommendationStrategy,
-        queryComplexity: queryResult.queryComplexity
+        queryComplexity: queryResult.queryComplexity,
       },
-      
+
       performance: {
         ...recommendations.performance,
         processingTime,
         queryProcessingTime: processingTime,
-        advancedIntelligence: true
+        advancedIntelligence: true,
       },
-      
+
       // Educational insights if requested
-      educationalInsights: queryResult.requiresExplanation ? 
-        recommendations.advancedAnalysis?.educationalInsights : undefined,
-      
+      educationalInsights: queryResult.requiresExplanation
+        ? recommendations.advancedAnalysis?.educationalInsights
+        : undefined,
+
       // Explanations
-      explanations: recommendations.explanations ? 
-        Object.fromEntries(recommendations.explanations) : undefined
+      explanations: recommendations.explanations
+        ? Object.fromEntries(recommendations.explanations)
+        : undefined,
     }
 
     logger.info('Advanced intelligence request completed', {
@@ -103,23 +105,22 @@ export async function handleAdvancedIntelligenceRequest(
       algorithm: recommendations.algorithm,
       movieCount: recommendations.movies.length,
       processingTime,
-      complexity: queryResult.queryComplexity
+      complexity: queryResult.queryComplexity,
     })
 
     return NextResponse.json(response)
-
   } catch (error) {
     logger.error('Advanced intelligence request failed', {
       error: error instanceof Error ? error.message : String(error),
       query,
       limit,
-      analysisDepth
+      analysisDepth,
     })
 
     return APIErrorHandler.handle(error, {
       endpoint: '/api/movies/advanced',
       method: 'GET',
-      metadata: { query, limit, analysisDepth }
+      metadata: { query, limit, analysisDepth },
     })
   }
 }
@@ -131,7 +132,7 @@ export async function handleThematicRecommendations(
   analysisDepth: 'basic' | 'standard' | 'comprehensive' | 'expert' = 'standard'
 ): Promise<NextResponse> {
   const startTime = Date.now()
-  
+
   try {
     const userId = await getUserId(supabase)
     if (!userId) {
@@ -141,14 +142,15 @@ export async function handleThematicRecommendations(
       )
     }
 
-    logger.info('Processing thematic recommendations request', { 
-      userId, 
-      query, 
-      limit, 
-      analysisDepth 
+    logger.info('Processing thematic recommendations request', {
+      userId,
+      query,
+      limit,
+      analysisDepth,
     })
 
     // Get thematic recommendations
+    const unifiedAI = UnifiedAIService.getInstance()
     const recommendations = await unifiedAI.getRecommendations({
       userId,
       algorithm: 'thematic',
@@ -157,8 +159,8 @@ export async function handleThematicRecommendations(
         limit,
         includeExplanations: true,
         enableThematicAnalysis: true,
-        analysisDepth
-      }
+        analysisDepth,
+      },
     })
 
     const processingTime = Date.now() - startTime
@@ -169,46 +171,46 @@ export async function handleThematicRecommendations(
       page: 1,
       limit,
       algorithm: recommendations.algorithm,
-      
+
       insights: {
         ...recommendations.insights,
-        thematicFocus: true
+        thematicFocus: true,
       },
-      
+
       performance: {
         ...recommendations.performance,
         processingTime,
-        thematicAnalysis: true
+        thematicAnalysis: true,
       },
-      
+
       // Thematic analysis results
       thematicAnalysis: recommendations.advancedAnalysis?.thematicProfiles,
-      
-      explanations: recommendations.explanations ? 
-        Object.fromEntries(recommendations.explanations) : undefined
+
+      explanations: recommendations.explanations
+        ? Object.fromEntries(recommendations.explanations)
+        : undefined,
     }
 
     logger.info('Thematic recommendations completed', {
       userId,
       query,
       movieCount: recommendations.movies.length,
-      processingTime
+      processingTime,
     })
 
     return NextResponse.json(response)
-
   } catch (error) {
     logger.error('Thematic recommendations failed', {
       error: error instanceof Error ? error.message : String(error),
       query,
       limit,
-      analysisDepth
+      analysisDepth,
     })
 
     return APIErrorHandler.handle(error, {
       endpoint: '/api/movies/thematic',
       method: 'GET',
-      metadata: { query, limit, analysisDepth }
+      metadata: { query, limit, analysisDepth },
     })
   }
 }
