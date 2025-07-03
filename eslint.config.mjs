@@ -34,29 +34,34 @@ const tsConfig = [
       '@typescript-eslint/no-explicit-any': 'off', // Allow any types for now
       '@typescript-eslint/no-unused-vars': 'warn', // Warn instead of error
       '@typescript-eslint/ban-ts-comment': 'off', // Allow ts comments
-      '@typescript-eslint/no-require-imports': 'off', // Allow require in tests
+      '@typescript-eslint/no-require-imports': 'warn', // Warn about require in non-tests
       'no-console': 'off', // Allow console for now
       'react-hooks/exhaustive-deps': 'warn', // Warn instead of error
+      '@next/next/no-img-element': 'warn', // Warn instead of error for img elements
     },
   },
   // Specific config for test files
   {
-    files: ['src/__tests__/**/*.ts', 'src/__tests__/**/*.tsx'],
+    files: ['src/__tests__/**/*.ts', 'src/__tests__/**/*.tsx', '**/*.test.ts', '**/*.test.tsx'],
     plugins: {
       '@typescript-eslint': tsPlugin,
     },
     languageOptions: {
       parser: tsParser,
       parserOptions: {
-        project: './tsconfig.json',
-        tsconfigRootDir: __dirname,
+        ecmaVersion: 'latest',
+        sourceType: 'module',
+        // Remove project reference to avoid parsing issues
       },
     },
     rules: {
-      ...tsPlugin.configs.recommended.rules,
       '@typescript-eslint/no-explicit-any': 'off', // Allow 'any' in tests
       '@typescript-eslint/no-unused-vars': 'off', // Allow unused vars in tests
+      '@typescript-eslint/no-require-imports': 'off', // Allow require() in tests
+      '@typescript-eslint/ban-ts-comment': 'off', // Allow ts comments in tests
       'no-console': 'off', // Allow console in tests
+      'react-hooks/exhaustive-deps': 'off', // Turn off hook deps in tests
+      '@next/next/no-img-element': 'off', // Allow img elements in tests
     },
   },
   // Specific config for debug components and logger

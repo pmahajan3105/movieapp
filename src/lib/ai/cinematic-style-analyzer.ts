@@ -462,7 +462,10 @@ Provide specific examples and technical details. Focus on what makes this film's
     const soundDesign = this.extractSoundDesign(aiText)
     const productionDesign = this.extractProductionDesign(aiText)
     const visualCharacteristics = this.extractVisualCharacteristics(aiText)
-    const directorialSignature = this.extractDirectorialSignature(aiText, movie.director)
+    const directorialSignature = this.extractDirectorialSignature(
+      aiText,
+      movie.director || undefined
+    )
 
     return {
       directorialSignature,

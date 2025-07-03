@@ -47,8 +47,6 @@
     "e2e",
     "performance",
 
-    "src/__tests__/lib/ai/unified-ai-service.test.ts",
-
     "src/lib/monitoring/production-monitor.ts",
     "src/lib/services/streaming-response-handler.ts",
     "src/lib/services/non-streaming-response-handler.ts",
