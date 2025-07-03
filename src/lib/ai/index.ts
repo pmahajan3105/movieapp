@@ -3,6 +3,32 @@
  * Central exports for all AI-powered features
  */
 
+// === NEW CONSOLIDATED SERVICES (Recommended for new code) ===
+// These provide better organization while maintaining all functionality
+
+export {
+  unifiedRecommendationEngine,
+  UnifiedRecommendationEngine,
+} from './ai-recommendation-engine'
+
+export {
+  unifiedAnalysisEngine,
+  UnifiedAnalysisEngine,
+} from './ai-analysis-services'
+
+export {
+  unifiedConversationEngine,
+  UnifiedConversationEngine,
+} from './ai-conversation-services'
+
+export {
+  aiOrchestrator,
+  AIOrchestrator,
+} from './ai-orchestration'
+
+// === LEGACY EXPORTS (Maintained for compatibility) ===
+// All existing imports continue to work exactly as before
+
 // Main unified service (recommended) - Client-safe version
 export {
   ClientSafeUnifiedAIService as UnifiedAIService,
@@ -22,6 +48,12 @@ export { SmartSearchEngine } from './smart-search-engine'
 // Utility services
 export { embeddingService } from './embedding-service'
 export { analyzeCompleteUserBehavior, analyzeTemporalGenreAffinity } from './behavioral-analysis'
+
+// Re-export all consolidated services for complete compatibility
+export * from './ai-recommendation-engine'
+export * from './ai-analysis-services'
+export * from './ai-conversation-services'
+export * from './ai-orchestration'
 
 // Shared AI primitives (use these for new services)
 export type * from '@/types/ai-primitives'
