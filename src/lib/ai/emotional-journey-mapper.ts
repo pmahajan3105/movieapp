@@ -240,7 +240,7 @@ export class EmotionalJourneyMapper {
     try {
       const response = await anthropic.messages.create({
         model: claudeConfig.model, // Use faster model for emotional analysis
-        max_tokens: request.analysisDepth === 'comprehensive' ? 3000 : 2000,
+        max_tokens: 2000, // PATCH: analysisDepth not present on request
         messages: [
           {
             role: 'user',
@@ -249,7 +249,8 @@ export class EmotionalJourneyMapper {
         ],
       })
 
-      const aiAnalysis = response.content[0].type === 'text' ? response.content[0].text : ''
+      const aiAnalysis =
+        response.content?.[0]?.type === 'text' ? (response.content?.[0]?.text ?? '') : ''
       return this.parseEmotionalAnalysis(aiAnalysis)
     } catch (error) {
       logger.warn('AI emotional analysis failed, using pattern recognition', { error })
@@ -393,9 +394,9 @@ CONTEXT: The user is currently in a ${request.userMoodContext} mood. Consider ho
     patterns.forEach(pattern => {
       let match
       while ((match = pattern.exec(text)) !== null) {
-        const timestamp = parseInt(match[1]) || 0
+        const timestamp = parseInt(match[1] || '0') || 0
         const emotion = match[2]?.trim() || 'unknown'
-        const intensity = parseInt(match[3]) / 10 || 0.5
+        const intensity = parseInt(match[3] || '5') / 10 || 0.5
         const description = match[0]
 
         beats.push({
@@ -443,7 +444,7 @@ CONTEXT: The user is currently in a ${request.userMoodContext} mood. Consider ho
     if (intensityMatches && intensityMatches.length > 0) {
       const scores = intensityMatches.map(match => {
         const scoreMatch = match.match(/(\d+(?:\.\d+)?)/)
-        return scoreMatch ? parseFloat(scoreMatch[1]) : 5
+        return scoreMatch ? parseFloat(scoreMatch[1] || '5') : 5
       })
 
       const avgScore = scores.reduce((sum, score) => sum + score, 0) / scores.length
@@ -625,8 +626,8 @@ CONTEXT: The user is currently in a ${request.userMoodContext} mood. Consider ho
       anxious: ['tense', 'suspenseful', 'uncertain', 'worried'],
     }
 
-    const currentMoodEmotions = moodMapping[request.currentMood.toLowerCase()] || []
-    const journeyEmotions = journey.emotionalBeats.map(beat => beat.emotion.toLowerCase())
+    const currentMoodEmotions = moodMapping[request.currentMood?.toLowerCase() ?? ''] || []
+    const journeyEmotions = journey.emotionalBeats.map(beat => beat.emotion?.toLowerCase() ?? '')
 
     const matches = currentMoodEmotions.filter(emotion =>
       journeyEmotions.some(journeyEmotion => journeyEmotion.includes(emotion))

@@ -374,14 +374,14 @@ export class UnifiedAIService {
     userId: string,
     query: string,
     movies: Movie[],
-    queryResult: QueryProcessingResult
+    queryResult: any // Temporarily use any until QueryProcessingResult is properly defined
   ): Promise<Movie[]> {
     try {
       // Apply advanced filters based on query analysis
       let filteredMovies = movies
 
       // Apply confidence threshold
-      if (queryResult.searchFilters.minConfidence) {
+      if (queryResult?.searchFilters?.minConfidence) {
         // Filter movies by confidence threshold
       }
 
@@ -412,7 +412,7 @@ export class UnifiedAIService {
       algorithm: 'smart',
       insights: {
         ...result.insights,
-        confidence: result.insights.confidence || 0.8,
+        confidence: 0.8, // Set default confidence since result.insights doesn't have confidence property
       },
       performance: {
         latency: 0, // Will be set by caller

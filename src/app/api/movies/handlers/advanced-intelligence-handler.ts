@@ -90,13 +90,11 @@ export async function handleAdvancedIntelligenceRequest(
 
       // Educational insights if requested
       educationalInsights: queryResult.requiresExplanation
-        ? recommendations.advancedAnalysis?.educationalInsights
+        ? recommendations.educationalInsights
         : undefined,
 
       // Explanations
-      explanations: recommendations.explanations
-        ? Object.fromEntries(recommendations.explanations)
-        : undefined,
+      explanations: recommendations.explanations,
     }
 
     logger.info('Advanced intelligence request completed', {
@@ -183,12 +181,10 @@ export async function handleThematicRecommendations(
         thematicAnalysis: true,
       },
 
-      // Thematic analysis results
-      thematicAnalysis: recommendations.advancedAnalysis?.thematicProfiles,
+      // Thematic analysis results - handled via insights
+      thematicAnalysis: recommendations.insights?.thematicMatches,
 
-      explanations: recommendations.explanations
-        ? Object.fromEntries(recommendations.explanations)
-        : undefined,
+      explanations: recommendations.explanations,
     }
 
     logger.info('Thematic recommendations completed', {

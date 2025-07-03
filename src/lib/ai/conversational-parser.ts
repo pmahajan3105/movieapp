@@ -555,7 +555,7 @@ Focus on extracting sophisticated cinematic and thematic understanding. Return o
 
     // Extract comparative context
     const comparativeContext = this.extractComparativeContext(query)
-    if (Object.keys(comparativeContext).length > 0) {
+    if (comparativeContext && Object.keys(comparativeContext).length > 0) {
       enhancement.comparative_context = comparativeContext
     }
 
@@ -640,7 +640,7 @@ Focus on extracting sophisticated cinematic and thematic understanding. Return o
     // Better than patterns
     const betterThanMatch = lowerQuery.match(/better than (.+?)(?:\s|$|,|\.)/i)
     if (betterThanMatch) {
-      context.better_than = [betterThanMatch[1]]
+      context.better_than = [betterThanMatch[1] ?? '']
     }
 
     // Different from patterns
@@ -648,7 +648,7 @@ Focus on extracting sophisticated cinematic and thematic understanding. Return o
       /(?:different from|not like|unlike) (.+?)(?:\s|$|,|\.)/i
     )
     if (differentFromMatch) {
-      context.different_from = [differentFromMatch[1]]
+      context.different_from = [differentFromMatch[1] ?? '']
     }
 
     // Similar but patterns
@@ -656,7 +656,7 @@ Focus on extracting sophisticated cinematic and thematic understanding. Return o
       /(?:like .+ but|similar to .+ but) (.+?)(?:\s|$|,|\.)/i
     )
     if (similarButMatch) {
-      context.similar_but = [similarButMatch[1]]
+      context.similar_but = [similarButMatch[1] ?? '']
     }
 
     return context

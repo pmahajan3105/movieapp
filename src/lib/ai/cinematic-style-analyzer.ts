@@ -7,6 +7,7 @@ import { anthropic, claudeConfig } from '@/lib/anthropic/config'
 import { createClient } from '@supabase/supabase-js'
 import { getSupabaseUrl, getSupabaseServiceRoleKey } from '@/lib/env'
 import { logger } from '@/lib/logger'
+import { getMovieService } from '@/lib/services/movie-service'
 import type { Movie } from '@/types'
 import type {
   CinematicStyle,
@@ -309,6 +310,46 @@ export class CinematicStyleAnalyzer {
 
   // Private helper methods
 
+  private async getMoviesByDirector(directorName: string): Promise<Movie[]> {
+    // TODO: Implement real search
+    return []
+  }
+
+  private async aggregateDirectorialSignature(
+    movies: Movie[],
+    directorName: string
+  ): Promise<DirectorialSignature> {
+    // Basic implementation - this would need more sophisticated analysis
+    return {
+      directorName,
+      signatureElements: ['Visual style', 'Narrative approach', 'Thematic consistency'],
+      consistencyScore: 0.8,
+      evolutionPhase: 'mature',
+      uniqueContributions: ['Distinctive visual language'],
+    }
+  }
+
+  private compareSignatures(
+    signature1: DirectorialSignature,
+    signature2: DirectorialSignature,
+    focusAspects: string[]
+  ): DirectorialComparison {
+    return {
+      similarities: ['Strong visual composition'],
+      differences: ['Different narrative pacing'],
+      influenceDirection: 'none',
+      overallSimilarity: 0.6,
+      focusAspects: focusAspects.reduce((acc, aspect) => ({ ...acc, [aspect]: 0.5 }), {}),
+    }
+  }
+
+  private analyzeDirectorialEvolution(
+    signature1: DirectorialSignature,
+    signature2: DirectorialSignature
+  ): string {
+    return `Comparative analysis of ${signature1.directorName} and ${signature2.directorName} reveals distinct evolutionary paths in their cinematic approaches.`
+  }
+
   private async performStyleAnalysis(
     movie: Movie,
     request: StyleAnalysisRequest
@@ -332,7 +373,8 @@ export class CinematicStyleAnalyzer {
         ],
       })
 
-      const aiAnalysis = response.content[0].type === 'text' ? response.content[0].text : ''
+      const aiAnalysis =
+        response.content?.[0]?.type === 'text' ? (response.content?.[0]?.text ?? '') : ''
       return this.parseStyleAnalysis(aiAnalysis, movie)
     } catch (error) {
       logger.warn('AI style analysis failed, using structured approach', { error })

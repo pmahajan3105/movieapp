@@ -3,7 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 import { getMovieService } from '@/lib/services/movie-service'
 import { logger } from '@/lib/logger'
-import { unifiedAI } from '@/lib/ai'
+import { UnifiedAIService } from '@/lib/ai'
 
 export async function handleBehavioralRecommendations(
   supabase: SupabaseClient,
@@ -12,10 +12,14 @@ export async function handleBehavioralRecommendations(
   includeExplanations: boolean,
   includePreferenceInsights: boolean
 ) {
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
   if (!user) {
     // Temporarily allow unauthorized access for debugging
-    logger.warn('No user found in behavioral recommendations, falling back to basic recommendations')
+    logger.warn(
+      'No user found in behavioral recommendations, falling back to basic recommendations'
+    )
     // Return basic recommendations instead of erroring
     try {
       const movieService = getMovieService()
@@ -28,20 +32,22 @@ export async function handleBehavioralRecommendations(
           currentPage: page,
           limit,
           hasMore: page * limit < popularResult.totalResults,
-          totalPages: Math.ceil(popularResult.totalResults / limit)
+          totalPages: Math.ceil(popularResult.totalResults / limit),
         },
         source: 'popular_fallback',
-        note: 'Authentication failed, showing popular movies'
+        note: 'Authentication failed, showing popular movies',
       })
     } catch (fallbackError) {
-      logger.error('Fallback to popular movies also failed', { error: fallbackError instanceof Error ? fallbackError.message : 'Unknown error' })
+      logger.error('Fallback to popular movies also failed', {
+        error: fallbackError instanceof Error ? fallbackError.message : 'Unknown error',
+      })
       return NextResponse.json({
         success: true,
         data: [],
         total: 0,
         pagination: { currentPage: page, limit, hasMore: false, totalPages: 0 },
         source: 'empty_fallback',
-        note: 'All movie services failed, showing empty result'
+        note: 'All movie services failed, showing empty result',
       })
     }
   }
@@ -62,28 +68,29 @@ export async function handleBehavioralRecommendations(
     if (insightRow) {
       preferenceInsights = {
         insights: insightRow.insights,
-        confidence_score: insightRow.confidence_score
+        confidence_score: insightRow.confidence_score,
       }
     }
   }
 
   // Use unified AI service for behavioral recommendations
+  const unifiedAI = UnifiedAIService.getInstance()
   const recommendations = await unifiedAI.getRecommendations({
     userId: user.id,
     algorithm: 'behavioral',
     context: {
       limit: limit * 3, // Get more candidates for better filtering
-      includeExplanations
-    }
+      includeExplanations,
+    },
   })
 
   const start = (page - 1) * limit
   const moviesSlice = recommendations.movies.slice(start, start + limit)
 
   // Add explanations if they were generated
-  const moviesWithExplanations = moviesSlice.map(movie => ({
+  const moviesWithExplanations = moviesSlice.map((movie: any) => ({
     ...movie,
-    explanation: recommendations.explanations?.get(movie.id) || null
+    explanation: recommendations.explanations?.[movie.id] || null,
   }))
 
   return NextResponse.json({
@@ -94,11 +101,11 @@ export async function handleBehavioralRecommendations(
       currentPage: page,
       limit,
       hasMore: start + limit < recommendations.movies.length,
-      totalPages: Math.ceil(recommendations.movies.length / limit)
+      totalPages: Math.ceil(recommendations.movies.length / limit),
     },
     source: 'behavioral',
     algorithm: recommendations.algorithm,
     performance: recommendations.performance,
-    preferenceInsights
+    preferenceInsights,
   })
 }
