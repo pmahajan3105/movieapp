@@ -138,12 +138,48 @@ export class ConversationalParser {
   }
 
   /**
-   * Enhanced query parsing with full advanced intelligence (STUB - TO BE IMPLEMENTED)
+   * Enhanced query parsing with full advanced intelligence
    */
-  async parseAdvancedQuery(query: string, userId: string): Promise<any> {
-    // TODO: Implement advanced query parsing
-    const basicQuery = await this.parseQuery(query, userId)
-    return basicQuery // Return basic query for now
+  async parseAdvancedQuery(query: string, userId: string): Promise<ConversationalQuery> {
+    try {
+      logger.info('Parsing advanced conversational query', { query, userId })
+
+      // First, get the basic query structure
+      const basicQuery = await this.parseQuery(query, userId)
+
+      // Enhance with advanced analysis
+      const enhancedCriteria = await this.enhanceWithAdvancedAnalysis(query, basicQuery, userId)
+
+      // Combine basic and advanced insights
+      const advancedQuery: ConversationalQuery = {
+        ...basicQuery,
+        extracted_criteria: {
+          ...basicQuery.extracted_criteria,
+          ...enhancedCriteria,
+        },
+        multi_intent: this.detectMultipleIntents(query),
+        complexity_score: this.calculateComplexityScore(query, basicQuery),
+        requires_explanation: this.requiresExplanation(query),
+      }
+
+      logger.info('Advanced query parsing completed', {
+        originalQuery: query,
+        intent: advancedQuery.intent,
+        confidence: advancedQuery.confidence,
+        complexity: advancedQuery.complexity_score,
+        multiIntent: advancedQuery.multi_intent,
+      })
+
+      return advancedQuery
+    } catch (error) {
+      logger.error('Advanced query parsing failed', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        query,
+        userId,
+      })
+      // Fallback to basic parsing
+      return this.parseQuery(query, userId)
+    }
   }
 
   /**
@@ -487,5 +523,212 @@ Focus on extracting sophisticated cinematic and thematic understanding. Return o
     }
 
     return validated
+  }
+
+  /**
+   * Enhanced analysis for advanced query parsing
+   */
+  private async enhanceWithAdvancedAnalysis(
+    query: string,
+    basicQuery: ConversationalQuery,
+    userId: string
+  ): Promise<Partial<ConversationalQuery['extracted_criteria']>> {
+    const enhancement: Partial<ConversationalQuery['extracted_criteria']> = {}
+
+    // Detect thematic elements
+    const themes = this.extractThematicElements(query)
+    if (themes.length > 0) {
+      enhancement.themes = themes
+    }
+
+    // Detect visual style preferences
+    const visualStyle = this.extractVisualStylePreferences(query)
+    if (visualStyle.length > 0) {
+      enhancement.visual_style = visualStyle
+    }
+
+    // Detect narrative structure preferences
+    const narrative = this.extractNarrativePreferences(query)
+    if (narrative.length > 0) {
+      enhancement.narrative_structure = narrative
+    }
+
+    // Extract comparative context
+    const comparativeContext = this.extractComparativeContext(query)
+    if (Object.keys(comparativeContext).length > 0) {
+      enhancement.comparative_context = comparativeContext
+    }
+
+    return enhancement
+  }
+
+  private extractThematicElements(query: string): string[] {
+    const themes: string[] = []
+    const lowerQuery = query.toLowerCase()
+
+    const thematicKeywords = {
+      identity: ['identity', 'self-discovery', 'who am i', 'finding myself'],
+      love: ['love', 'romance', 'relationship', 'heartbreak'],
+      redemption: ['redemption', 'second chance', 'forgiveness', 'atonement'],
+      justice: ['justice', 'revenge', 'right and wrong', 'moral'],
+      family: ['family', 'parents', 'siblings', 'home'],
+      friendship: ['friendship', 'loyalty', 'betrayal', 'trust'],
+      survival: ['survival', 'struggle', 'fighting', 'overcome'],
+      power: ['power', 'control', 'authority', 'corruption'],
+      sacrifice: ['sacrifice', 'selfless', 'giving up', 'martyr'],
+      growth: ['coming of age', 'growing up', 'maturity', 'learning'],
+    }
+
+    for (const [theme, keywords] of Object.entries(thematicKeywords)) {
+      if (keywords.some(keyword => lowerQuery.includes(keyword))) {
+        themes.push(theme)
+      }
+    }
+
+    return themes
+  }
+
+  private extractVisualStylePreferences(query: string): string[] {
+    const styles: string[] = []
+    const lowerQuery = query.toLowerCase()
+
+    const styleKeywords = {
+      dark: ['dark', 'noir', 'shadows', 'moody'],
+      colorful: ['colorful', 'vibrant', 'bright', 'vivid'],
+      minimalist: ['minimalist', 'simple', 'clean', 'stark'],
+      epic: ['epic', 'grand', 'sweeping', 'spectacular'],
+      intimate: ['intimate', 'close', 'personal', 'small-scale'],
+      stylized: ['stylized', 'artistic', 'unique style', 'distinctive'],
+    }
+
+    for (const [style, keywords] of Object.entries(styleKeywords)) {
+      if (keywords.some(keyword => lowerQuery.includes(keyword))) {
+        styles.push(style)
+      }
+    }
+
+    return styles
+  }
+
+  private extractNarrativePreferences(query: string): string[] {
+    const narratives: string[] = []
+    const lowerQuery = query.toLowerCase()
+
+    const narrativeKeywords = {
+      'non-linear': ['non-linear', 'flashbacks', 'time jumps', 'complex timeline'],
+      simple: ['simple', 'straightforward', 'easy to follow'],
+      mystery: ['mystery', 'puzzle', 'reveals', 'twists'],
+      journey: ['journey', 'adventure', 'quest', 'travel'],
+      ensemble: ['ensemble', 'multiple characters', 'group'],
+    }
+
+    for (const [narrative, keywords] of Object.entries(narrativeKeywords)) {
+      if (keywords.some(keyword => lowerQuery.includes(keyword))) {
+        narratives.push(narrative)
+      }
+    }
+
+    return narratives
+  }
+
+  private extractComparativeContext(
+    query: string
+  ): ConversationalQuery['extracted_criteria']['comparative_context'] {
+    const context: ConversationalQuery['extracted_criteria']['comparative_context'] = {}
+    const lowerQuery = query.toLowerCase()
+
+    // Better than patterns
+    const betterThanMatch = lowerQuery.match(/better than (.+?)(?:\s|$|,|\.)/i)
+    if (betterThanMatch) {
+      context.better_than = [betterThanMatch[1]]
+    }
+
+    // Different from patterns
+    const differentFromMatch = lowerQuery.match(
+      /(?:different from|not like|unlike) (.+?)(?:\s|$|,|\.)/i
+    )
+    if (differentFromMatch) {
+      context.different_from = [differentFromMatch[1]]
+    }
+
+    // Similar but patterns
+    const similarButMatch = lowerQuery.match(
+      /(?:like .+ but|similar to .+ but) (.+?)(?:\s|$|,|\.)/i
+    )
+    if (similarButMatch) {
+      context.similar_but = [similarButMatch[1]]
+    }
+
+    return context
+  }
+
+  private detectMultipleIntents(query: string): boolean {
+    const intentIndicators = [
+      'and',
+      'but',
+      'also',
+      'or',
+      'however',
+      'additionally',
+      'plus',
+      'recommend',
+      'find',
+      'search',
+      'explain',
+      'compare',
+    ]
+
+    const matches = intentIndicators.filter(indicator =>
+      query.toLowerCase().includes(indicator)
+    ).length
+
+    return matches >= 2
+  }
+
+  private calculateComplexityScore(query: string, basicQuery: ConversationalQuery): number {
+    let complexity = 0
+
+    // Length factor
+    complexity += Math.min(query.length / 200, 0.3)
+
+    // Number of criteria
+    const criteriaCount = Object.keys(basicQuery.extracted_criteria).length
+    complexity += Math.min(criteriaCount / 10, 0.3)
+
+    // Complex language patterns
+    const complexPatterns = [
+      'however',
+      'nevertheless',
+      'furthermore',
+      'specifically',
+      'particularly',
+      'emotionally',
+      'psychologically',
+      'thematically',
+      'cinematically',
+    ]
+    const complexMatches = complexPatterns.filter(pattern =>
+      query.toLowerCase().includes(pattern)
+    ).length
+    complexity += Math.min(complexMatches / 5, 0.4)
+
+    return Math.min(complexity, 1.0)
+  }
+
+  private requiresExplanation(query: string): boolean {
+    const explanationKeywords = [
+      'why',
+      'how',
+      'explain',
+      'because',
+      'reason',
+      'what makes',
+      'analyze',
+      'understand',
+      'meaning',
+      'significance',
+    ]
+
+    return explanationKeywords.some(keyword => query.toLowerCase().includes(keyword))
   }
 }

@@ -949,13 +949,66 @@ Provide specific examples and technical details. Focus on what makes this film's
   // calculateStyleSimilarity, getExistingStyleAnalysis, storeStyleAnalysis, etc.
 
   private async getExistingStyleAnalysis(movieId: string): Promise<StyleAnalysisResponse | null> {
-    // Implementation for retrieving cached style analysis
-    return null // Placeholder
+    try {
+      const { data, error } = await this.supabase
+        .from('movie_cinematic_styles')
+        .select('*')
+        .eq('movie_id', movieId)
+        .single()
+
+      if (error && error.code !== 'PGRST116') {
+        logger.error('Error fetching existing style analysis', { error })
+        return null
+      }
+
+      if (!data) return null
+
+      // Parse stored analysis into response format
+      const cinematicStyle = this.parseStoredStyle(data)
+      return {
+        cinematicStyle,
+        styleMetadata: {
+          analysisDate: data.created_at || new Date().toISOString(),
+          focusAreas: data.focus_areas || ['cinematography', 'editing'],
+          confidence: data.confidence || 0.7,
+          processingTime: 0,
+          dataSource: ['cache'],
+          modelVersion: 'cached',
+        },
+        directoralSignature: data.directoral_signature,
+        styleInfluences: data.style_influences || [],
+        innovations: data.innovations || [],
+      }
+    } catch (error) {
+      logger.error('Failed to retrieve existing style analysis', { error, movieId })
+      return null
+    }
   }
 
   private shouldUseCache(request: StyleAnalysisRequest, existing: StyleAnalysisResponse): boolean {
-    // Implementation for cache validity check
-    return false // Placeholder
+    // Check if cache is recent (within 7 days)
+    const cacheAge = Date.now() - new Date(existing.styleMetadata.analysisDate).getTime()
+    const maxCacheAge = 7 * 24 * 60 * 60 * 1000 // 7 days in milliseconds
+
+    if (cacheAge > maxCacheAge) return false
+
+    // Check if analysis depth is sufficient
+    const cachedDepth = existing.styleMetadata.dataSource.includes('ai_analysis')
+      ? 'detailed'
+      : 'basic'
+    const requestDepth = request.analysisDepth
+
+    if (requestDepth === 'expert' && cachedDepth !== 'expert') return false
+    if (requestDepth === 'comprehensive' && ['basic'].includes(cachedDepth)) return false
+
+    // Check if focus areas match
+    if (request.focusAreas && request.focusAreas.length > 0) {
+      const cachedAreas = existing.styleMetadata.focusAreas
+      const hasRequiredAreas = request.focusAreas.every(area => cachedAreas.includes(area))
+      if (!hasRequiredAreas) return false
+    }
+
+    return true
   }
 
   private async getMovieData(movieId: string): Promise<Movie | null> {
@@ -1022,12 +1075,62 @@ Provide specific examples and technical details. Focus on what makes this film's
     style: CinematicStyle,
     signature?: DirectorialSignature
   ): Promise<void> {
-    // Implementation placeholder
+    try {
+      const { error } = await this.supabase.from('movie_cinematic_styles').upsert({
+        movie_id: movieId,
+        visual_characteristics: style.visualCharacteristics,
+        camera_work: style.cameraWork,
+        editing_style: style.editingStyle,
+        sound_design: style.soundDesign,
+        production_design: style.productionDesign,
+        directoral_signature: signature,
+        confidence: this.calculateStyleConfidence(style, signature),
+        created_at: new Date().toISOString(),
+      })
+
+      if (error) {
+        logger.error('Failed to store style analysis', { error, movieId })
+      } else {
+        logger.debug('Style analysis stored successfully', { movieId })
+      }
+    } catch (error) {
+      logger.error('Error storing style analysis', { error, movieId })
+    }
   }
 
   private parseStoredStyle(data: any): CinematicStyle {
-    // Implementation placeholder
-    return {} as CinematicStyle
+    return {
+      visualCharacteristics: data.visual_characteristics || [],
+      cameraWork: data.camera_work || {
+        movementStyle: 'dynamic',
+        frameComposition: 'classical',
+        depthOfField: 'variable',
+        signature: [],
+      },
+      editingStyle: data.editing_style || {
+        pacing: 'standard',
+        transitions: ['cut', 'fade'],
+        rhythm: 'dramatic',
+        continuity: 'classical',
+      },
+      soundDesign: data.sound_design || {
+        musicStyle: [],
+        soundscapeType: 'realistic',
+        dialogueStyle: 'naturalistic',
+        silenceUsage: 0.3,
+      },
+      productionDesign: data.production_design || {
+        visualStyle: [],
+        colorPalette: {
+          dominant: [],
+          symbolic: {},
+          temperature: 'neutral',
+          saturation: 'natural',
+        },
+        setDesign: 'realistic',
+        costumeSignificance: 0.5,
+      },
+    }
   }
 
   private calculateStyleSimilarity(
@@ -1035,8 +1138,66 @@ Provide specific examples and technical details. Focus on what makes this film's
     style2: CinematicStyle,
     aspects: string[]
   ): { score: number; sharedElements: string[]; distinctElements: string[]; explanation: string } {
-    // Implementation placeholder
-    return { score: 0, sharedElements: [], distinctElements: [], explanation: '' }
+    let totalScore = 0
+    let scoreCount = 0
+    const sharedElements: string[] = []
+    const distinctElements: string[] = []
+
+    // Camera work similarity
+    if (aspects.includes('camera')) {
+      if (style1.cameraWork.movementStyle === style2.cameraWork.movementStyle) {
+        totalScore += 1
+        sharedElements.push(`${style1.cameraWork.movementStyle} camera movement`)
+      } else {
+        distinctElements.push(
+          `Different camera movement: ${style1.cameraWork.movementStyle} vs ${style2.cameraWork.movementStyle}`
+        )
+      }
+
+      if (style1.cameraWork.frameComposition === style2.cameraWork.frameComposition) {
+        totalScore += 1
+        sharedElements.push(`${style1.cameraWork.frameComposition} composition`)
+      }
+      scoreCount += 2
+    }
+
+    // Editing similarity
+    if (aspects.includes('editing')) {
+      if (style1.editingStyle.pacing === style2.editingStyle.pacing) {
+        totalScore += 1
+        sharedElements.push(`${style1.editingStyle.pacing} editing pace`)
+      } else {
+        distinctElements.push(
+          `Different pacing: ${style1.editingStyle.pacing} vs ${style2.editingStyle.pacing}`
+        )
+      }
+      scoreCount += 1
+    }
+
+    // Color similarity
+    if (aspects.includes('color')) {
+      const commonColors = style1.productionDesign.colorPalette.dominant.filter(color =>
+        style2.productionDesign.colorPalette.dominant.includes(color)
+      )
+      if (commonColors.length > 0) {
+        totalScore += 0.8
+        sharedElements.push(`Similar color palette: ${commonColors.join(', ')}`)
+      }
+      scoreCount += 1
+    }
+
+    const finalScore = scoreCount > 0 ? totalScore / scoreCount : 0
+    const explanation =
+      sharedElements.length > 0
+        ? `Movies share ${sharedElements.length} stylistic elements`
+        : 'Movies have distinct visual styles'
+
+    return {
+      score: Math.round(finalScore * 100) / 100,
+      sharedElements,
+      distinctElements,
+      explanation,
+    }
   }
 
   private identifyStyleCluster(style: CinematicStyle, similarMovies: any[]): string {

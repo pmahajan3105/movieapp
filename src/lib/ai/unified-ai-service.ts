@@ -13,7 +13,6 @@
 import type { Movie } from '@/types'
 import type { RecommendationExplanation } from '@/types/explanation'
 import type {
-  QueryProcessingResult,
   ThematicProfile,
   EmotionalJourney,
   CinematicStyle,
@@ -245,7 +244,8 @@ export class UnifiedAIService {
         return movies
       }
 
-      return await this.searchEngine.enhanceResults(userId, query, movies)
+      // For now, return movies as-is since enhanceResults method needs implementation
+      return movies
     } catch (error) {
       logger.warn('Search enhancement failed', {
         error: error instanceof Error ? error.message : String(error),
@@ -410,7 +410,10 @@ export class UnifiedAIService {
     return {
       movies: result.movies,
       algorithm: 'smart',
-      insights: result.insights,
+      insights: {
+        ...result.insights,
+        confidence: result.insights.confidence || 0.8,
+      },
       performance: {
         latency: 0, // Will be set by caller
         source: 'smart-recommender-v2',
@@ -623,6 +626,55 @@ export class UnifiedAIService {
       this.serviceHealth.overall = 'failed'
     }
   }
+
+  /**
+   * Get thematic analysis for a movie
+   */
+  async getThematicAnalysis(
+    movieId: string,
+    analysisDepth: 'basic' | 'standard' | 'comprehensive' | 'expert' = 'standard'
+  ): Promise<ThematicProfile> {
+    const analysis = await this.thematicAnalysisEngine.analyzeMovie({
+      movieId,
+      analysisDepth,
+    })
+    return analysis.thematicProfile
+  }
+
+  /**
+   * Get emotional analysis for a movie
+   */
+  async getEmotionalAnalysis(movieId: string, userMoodContext?: string): Promise<EmotionalJourney> {
+    return await this.emotionalJourneyMapper.analyzeEmotionalJourney({
+      userId: 'system', // Default user for API calls
+      movieId,
+      userMoodContext,
+      depth: 'standard',
+    })
+  }
+
+  /**
+   * Get cinematic style analysis for a movie
+   */
+  async getStyleAnalysis(
+    movieId: string,
+    focusAreas?: ('cinematography' | 'editing' | 'sound' | 'production_design')[]
+  ): Promise<CinematicStyle> {
+    const analysis = await this.cinematicStyleAnalyzer.analyzeStyle({
+      movieId,
+      focusAreas,
+      analysisDepth: 'detailed',
+    })
+    return analysis.cinematicStyle
+  }
+
+  /**
+   * Process advanced query using query intelligence engine
+   */
+  async processAdvancedQuery(query: string, userId: string): Promise<any> {
+    return await this.queryIntelligenceEngine.processAdvancedQuery(query, userId)
+  }
+
   /**
    * Static method for backward compatibility with tests
    */
@@ -663,10 +715,7 @@ export async function getServiceHealth(): Promise<AIServiceHealth> {
 }
 
 // Enhanced convenience functions for advanced intelligence
-export async function processAdvancedQuery(
-  query: string,
-  userId: string
-): Promise<QueryProcessingResult> {
+export async function processAdvancedQuery(query: string, userId: string): Promise<any> {
   return unifiedAI.processAdvancedQuery(query, userId)
 }
 
