@@ -34,6 +34,7 @@ export const createMockSupabaseClient = () => {
       select: jest.fn().mockReturnThis(),
       insert: jest.fn().mockReturnThis(),
       update: jest.fn().mockReturnThis(),
+      upsert: jest.fn().mockReturnThis(),
       delete: jest.fn().mockReturnThis(),
       eq: jest.fn().mockReturnThis(),
       neq: jest.fn().mockReturnThis(),
@@ -54,7 +55,7 @@ export const createMockSupabaseClient = () => {
       or: jest.fn().mockReturnThis(),
       not: jest.fn().mockReturnThis(),
       filter: jest.fn().mockReturnThis(),
-      
+
       // Terminal operations (return promises)
       single: jest.fn().mockResolvedValue({
         data: { id: 'mock-id', watched: false },
@@ -64,20 +65,19 @@ export const createMockSupabaseClient = () => {
         data: { id: 'mock-id', watched: false },
         error: null,
       }),
-      
+
       // Default execution (used when chain ends without explicit terminal)
-      then: jest.fn((onFulfilled) => {
+      then: jest.fn(onFulfilled => {
         const result = { data: defaultData, error: null, count: defaultData.length }
         return Promise.resolve(onFulfilled ? onFulfilled(result) : result)
       }),
     }
 
-    // Special handling for operations that can be terminal or chainable
-    builder.upsert = jest.fn().mockResolvedValue({ error: null })
-    
+    // upsert is already defined in the builder object above
+
     return builder
   }
-  
+
   const builder = createChainableBuilder([])
 
   return {
