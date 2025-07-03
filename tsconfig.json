@@ -53,11 +53,6 @@
     "src/lib/utils/haptic-feedback.tsx",
     "src/lib/ai/thematic-analysis-engine.ts",
     "src/lib/ai/hyper-personalized-engine.ts",
-    "src/__tests__/setupMocks.ts",
-    "src/__tests__/components/movies/TrendingMoviesGrid.test.tsx",
-    "src/__tests__/contexts/ErrorRecoveryContext.test.tsx",
-    "src/__tests__/contexts/HyperPersonalizedContext.test.tsx",
-    "src/__tests__/contexts/ThemeContext.test.tsx",
-    "src/__tests__/hooks/useBehaviorTracker.test.ts"
+    "src/__tests__/setupMocks.ts"
   ]
 }
