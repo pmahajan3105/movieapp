@@ -1,8 +1,7 @@
 name: E2E Tests
 
 on:
-  push:
-    branches: [ main ]
+  # Disabled push trigger for personal project simplification
   workflow_dispatch:
 
 jobs:
