@@ -355,20 +355,10 @@ export class UnifiedAIService {
           primaryReasons: queryResult.prioritizedIntents.map(intent => intent.type),
           confidence: queryResult.advancedQuery.confidence,
           diversityScore: 0.8,
-          queryComplexity: queryResult.queryComplexity,
         },
         performance: {
           latency: 0,
           source: 'advanced-intelligence-pipeline',
-        },
-        advancedAnalysis: {
-          processedQuery: queryResult.advancedQuery,
-          thematicProfiles: {},
-          emotionalJourneys: {},
-          cinematicStyles: {},
-          educationalInsights: queryResult.requiresExplanation
-            ? ['Educational insights would be provided here']
-            : undefined,
         },
       }
     } catch (error) {
@@ -415,7 +405,7 @@ export class UnifiedAIService {
       diversityFactor: request.context?.diversityFactor || 0.3,
     }
 
-    const result = await this.smartRecommender.getRecommendations(options)
+    const result = await this.smartRecommender.getSmartRecommendations(options)
 
     return {
       movies: result.movies,
@@ -431,15 +421,17 @@ export class UnifiedAIService {
   private async getHyperPersonalizedRecommendations(
     request: UnifiedRecommendationRequest
   ): Promise<UnifiedRecommendationResponse> {
-    const recommendations = await this.hyperPersonalizedEngine.getHyperPersonalizedRecommendations(
+    const recommendations = await this.hyperPersonalizedEngine.generateRecommendations(
       request.userId,
-      request.context?.limit || 12,
       {
-        behavioral_weight: 0.4,
-        temporal_weight: 0.3,
-        exploration_weight: 0.2,
-        quality_threshold_weight: 0.7,
-        recency_weight: 0.3,
+        count: request.context?.limit || 12,
+        factors: {
+          behavioral_weight: 0.4,
+          temporal_weight: 0.3,
+          exploration_weight: 0.2,
+          quality_threshold_weight: 0.7,
+          recency_weight: 0.3,
+        },
       }
     )
 
