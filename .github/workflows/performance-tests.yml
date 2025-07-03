@@ -303,7 +303,7 @@ jobs:
       if: github.ref == 'refs/heads/main'
       uses: peaceiris/actions-gh-pages@v3
       with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
+        github_token: ${{ secrets.GH_PAGES_TOKEN }}
         publish_dir: ./performance/consolidated-reports
         destination_dir: performance-reports/${{ github.run_number }}
 

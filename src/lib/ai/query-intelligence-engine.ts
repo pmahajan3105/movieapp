@@ -20,6 +20,7 @@ import type {
   CulturalFilter,
 } from '@/types/advanced-intelligence'
 import type { Movie } from '@/types'
+import type { ConversationalQuery } from './conversational-parser'
 import {
   ThematicTaxonomy,
   PSYCHOLOGICAL_THEMES,
@@ -86,7 +87,14 @@ export class QueryIntelligenceEngine {
       const entities = await this.extractEntities(query, conversationalQuery)
 
       // Step 3: Analyze intent hierarchy
-      const intentAnalysis = this.analyzeIntentHierarchy(conversationalQuery.detectedIntents)
+      const intentAnalysis = this.analyzeIntentHierarchy([
+        {
+          type: 'discover', // Map conversational intent to QueryIntent type
+          confidence: conversationalQuery.confidence,
+          parameters: {},
+          priority: 1,
+        },
+      ])
 
       // Step 4: Generate search filters
       const searchFilters = this.generateAdvancedFilters(conversationalQuery, entities)
@@ -108,8 +116,37 @@ export class QueryIntelligenceEngine {
         primaryIntent: intentAnalysis.primaryIntent.type,
       })
 
+      // Convert ConversationalQuery to AdvancedQuery
+      const advancedQuery: AdvancedQuery = {
+        originalQuery: query,
+        processedQuery: {
+          cleanedText: conversationalQuery.original_text,
+          expandedTerms: [],
+          synonyms: {},
+          relatedConcepts: [],
+          negativeFilters: conversationalQuery.extracted_criteria.negations || [],
+        },
+        extractedEntities: entities.themes.map(theme => ({
+          type: 'theme' as const,
+          value: theme,
+          confidence: 0.8,
+        })),
+        detectedIntents: [
+          {
+            type: 'discover',
+            confidence: conversationalQuery.confidence,
+            parameters: {},
+            priority: 1,
+          },
+        ],
+        implicitPreferences: [],
+        contextualFactors: [],
+        complexityLevel: complexity,
+        confidence: conversationalQuery.confidence,
+      }
+
       return {
-        advancedQuery: conversationalQuery,
+        advancedQuery,
         searchFilters,
         recommendationStrategy: strategy,
         prioritizedIntents: [intentAnalysis.primaryIntent, ...intentAnalysis.secondaryIntents],
@@ -132,7 +169,7 @@ export class QueryIntelligenceEngine {
    */
   async extractEntities(
     query: string,
-    advancedQuery: AdvancedQuery
+    conversationalQuery: ConversationalQuery
   ): Promise<EntityExtractionResult> {
     try {
       const prompt = this.buildEntityExtractionPrompt(query)
@@ -148,14 +185,15 @@ export class QueryIntelligenceEngine {
         ],
       })
 
-      const aiAnalysis = response.content[0].type === 'text' ? response.content[0].text : ''
+      const firstContent = response.content[0]
+      const aiAnalysis = firstContent?.type === 'text' ? firstContent.text : ''
       const extracted = this.parseEntityExtractionResponse(aiAnalysis)
 
-      // Enhance with existing entities from advanced query
-      return this.mergeEntityResults(extracted, advancedQuery.extractedEntities)
+      // Return extracted entities (no existing entities to merge in this method)
+      return extracted
     } catch (error) {
       logger.warn('Entity extraction failed, using fallback', { error })
-      return this.fallbackEntityExtraction(query, advancedQuery.extractedEntities)
+      return this.fallbackEntityExtraction(query, [])
     }
   }
 
@@ -179,7 +217,12 @@ export class QueryIntelligenceEngine {
       return priorityDiff !== 0 ? priorityDiff : b.confidence - a.confidence
     })
 
-    const primaryIntent = sortedIntents[0]
+    const primaryIntent = sortedIntents[0] || {
+      type: 'discover',
+      confidence: 0.5,
+      parameters: {},
+      priority: 1,
+    }
     const secondaryIntents = sortedIntents.slice(1, 3) // Take top 2 secondary intents
 
     // Detect conflicting intents
@@ -206,7 +249,7 @@ export class QueryIntelligenceEngine {
    * Generate advanced search filters from query analysis
    */
   generateAdvancedFilters(
-    advancedQuery: AdvancedQuery,
+    conversationalQuery: ConversationalQuery,
     entities: EntityExtractionResult
   ): AdvancedSearchFilters {
     const filters: AdvancedSearchFilters = {}
@@ -233,27 +276,23 @@ export class QueryIntelligenceEngine {
     }
 
     // Emotional filters
-    const emotionalPrefs = advancedQuery.implicitPreferences.filter(
-      pref => pref.category === 'mood' || pref.category === 'theme'
-    )
+    const emotionalPrefs = conversationalQuery.extracted_criteria.moods || []
     if (emotionalPrefs.length > 0) {
       filters.emotionalFilters = [
         {
           moodRange: entities.moods,
-          intensityRange: this.inferIntensityRange(advancedQuery),
+          intensityRange: this.inferIntensityRange(conversationalQuery),
         },
       ]
     }
 
-    // Narrative filters
-    const narrativePrefs = advancedQuery.implicitPreferences.filter(
-      pref => pref.category === 'complexity' || pref.category === 'style'
-    )
+    // Narrative filters - simplified for ConversationalQuery
+    const narrativePrefs = conversationalQuery.extracted_criteria.narrative_structure || []
     if (narrativePrefs.length > 0) {
       filters.narrativeFilters = [
         {
-          complexityRange: this.inferComplexityRange(advancedQuery),
-          linearityPreference: this.inferLinearityPreference(advancedQuery),
+          complexityRange: this.inferComplexityRange(conversationalQuery),
+          linearityPreference: this.inferLinearityPreference(conversationalQuery),
         },
       ]
     }
@@ -263,18 +302,21 @@ export class QueryIntelligenceEngine {
       filters.culturalFilters = [
         {
           periods: entities.periods,
-          relevanceToPresent: this.inferContemporaryRelevance(advancedQuery),
+          relevanceToPresent: this.inferContemporaryRelevance(conversationalQuery),
         },
       ]
     }
 
     // Exclusion filters
-    if (advancedQuery.processedQuery.negativeFilters.length > 0) {
-      filters.excludeThemes = advancedQuery.processedQuery.negativeFilters
+    if (
+      conversationalQuery.extracted_criteria.negations &&
+      conversationalQuery.extracted_criteria.negations.length > 0
+    ) {
+      filters.excludeThemes = conversationalQuery.extracted_criteria.negations
     }
 
     // Confidence threshold
-    filters.minConfidence = advancedQuery.confidence > 0.8 ? 0.7 : 0.5
+    filters.minConfidence = conversationalQuery.confidence > 0.8 ? 0.7 : 0.5
 
     return filters
   }
@@ -284,7 +326,7 @@ export class QueryIntelligenceEngine {
    */
   determineStrategy(
     intentAnalysis: IntentAnalysisResult,
-    advancedQuery: AdvancedQuery
+    conversationalQuery: ConversationalQuery
   ): 'thematic' | 'stylistic' | 'emotional' | 'hybrid' | 'educational' {
     const primaryIntent = intentAnalysis.primaryIntent.type
 
@@ -512,7 +554,7 @@ Return only valid JSON.
   }
 
   private assessQueryComplexity(
-    advancedQuery: AdvancedQuery,
+    conversationalQuery: ConversationalQuery,
     intentAnalysis: IntentAnalysisResult
   ): 'simple' | 'moderate' | 'complex' | 'expert' {
     let complexityScore = 0
@@ -543,7 +585,7 @@ Return only valid JSON.
   }
 
   private shouldProvideExplanation(
-    advancedQuery: AdvancedQuery,
+    conversationalQuery: ConversationalQuery,
     intentAnalysis: IntentAnalysisResult
   ): boolean {
     // Always explain for educational queries

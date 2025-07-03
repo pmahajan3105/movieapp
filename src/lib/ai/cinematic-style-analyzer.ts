@@ -750,7 +750,7 @@ Provide specific examples and technical details. Focus on what makes this film's
   }
 
   private extractVisualCharacteristics(text: string): string[] {
-    const characteristics = []
+    const characteristics: string[] = []
     const lowerText = text.toLowerCase()
 
     const visualKeywords = [
@@ -783,7 +783,9 @@ Provide specific examples and technical details. Focus on what makes this film's
   private extractDirectorialSignature(text: string, directors?: string[]): string | undefined {
     if (!directors || directors.length === 0) return undefined
 
-    const director = directors[0].toLowerCase()
+    const director = directors[0]?.toLowerCase()
+    if (!director) return undefined
+
     const lowerText = text.toLowerCase()
 
     // Check for known directorial styles
@@ -876,7 +878,7 @@ Provide specific examples and technical details. Focus on what makes this film's
       },
     }
 
-    return defaults[genre] || defaults['drama']
+    return defaults[genre] || defaults['drama']!
   }
 
   private getEraStyleDefaults(year: number): Partial<CinematicStyle> {
@@ -1043,7 +1045,7 @@ Provide specific examples and technical details. Focus on what makes this film's
       : 'basic'
     const requestDepth = request.analysisDepth
 
-    if (requestDepth === 'expert' && cachedDepth !== 'expert') return false
+    if (requestDepth === 'expert') return false // Expert always requires fresh analysis
     if (requestDepth === 'comprehensive' && ['basic'].includes(cachedDepth)) return false
 
     // Check if focus areas match

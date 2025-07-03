@@ -51,6 +51,7 @@
     "src/lib/services/streaming-response-handler.ts",
     "src/lib/services/non-streaming-response-handler.ts",
     "src/app/api/ai/chat/route.ts",
-    "src/lib/utils/haptic-feedback.tsx"
+    "src/lib/utils/haptic-feedback.tsx",
+    "src/lib/ai/query-intelligence-engine.ts"
   ]
 }

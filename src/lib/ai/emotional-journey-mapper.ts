@@ -521,7 +521,7 @@ CONTEXT: The user is currently in a ${request.userMoodContext} mood. Consider ho
       .split('.')
       .filter(sentence => climaxKeywords.some(keyword => sentence.toLowerCase().includes(keyword)))
 
-    if (climaxSentences.length > 0) {
+    if (climaxSentences.length > 0 && climaxSentences[0]) {
       climacticBeat.description = climaxSentences[0].trim().slice(0, 150)
     }
 
@@ -548,7 +548,7 @@ CONTEXT: The user is currently in a ${request.userMoodContext} mood. Consider ho
         resolutionKeywords.some(keyword => sentence.toLowerCase().includes(keyword))
       )
 
-    if (resolutionSentences.length > 0) {
+    if (resolutionSentences.length > 0 && resolutionSentences[0]) {
       resolutionBeat.description = resolutionSentences[0].trim().slice(0, 150)
     }
 
@@ -792,7 +792,9 @@ CONTEXT: The user is currently in a ${request.userMoodContext} mood. Consider ho
     let similarity = 0
 
     for (let i = 0; i < minLength; i++) {
-      similarity += 1 - Math.abs(progression1[i] - progression2[i])
+      const val1 = progression1[i] ?? 0
+      const val2 = progression2[i] ?? 0
+      similarity += 1 - Math.abs(val1 - val2)
     }
 
     return similarity / minLength
@@ -839,13 +841,15 @@ CONTEXT: The user is currently in a ${request.userMoodContext} mood. Consider ho
       if (consolidated[pref.emotionalPattern]) {
         // Average the preferences
         const existing = consolidated[pref.emotionalPattern]
-        existing.preference = (existing.preference + pref.preference) / 2
-        existing.intensityTolerance = (existing.intensityTolerance + pref.intensityTolerance) / 2
+        if (existing) {
+          existing.preference = (existing.preference + pref.preference) / 2
+          existing.intensityTolerance = (existing.intensityTolerance + pref.intensityTolerance) / 2
 
-        // Merge mood dependencies
-        Object.entries(pref.moodDependency).forEach(([mood, value]) => {
-          existing.moodDependency[mood] = (existing.moodDependency[mood] || 0 + value) / 2
-        })
+          // Merge mood dependencies
+          Object.entries(pref.moodDependency).forEach(([mood, value]) => {
+            existing.moodDependency[mood] = (existing.moodDependency[mood] || 0 + value) / 2
+          })
+        }
       } else {
         consolidated[pref.emotionalPattern] = { ...pref }
       }
