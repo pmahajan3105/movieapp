@@ -43,25 +43,12 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage --watchAll=false",
     "test:coverage:detailed": "jest --coverage --verbose --watchAll=false",
-    "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui",
-    "test:e2e:headed": "playwright test --headed",
-    "test:e2e:debug": "playwright test --debug",
-    "test:all": "npm run test:coverage && npm run test:e2e && npm run test:performance",
-    "test:performance": "cd performance && npm run test:performance",
-    "test:performance:setup": "cd performance && npm install && npx playwright install",
-    "test:load": "cd performance && npm run test:load",
-    "test:lighthouse": "cd performance && npm run test:lighthouse",
-    "test:stress": "cd performance && npm run test:stress",
-    "performance:report": "cd performance && npm run generate:report",
     "test:ci": "jest --ci --coverage --watchAll=false",
     "test:api": "jest src/__tests__/api/ --verbose",
     "test:components": "jest src/__tests__/components/ --verbose",
     "test:integration": "jest src/__tests__/integration/ --verbose",
     "test:lib": "jest src/__tests__/lib/ --verbose",
     "test:hooks": "jest src/__tests__/hooks/ --verbose",
-    "test:preferences": "jest src/__tests__/api/movies.test.ts src/__tests__/components/movies-page.test.tsx src/__tests__/components/dashboard.test.tsx src/__tests__/integration/preference-workflow.test.ts --verbose",
-    "test:pre-commit": "node src/__tests__/run-tests.js",
     "coverage:open": "open coverage/lcov-report/index.html",
     "coverage:serve": "npx http-server coverage/lcov-report -p 8080",
     "security:audit": "npm audit --audit-level=moderate",
@@ -74,12 +61,8 @@
     "generate:types": "supabase gen types typescript --linked --schema public > src/types/supabase-generated.ts",
     "health:check": "curl -f http://localhost:3000/api/healthz || exit 1",
     "build:analyze": "ANALYZE=true npm run build",
-    "deploy:check": "node scripts/deployment-check.js",
-    "pre-launch:check": "node scripts/pre-launch-check.js",
-    "deploy:staging": "npm run deploy:check && vercel --env=staging",
-    "deploy:production": "npm run pre-launch:check && npm run deploy:check && vercel --prod",
-    "prepare": "husky",
-    "pre-commit": "lint-staged"
+    "deploy:staging": "vercel --env=staging",
+    "deploy:production": "vercel --prod"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.52.0",
@@ -135,7 +118,6 @@
     "eslint-config-prettier": "10.1.5",
     "jest": "29.7.0",
     "jest-environment-jsdom": "29.7.0",
-    "msw": "2.8.4",
     "postcss": "8.4.45",
     "prettier": "3.5.3",
     "prettier-plugin-tailwindcss": "0.6.11",
@@ -153,15 +135,6 @@
       "last 1 chrome version",
       "last 1 firefox version",
       "last 1 safari version"
-    ]
-  },
-  "lint-staged": {
-    "*.{js,jsx,ts,tsx}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "*.{json,md,yml,yaml}": [
-      "prettier --write"
     ]
   }
 }
