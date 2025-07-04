@@ -50,6 +50,7 @@
     "src/app/api/ai/chat/route.ts",
     "src/lib/ai/thematic-analysis-engine.ts",
     "src/lib/ai/hyper-personalized-engine.ts",
-    "src/__tests__/setupMocks.ts"
+    "src/__tests__/setupMocks.ts",
+    "supabase/functions"
   ]
 }
