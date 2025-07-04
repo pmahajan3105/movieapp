@@ -1,5 +1,3 @@
-import { logger } from '@/lib/logger'
-
 export interface ValidationResult {
   valid: boolean
   sanitized: string
@@ -68,7 +66,6 @@ export class MessageValidationService {
     
     if (errors.length > 0) {
       result.errors = errors
-      logger.warn('❌ Message validation failed:', { errors, originalLength: message.length })
     }
     
     return result

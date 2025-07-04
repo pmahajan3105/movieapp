@@ -10,7 +10,6 @@ export const POST = withError(
   withSupabase(async ({ request, supabase }) => {
     try {
       const { 
-        movieId = '550', // Fight Club as default test movie
         analysisDepth = 'moderate',
         includeExternalContext = true,
         testMode = true 
@@ -24,13 +23,11 @@ export const POST = withError(
 
       logger.info('Testing enhanced intelligence system', {
         userId: user.id,
-        movieId,
         analysisDepth,
         includeExternalContext
       })
 
       const testResults = {
-        movieId,
         analysisDepth,
         includeExternalContext,
         startTime: Date.now(),
@@ -55,7 +52,7 @@ export const POST = withError(
       // Phase 1: Test local AI analysis
       const phase1Start = Date.now()
       try {
-        const localAnalysis = await testLocalAIAnalysis(movieId)
+        const localAnalysis = await testLocalAIAnalysis()
         testResults.insights.localAI = localAnalysis
         testResults.phases.push({
           phase: 'Local AI Analysis',
@@ -76,7 +73,7 @@ export const POST = withError(
       if (includeExternalContext) {
         const phase2Start = Date.now()
         try {
-          const externalContext = await testExternalContext(movieId)
+          const externalContext = await testExternalContext()
           testResults.insights.externalContext = externalContext
           testResults.phases.push({
             phase: 'External Context',
@@ -99,7 +96,6 @@ export const POST = withError(
         const phase3Start = Date.now()
         try {
           const claudeSynthesis = await testClaudeSynthesis(
-            movieId,
             testResults.insights.localAI,
             testResults.insights.externalContext,
             user.id
@@ -157,7 +153,6 @@ export const POST = withError(
       const successRate = totalPhases > 0 ? (successfulPhases / totalPhases) * 100 : 0
 
       logger.info('Enhanced intelligence test completed', {
-        movieId,
         duration: testResults.duration,
         successRate,
         costEstimate: testResults.costEstimate
@@ -201,10 +196,10 @@ export const POST = withError(
 /**
  * Test local AI analysis
  */
-async function testLocalAIAnalysis(movieId: string) {
+async function testLocalAIAnalysis() {
   // Simulate your existing AI engines
   const mockMovie = {
-    id: movieId,
+    id: '550',
     title: 'Fight Club',
     overview: 'An insomniac office worker and a devil-may-care soapmaker form an underground fight club.',
     genres: [{ name: 'Drama' }, { name: 'Thriller' }],
@@ -237,7 +232,7 @@ async function testLocalAIAnalysis(movieId: string) {
 /**
  * Test external context integration
  */
-async function testExternalContext(movieId: string) {
+async function testExternalContext() {
   try {
     // Test Wikipedia API
     const wikiResponse = await fetch('https://en.wikipedia.org/api/rest_v1/page/summary/Fight_Club_(film)')
@@ -281,7 +276,7 @@ async function testExternalContext(movieId: string) {
 /**
  * Test Claude synthesis
  */
-async function testClaudeSynthesis(movieId: string, localAnalysis: any, externalContext: any, userId: string) {
+async function testClaudeSynthesis(localAnalysis: any, externalContext: any, userId: string) {
   if (!process.env.ANTHROPIC_API_KEY) {
     throw new Error('Claude API key not available')
   }

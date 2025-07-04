@@ -7,11 +7,14 @@
 
 'use client'
 
-import React, { useState, useEffect } from 'react'
-import { RefreshCw, Zap, Clock, TrendingUp, AlertCircle, Brain, Settings } from 'lucide-react'
-import { MovieGridCard } from '@/components/movies/MovieGridCard'
+import React, { useState, useEffect, useCallback } from 'react'
+import { RefreshCw, Zap, Clock, TrendingUp, AlertCircle, Settings, Star, MessageCircle, Bookmark, BookmarkCheck } from 'lucide-react'
+import { Card, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import Image from 'next/image'
+import { MovieDetailsModal } from '@/components/movies/MovieDetailsModal'
 import { useAuth } from '@/contexts/AuthContext'
-import { logger } from '@/lib/logger'
 import { RecommendationBehaviorSection } from '@/components/ai/RecommendationBehaviorSection'
 import { useAISettings } from '@/hooks/useAISettings'
 import { supabase } from '@/lib/supabase/browser-client'
@@ -65,8 +68,119 @@ interface PrecomputedRecommendationsProps {
   limit?: number
   showInsights?: boolean
   onMovieView?: (movieId: string, movieData?: any, aiInsights?: any) => void
-  onMovieSave?: (movieId: string) => void
-  onMovieRate?: (movieId: string, rating: number) => void
+  onMovieSave?: (movieId: string) => Promise<void>
+}
+
+// Enhanced Movie Card Component (same style as TrendingMoviesGrid)
+const RecommendationMovieCard = ({
+  recommendation,
+  onAddToWatchlist,
+  onMovieClick,
+  isInWatchlist = false,
+}: {
+  recommendation: PrecomputedRecommendation
+  onAddToWatchlist: (movieId: string) => void
+  onMovieClick: (movie: any) => void
+  isInWatchlist?: boolean
+}) => {
+  const { movie, confidence, reason } = recommendation
+
+  return (
+    <Card className="group overflow-hidden rounded-xl transition-all duration-200 hover:shadow-lg">
+      <div className="relative aspect-[2/3] overflow-hidden rounded-t-xl">
+        <Image
+          src={
+            movie.poster_url ||
+            `data:image/svg+xml;base64,${btoa(`
+            <svg width="300" height="450" xmlns="http://www.w3.org/2000/svg">
+              <rect width="100%" height="100%" fill="#f3f4f6"/>
+              <text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="#9ca3af" font-family="Arial, sans-serif" font-size="16">
+                ${movie.title}
+              </text>
+            </svg>
+          `)}`
+          }
+          alt={movie.title}
+          fill
+          className="rounded-t-xl object-cover transition-transform duration-200 group-hover:scale-105"
+          sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
+        />
+
+        {/* Rating badge */}
+        {movie.rating !== null && movie.rating !== undefined && (
+          <div className="absolute top-2 right-2 rounded-full bg-black/70 px-2 py-1 text-xs font-medium text-white">
+            ⭐ {Number(movie.rating).toFixed(1)}
+          </div>
+        )}
+
+        {/* Confidence badge */}
+        <div className="absolute top-2 left-2 rounded-full bg-primary/90 px-2 py-1 text-xs font-medium text-white">
+          {(confidence * 100).toFixed(0)}% match
+        </div>
+      </div>
+
+      <CardContent className="flex flex-col p-3">
+        <h3
+          className="hover:text-primary mb-2 line-clamp-2 cursor-pointer text-sm leading-tight font-semibold text-slate-800 transition-colors"
+          onClick={() => onMovieClick(movie)}
+        >
+          {movie.title} ({movie.year})
+        </h3>
+
+        {movie.genre && movie.genre.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-1">
+            {movie.genre.slice(0, 2).map((genre: string) => (
+              <Badge key={genre} variant="outline" className="h-5 px-1.5 py-0 text-xs">
+                {genre}
+              </Badge>
+            ))}
+            {movie.genre.length > 2 && (
+              <Badge variant="outline" className="h-5 px-1.5 py-0 text-xs">
+                +{movie.genre.length - 2}
+              </Badge>
+            )}
+          </div>
+        )}
+
+        {/* Plot/Overview */}
+        {movie.plot && (
+          <div className="mb-2">
+            <p className="line-clamp-2 text-xs leading-relaxed text-slate-700">{movie.plot}</p>
+          </div>
+        )}
+
+        {/* AI Reason */}
+        {reason && (
+          <div className="mb-2">
+            <p className="line-clamp-1 text-xs text-primary font-medium italic">&quot;{reason}&quot;</p>
+          </div>
+        )}
+
+        <div className="mt-4 flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 flex-1 text-xs"
+            onClick={() => onMovieClick(movie)}
+          >
+            View Details
+          </Button>
+          <Button
+            variant={isInWatchlist ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => onAddToWatchlist(movie.id)}
+            className="h-7 px-2 text-xs"
+          >
+            {isInWatchlist ? (
+              <BookmarkCheck className="h-3 w-3" />
+            ) : (
+              <Bookmark className="h-3 w-3" />
+            )}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
 }
 
 export const PrecomputedRecommendations: React.FC<PrecomputedRecommendationsProps> = ({
@@ -74,22 +188,24 @@ export const PrecomputedRecommendations: React.FC<PrecomputedRecommendationsProp
   limit = 12,
   showInsights = false,
   onMovieView,
-  onMovieSave,
-  onMovieRate
+  onMovieSave
 }) => {
   const { user } = useAuth()
   const [data, setData] = useState<RecommendationsResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
-  const [loadTime, setLoadTime] = useState<number | null>(null)
   const [showControls, setShowControls] = useState(false)
+  const [userActivityData, setUserActivityData] = useState<any>(null)
+  const [showNewUserExperience, setShowNewUserExperience] = useState(false)
+  const [showQuickRating, setShowQuickRating] = useState(false)
+  const [selectedMovie, setSelectedMovie] = useState<any>(null)
 
   // AI Settings for fallback recommendations
   const { settings, updateSetting, isLoading: settingsLoading } = useAISettings()
 
   // Load recommendations
-  const loadRecommendations = async (force = false) => {
+  const loadRecommendations = useCallback(async (force = false) => {
     if (!user) return
 
     const startTime = performance.now()
@@ -127,14 +243,33 @@ export const PrecomputedRecommendations: React.FC<PrecomputedRecommendationsProp
       const result: RecommendationsResponse = apiResponse.success ? apiResponse.data : apiResponse
 
       setData(result)
-      setLoadTime(duration)
       
-      logger.info('Loaded precomputed recommendations', {
+      console.info('Loaded precomputed recommendations', {
         count: result.recommendations?.length || 0,
         source: result.source,
         loadTime: duration,
         isStale: result.meta?.isStale
       })
+
+      // Load user activity data to check for new user experience
+      if (user?.id) {
+        try {
+          const activityData = await fetchUserActivityData(user.id)
+          setUserActivityData(activityData)
+          
+          // Show new user experience if they have no recommendations and are new
+          const onboardingStatus = assessUserOnboardingStatus(
+            activityData.aiProfile,
+            activityData.interactions
+          )
+          
+          if (onboardingStatus.interactionLevel === 'new' && (!result.recommendations || result.recommendations.length === 0)) {
+            setShowNewUserExperience(true)
+          }
+        } catch (err) {
+          console.error('Failed to load user activity data', { error: err })
+        }
+      }
 
       // Show success message for fallback mode
       if (result.source === 'fallback' && result.message) {
@@ -144,12 +279,12 @@ export const PrecomputedRecommendations: React.FC<PrecomputedRecommendationsProp
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load recommendations'
       setError(errorMessage)
-      logger.error('Failed to load precomputed recommendations', { error: errorMessage })
+      console.error('Failed to load precomputed recommendations', { error: errorMessage })
     } finally {
       setIsLoading(false)
       setIsRefreshing(false)
     }
-  }
+  }, [user, limit, showInsights])
 
   // Manual refresh
   const handleRefresh = async () => {
@@ -162,7 +297,7 @@ export const PrecomputedRecommendations: React.FC<PrecomputedRecommendationsProp
     if (user) {
       loadRecommendations()
     }
-  }, [user, limit, showInsights])
+  }, [user, loadRecommendations])
 
   // Auto-refresh when coming back to page (visibility change)
   useEffect(() => {
@@ -174,7 +309,7 @@ export const PrecomputedRecommendations: React.FC<PrecomputedRecommendationsProp
 
     document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
-  }, [user, data?.meta?.isStale])
+  }, [user, data?.meta?.isStale, loadRecommendations])
 
   // Auto-refresh when AI settings change (for fallback recommendations)
   useEffect(() => {
@@ -187,7 +322,44 @@ export const PrecomputedRecommendations: React.FC<PrecomputedRecommendationsProp
       return () => clearTimeout(timeoutId)
     }
     return undefined
-  }, [settings, user, data?.source, settingsLoading])
+  }, [settings, user, data?.source, settingsLoading, loadRecommendations])
+
+  // Event handlers for new user experience
+  const handleStartOnboarding = () => {
+    window.location.href = '/onboarding'
+  }
+
+  const handleStartRating = () => {
+    setShowQuickRating(true)
+  }
+
+  const handleOpenChat = () => {
+    const chatWidget = document.querySelector('[data-floating-chat-widget]')
+    if (chatWidget) {
+      (chatWidget as any).click?.()
+    }
+  }
+
+  const handleRatingComplete = () => {
+    // Refresh recommendations after rating
+    loadRecommendations(true)
+    setShowQuickRating(false)
+  }
+
+  const handleMovieClick = (movie: any) => {
+    setSelectedMovie(movie)
+    onMovieView?.(movie.id, movie)
+  }
+
+  const handleCloseModal = () => {
+    setSelectedMovie(null)
+  }
+
+  const handleAddToWatchlist = async (movieId: string) => {
+    if (onMovieSave) {
+      await onMovieSave(movieId)
+    }
+  }
 
   if (!user) {
     return (
@@ -243,8 +415,6 @@ export const PrecomputedRecommendations: React.FC<PrecomputedRecommendationsProp
     )
   }
 
-
-
   if (!data || !data.recommendations || data.recommendations.length === 0) {
     return (
       <div className={`precomputed-recommendations ${className}`}>
@@ -263,11 +433,32 @@ export const PrecomputedRecommendations: React.FC<PrecomputedRecommendationsProp
           </button>
         </div>
 
+        {/* Show new user experience if applicable */}
+        {showNewUserExperience && userActivityData && (
+          <NewUserEmptyState
+            userProfile={userActivityData.aiProfile}
+            userInteractions={userActivityData.interactions}
+            onStartOnboarding={handleStartOnboarding}
+            onStartRating={handleStartRating}
+            onOpenChat={handleOpenChat}
+            className="mb-6"
+          />
+        )}
+
+        {/* Show quick rating widget if triggered */}
+        {showQuickRating && (
+          <QuickRatingWidget
+            onRatingComplete={handleRatingComplete}
+            onSkip={() => setShowQuickRating(false)}
+            className="mb-6"
+          />
+        )}
+
         {/* Show fallback message if we have data but no recommendations */}
-        {data?.source === 'fallback' && data.message && (
-          <div className="alert alert-info mb-6">
-            <TrendingUp className="w-5 h-5" />
-            <span>{data.message}</span>
+        {data?.source === 'fallback' && data.message && !showNewUserExperience && !showQuickRating && (
+          <div className="alert alert-info mb-6 border-blue-200 bg-blue-50">
+            <TrendingUp className="w-5 h-5 text-blue-600" />
+            <span className="text-blue-800 font-medium">{data.message}</span>
           </div>
         )}
 
@@ -310,24 +501,51 @@ export const PrecomputedRecommendations: React.FC<PrecomputedRecommendationsProp
           </div>
         )}
         
-        <div className="text-center py-12">
-          <TrendingUp className="w-16 h-16 text-base-content/30 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold mb-2">No recommendations yet</h3>
-          <p className="text-base-content/60 mb-4">
-            {data?.source === 'fallback' 
-              ? "Try adjusting the settings above or generate new recommendations."
-              : "We're analyzing trending movies to find perfect matches for you."
-            }
-          </p>
-          <button 
-            onClick={handleRefresh}
-            className="btn btn-primary"
-            disabled={isRefreshing}
-          >
-            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            Get Recommendations
-          </button>
-        </div>
+        {!showNewUserExperience && !showQuickRating && (
+          <div className="text-center py-12 space-y-6">
+            <div>
+              <TrendingUp className="w-16 h-16 text-slate-400 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold mb-2 text-slate-800">No recommendations yet</h3>
+              <p className="text-slate-600 mb-4 font-medium">
+                {data?.source === 'fallback' 
+                  ? "Try adjusting the settings above or generate new recommendations."
+                  : "We're analyzing trending movies to find perfect matches for you."
+                }
+              </p>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <button 
+                onClick={handleRefresh}
+                className="btn btn-primary"
+                disabled={isRefreshing}
+              >
+                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                Get Recommendations
+              </button>
+              
+              {userActivityData && (
+                <>
+                  <button 
+                    onClick={handleStartRating}
+                    className="btn btn-outline"
+                  >
+                    <Star className="w-4 h-4" />
+                    Rate Movies
+                  </button>
+                  
+                  <button 
+                    onClick={handleOpenChat}
+                    className="btn btn-ghost"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    Chat with AI
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     )
   }
@@ -337,22 +555,16 @@ export const PrecomputedRecommendations: React.FC<PrecomputedRecommendationsProp
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <h2 className="text-2xl font-bold flex items-center gap-2">
+          <h2 className="text-2xl font-bold flex items-center gap-2 text-slate-800">
             <Zap className="w-6 h-6 text-primary" />
             Your Recommendations
           </h2>
           
-          {/* Performance badge */}
-          {loadTime && (
-            <div className="badge badge-success gap-1">
-              <Clock className="w-3 h-3" />
-              {loadTime.toFixed(0)}ms
-            </div>
-          )}
-          
           {/* Source indicator */}
-          <div className={`badge gap-1 ${
-            data.source === 'precomputed' ? 'badge-primary' : 'badge-warning'
+          <div className={`badge gap-1 text-white font-medium ${
+            data.source === 'precomputed' 
+              ? 'bg-gradient-to-r from-purple-500 to-blue-500' 
+              : 'bg-gradient-to-r from-orange-500 to-red-500'
           }`}>
             {data.source === 'precomputed' ? 'AI Enhanced' : 'Popular Picks'}
           </div>
@@ -440,41 +652,15 @@ export const PrecomputedRecommendations: React.FC<PrecomputedRecommendationsProp
       )}
 
       {/* Movie grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4">
         {data.recommendations.map((rec) => (
-          <div key={rec.id} className="relative">
-            <MovieGridCard
-              movie={rec.movie}
-              onAddToWatchlist={() => onMovieSave?.(rec.movie.id)}
-              onRate={(movieId, interested, rating) => {
-                if (rating) {
-                  onMovieRate?.(movieId, rating)
-                }
-              }}
-              className="h-full"
-            />
-            
-            {/* Recommendation metadata overlay */}
-            <div className="absolute top-2 right-2 z-10">
-              <div 
-                className="badge badge-primary badge-sm opacity-90"
-                title={`${(rec.confidence * 100).toFixed(0)}% match: ${rec.reason}`}
-              >
-                {(rec.confidence * 100).toFixed(0)}%
-              </div>
-            </div>
-
-            {/* AI insights tooltip/modal */}
-            {rec.insights && showInsights && (
-              <div className="absolute bottom-2 left-2 z-10">
-                <div className="tooltip tooltip-top" data-tip="AI Analysis Available">
-                  <div className="badge badge-secondary badge-sm">
-                    <Brain className="w-3 h-3" />
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+          <RecommendationMovieCard
+            key={rec.id}
+            recommendation={rec}
+            onAddToWatchlist={handleAddToWatchlist}
+            onMovieClick={handleMovieClick}
+            isInWatchlist={false} // TODO: Add watchlist check
+          />
         ))}
       </div>
 
@@ -498,6 +684,16 @@ export const PrecomputedRecommendations: React.FC<PrecomputedRecommendationsProp
         Generated {data?.meta?.generatedAt ? new Date(data.meta.generatedAt).toLocaleString() : 'Unknown'} • 
         {data.recommendations?.length || 0} of {data.total} recommendations
       </div>
+
+      {/* Movie Details Modal */}
+      {selectedMovie && (
+        <MovieDetailsModal
+          movie={selectedMovie}
+          open={!!selectedMovie}
+          onClose={handleCloseModal}
+          onAddToWatchlist={handleAddToWatchlist}
+        />
+      )}
     </div>
   )
 }

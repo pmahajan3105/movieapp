@@ -44,27 +44,6 @@ export const HyperPersonalizedMovieCard: React.FC<HyperPersonalizedMovieCardProp
     }
   }
 
-  const handleSave = async () => {
-    await recordLearningSignal(movie.id, 'save', undefined, context)
-    if (onSave) {
-      onSave()
-    } else {
-      // Default action: add to watchlist
-      try {
-        const response = await fetch('/api/watchlist', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ movieId: movie.id })
-        })
-        if (response.ok) {
-          console.log('Movie added to watchlist successfully')
-        }
-      } catch (error) {
-        console.error('Failed to add to watchlist:', error)
-      }
-    }
-  }
-
   const handleRate = async (rating: number) => {
     setIsRating(true)
     await recordLearningSignal(movie.id, 'rate', rating, context)

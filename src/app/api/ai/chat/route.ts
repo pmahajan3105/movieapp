@@ -101,9 +101,6 @@ export async function POST(request: NextRequest) {
       timestamp: new Date(),
     }
 
-    // Detect if this is a movie query
-    const movieQuery = PreferenceExtractionService.detectMovieQuery(message)
-
     // Determine AI model to use
     const modelId = getBestModelForTask('chat')
 

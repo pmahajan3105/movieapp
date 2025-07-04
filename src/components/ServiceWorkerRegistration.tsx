@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect } from 'react'
-import { logger } from '@/lib/logger'
 
 export function ServiceWorkerRegistration() {
   useEffect(() => {
@@ -23,10 +22,7 @@ async function registerServiceWorker() {
       scope: '/'
     })
 
-    logger.info('Service Worker registered successfully', {
-      scope: registration.scope,
-      updatefound: !!registration.waiting
-    })
+    console.info('Service worker registered', { registration })
 
     // Handle updates
     registration.addEventListener('updatefound', () => {
@@ -36,7 +32,7 @@ async function registerServiceWorker() {
         newWorker.addEventListener('statechange', () => {
           if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
             // New service worker is available
-            logger.info('New service worker available')
+            console.info('New service worker available')
             
             // Notify user about update
             if (confirm('A new version of CineAI is available. Reload to update?')) {
@@ -48,9 +44,7 @@ async function registerServiceWorker() {
     })
 
   } catch (error) {
-    logger.error('Service Worker registration failed', {
-      error: error instanceof Error ? error.message : String(error)
-    })
+    console.warn('Service worker registration failed', { error: error instanceof Error ? error.message : String(error) })
   }
 }
 

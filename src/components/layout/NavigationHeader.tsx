@@ -17,7 +17,6 @@ import {
   Settings,
 } from 'lucide-react'
 import { SearchInterface } from '@/components/search/SearchInterface'
-import { logger } from '@/lib/logger'
 
 export function NavigationHeader() {
   const { user, isLoading, signOut } = useAuth()
@@ -84,9 +83,9 @@ export function NavigationHeader() {
       await signOut()
       router.push('/')
     } catch (error) {
-      logger.error('Error signing out', {
-        error: error instanceof Error ? error.message : String(error),
-      })
+      // logger.error('Error signing out', {
+      //   error: error instanceof Error ? error.message : String(error),
+      // })
     }
   }
 

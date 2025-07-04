@@ -22,7 +22,8 @@ interface UserInteraction {
   ratings_count?: number
   watchlist_count?: number
   chat_messages_count?: number
-  last_activity?: string
+  last_activity?: string | null
+  recent_activity_days?: number
 }
 
 export function assessUserOnboardingStatus(

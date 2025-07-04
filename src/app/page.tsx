@@ -1,20 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 
 export default function Home() {
-  const { user, isLoading } = useAuth()
-  const router = useRouter()
-
-  // Redirect authenticated users to dashboard (only if actually on root page)
-  useEffect(() => {
-    if (!isLoading && user && typeof window !== 'undefined' && window.location.pathname === '/') {
-      router.push('/dashboard')
-    }
-  }, [user, isLoading, router])
+  const { isLoading } = useAuth()
 
   // Show loading state while checking auth
   if (isLoading) {
@@ -30,19 +20,8 @@ export default function Home() {
     )
   }
 
-  // Don't render landing page if user is authenticated (will redirect)
-  if (user) {
-    return (
-      <div className="hero bg-base-200 min-h-screen">
-        <div className="hero-content text-center">
-          <div className="max-w-md">
-            <div className="loading loading-spinner loading-lg"></div>
-            <p className="mt-4">Redirecting to dashboard...</p>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  // This component should only render if user is not authenticated
+  // (authenticated users are redirected by middleware)
 
   return (
     <div className="hero bg-base-200 min-h-screen">

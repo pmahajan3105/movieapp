@@ -8,7 +8,6 @@
 import React, { useState, useEffect } from 'react'
 import { Save, Edit3, RotateCcw, Brain, Heart, Eye, Palette, Clock, AlertCircle } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
-import { logger } from '@/lib/logger'
 
 interface TasteProfile {
   user_id: string
@@ -84,7 +83,6 @@ export const EditableTasteProfile: React.FC = () => {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load profile'
       setError(errorMessage)
-      logger.error('Failed to load taste profile', { error: errorMessage })
     } finally {
       setIsLoading(false)
     }
@@ -125,12 +123,9 @@ export const EditableTasteProfile: React.FC = () => {
       setProfile(data.profile)
       setHasChanges(false)
       setIsEditing(false)
-      
-      logger.info('Taste profile updated successfully')
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to save profile'
       setError(errorMessage)
-      logger.error('Failed to save taste profile', { error: errorMessage })
     } finally {
       setSaving(false)
     }

@@ -52,7 +52,7 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps = {
       addAssistantMessage(fullResponse)
     },
     onPreferencesExtracted: handlePreferencesExtracted,
-    onSessionStart: newSessionId => {
+    onSessionStart: () => {
       // Session tracking handled internally
     },
   })
@@ -73,7 +73,7 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps = {
 
       // Send through streaming chat for preference extraction or general conversation
       await startStreaming(message, sessionId)
-    } catch (error) {
+    } catch {
       // Error logging handled by streaming chat hook
       addErrorMessage()
     }

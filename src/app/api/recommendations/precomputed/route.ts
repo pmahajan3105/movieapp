@@ -245,7 +245,7 @@ async function getFallbackRecommendations(userId: string, limit: number) {
     }
 
     // Fallback to basic popular movies query if stored procedure fails
-    const { data: basicMovies, error: basicError } = await supabase
+    const { data: basicMovies } = await supabase
       .from('movies')
       .select('*')
       .gt('rating', 7.0)

@@ -1,7 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js'
-import { logger } from '@/lib/logger'
+import { ErrorFactory } from '@/lib/errors'
 import type { ChatMessage, PreferenceData } from '@/types/chat'
-import { DatabaseError, ErrorFactory } from '@/lib/errors'
 
 export interface ChatSession {
   id: string
@@ -40,7 +39,6 @@ export class ChatSessionService {
 
         if (selectError && selectError.code !== 'PGRST116') {
           // Not a "not found" error - could be table missing
-          logger.error(`❌ Error accessing chat_sessions table: ${selectError.message}`)
           throw ErrorFactory.fromSupabaseError(selectError, { operation: 'get_session' })
         }
 
@@ -61,12 +59,10 @@ export class ChatSessionService {
           .single()
 
         if (sessionError) {
-          logger.error('❌ Failed to create chat session:', { error: sessionError.message })
           throw ErrorFactory.fromSupabaseError(sessionError, { operation: 'create_session' })
         }
 
         currentSessionId = newSession.id
-        logger.info('✅ Created new chat session:', { sessionId: currentSessionId })
       }
 
       return {
@@ -75,9 +71,6 @@ export class ChatSessionService {
         preferencesAlreadyExtracted,
       }
     } catch (error) {
-      logger.error('❌ Chat session error:', { 
-        error: error instanceof Error ? error.message : String(error) 
-      })
       throw error
     }
   }
@@ -122,7 +115,6 @@ export class ChatSessionService {
         .eq('user_id', this.userId)
 
       if (updateError) {
-        logger.error('❌ Failed to update chat session:', { error: updateError.message })
         throw new Error('Failed to update chat session')
       }
 
@@ -130,16 +122,7 @@ export class ChatSessionService {
       if (preferences && preferencesExtracted) {
         await this.updateUserPreferences(preferences)
       }
-
-      logger.info('✅ Updated chat session:', { 
-        sessionId, 
-        messageCount: updatedMessages.length,
-        preferencesExtracted 
-      })
     } catch (error) {
-      logger.error('❌ Failed to update session:', { 
-        error: error instanceof Error ? error.message : String(error) 
-      })
       throw error
     }
   }
@@ -157,18 +140,8 @@ export class ChatSessionService {
           updated_at: new Date().toISOString(),
         })
 
-      if (preferencesError) {
-        logger.error('❌ Failed to update user preferences:', {
-          error: preferencesError.message,
-        })
-        // Don't throw here - preferences update is not critical for chat flow
-      } else {
-        logger.info('✅ Updated user preferences in database')
-      }
+      // Don't throw here - preferences update is not critical for chat flow
     } catch (error) {
-      logger.error('❌ Error updating user preferences:', { 
-        error: error instanceof Error ? error.message : String(error) 
-      })
     }
   }
 
@@ -187,15 +160,9 @@ export class ChatSessionService {
         .eq('user_id', this.userId)
 
       if (error) {
-        logger.error('❌ Failed to mark preferences as extracted:', { error: error.message })
         throw new Error('Failed to update session')
       }
-
-      logger.info('✅ Marked preferences as extracted for session:', { sessionId })
     } catch (error) {
-      logger.error('❌ Error marking preferences extracted:', { 
-        error: error instanceof Error ? error.message : String(error) 
-      })
       throw error
     }
   }

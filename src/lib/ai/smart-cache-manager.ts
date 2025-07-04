@@ -449,4 +449,4 @@ export class SmartCacheManager {
   }
 }
 
-export { CacheEntry, CacheStats, CacheConfig }
+export type { CacheEntry, CacheStats, CacheConfig }

@@ -1,6 +1,7 @@
 import React from 'react'
 import { Bookmark, BookmarkCheck } from 'lucide-react'
 import type { Movie } from '@/types'
+import Image from 'next/image'
 
 interface DaisyUIMovieCardProps {
   movie: Movie
@@ -27,14 +28,14 @@ export function DaisyUIMovieCard({
     <div className={`card bg-base-100 movie-card-hover shadow-lg ${className}`}>
       {/* Movie Poster */}
       <figure className="relative aspect-[2/3] overflow-hidden">
-        <img
-          src={
-            movie.poster_url ||
-            'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjQ1MCIgdmlld0JveD0iMCAwIDMwMCA0NTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIzMDAiIGhlaWdodD0iNDUwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0xMjUgMTc1SDE3NVYyMjVIMTI1VjE3NVoiIGZpbGw9IiM5Q0EzQUYiLz4KPHA+CjxyZWN0IHg9IjEwMCIgeT0iMjUwIiB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwIiBmaWxsPSIjOUNBM0FGIi8+CjxyZWN0IHg9IjEyNSIgeT0iMjcwIiB3aWR0aD0iNTAiIGhlaWdodD0iMTAiIGZpbGw9IiM5Q0EzQUYiLz4KPHA+Cjx0ZXh0IHg9IjE1MCIgeT0iMzAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjNkI3MjgwIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZm9udC13ZWlnaHQ9IjUwMCI+Tm8gSW1hZ2U8L3RleHQ+Cjwvc3ZnPgo='
-          }
+        <Image
+          src={movie.poster_url || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjQ1MCIgdmlld0JveD0iMCAwIDMwMCA0NTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIzMDAiIGhlaWdodD0iNDUwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0xMjUgMTc1SDE3NVYyMjVIMTI1VjE3NVoiIGZpbGw9IiM5Q0EzQUYiLz4KPHA+CjxyZWN0IHg9IjEwMCIgeT0iMjUwIiB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwIiBmaWxsPSIjOUNBM0FGIi8+CjxyZWN0IHg9IjEyNSIgeT0iMjcwIiB3aWR0aD0iNTAiIGhlaWdodD0iMTAiIGZpbGw9IiM5Q0EzQUYiLz4KPHA+Cjx0ZXh0IHg9IjE1MCIgeT0iMzAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjNkI3MjgwIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZm9udC13ZWlnaHQ9IjUwMCI+Tm8gSW1hZ2U8L3RleHQ+Cjwvc3ZnPgo='}
           alt={movie.title}
+          width={300}
+          height={450}
           className="h-full w-full object-cover"
           onError={handleImageError}
+          unoptimized
         />
 
         {/* Watchlist Button Overlay */}

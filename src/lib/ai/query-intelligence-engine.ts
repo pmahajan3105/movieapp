@@ -7,25 +7,13 @@ import { anthropic, claudeConfig } from '@/lib/anthropic/config'
 import { logger } from '@/lib/logger'
 import type {
   AdvancedQuery,
-  ProcessedQuery,
   QueryEntity,
   QueryIntent,
-  ImplicitPreference,
-  ContextualFactor,
   AdvancedSearchFilters,
-  ThematicFilter,
-  StyleFilter,
-  EmotionalFilter,
-  NarrativeFilter,
-  CulturalFilter,
 } from '@/types/advanced-intelligence'
-import type { Movie } from '@/types'
 import type { ConversationalQuery } from './conversational-parser'
 import {
   ThematicTaxonomy,
-  PSYCHOLOGICAL_THEMES,
-  NARRATIVE_STRUCTURES,
-  EMOTIONAL_PATTERNS,
 } from './thematic-taxonomy'
 import { ConversationalParser } from './conversational-parser'
 

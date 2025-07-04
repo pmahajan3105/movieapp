@@ -2,9 +2,9 @@
  * @jest-environment node
  */
 
-/* eslint-disable @typescript-eslint/ban-ts-comment */
+ 
 // @ts-nocheck
-/* eslint-enable @typescript-eslint/ban-ts-comment */
+ 
 
 // Mock Supabase before importing
 jest.mock('@/lib/supabase/client', () => ({

@@ -12,7 +12,6 @@ import { EditableTasteProfile } from '@/components/profile/EditableTasteProfile'
 import { AIControlPanel } from '@/components/ai/AIControlPanel'
 import { Settings, Brain, User, Trash2, AlertCircle, CheckCircle, Clock, X, Heart, Sliders } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { logger } from '@/lib/logger'
 
 interface PreferenceItem {
   id: string

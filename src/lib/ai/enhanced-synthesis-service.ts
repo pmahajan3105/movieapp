@@ -7,9 +7,9 @@
  */
 
 import { getExternalContextService } from './external-context-service'
-import { getCostControlledAPIService } from './cost-controlled-api-service'
 import { SmartRecommenderV2 } from './smart-recommender-v2'
 import { logger } from '@/lib/logger'
+import { anthropic, claudeConfig } from '@/lib/anthropic/config'
 
 interface MovieData {
   id: string
@@ -69,7 +69,6 @@ interface EnhancedMovieIntelligence {
 
 export class EnhancedSynthesisService {
   private externalContext = getExternalContextService()
-  private costController = getCostControlledAPIService()
   private smartRecommender = SmartRecommenderV2.getInstance()
 
   /**
@@ -80,13 +79,11 @@ export class EnhancedSynthesisService {
     userTaste: UserTasteProfile,
     options: {
       allowExternalAPIs?: boolean
-      maxCost?: number
       analysisDepth?: 'deep' | 'moderate' | 'basic'
     } = {}
   ): Promise<EnhancedMovieIntelligence> {
     const { 
       allowExternalAPIs = true, 
-      maxCost = 0.05, 
       analysisDepth = 'moderate' 
     } = options
 
@@ -114,23 +111,20 @@ export class EnhancedSynthesisService {
           })
         } catch (error) {
           logger.warn('External context failed, proceeding with local analysis only', {
-            error: error.message,
+            error: (typeof error === 'object' && error && 'message' in error) ? (error as any).message : String(error),
             movieId: movie.id
           })
         }
       }
 
-      // Step 3: Synthesize with Claude if budget allows and depth is deep
+      // Step 3: Synthesize with Claude if depth is deep
       let claudeAnalysis = null
       if (analysisDepth === 'deep' && allowExternalAPIs) {
         try {
-          const canAffordClaude = await this.costController.canAffordOperation('claude', 'movie_synthesis')
-          if (canAffordClaude) {
-            claudeAnalysis = await this.synthesizeWithClaude(movie, userTaste, localAnalysis, externalContext)
-          }
+          claudeAnalysis = await this.synthesizeWithClaude(movie, userTaste, localAnalysis, externalContext)
         } catch (error) {
           logger.warn('Claude synthesis failed, using local analysis', {
-            error: error.message,
+            error: (typeof error === 'object' && error && 'message' in error) ? (error as any).message : String(error),
             movieId: movie.id
           })
         }
@@ -152,7 +146,7 @@ export class EnhancedSynthesisService {
     } catch (error) {
       logger.error('Enhanced analysis failed, returning fallback', {
         movieId: movie.id,
-        error: error.message
+        error: (typeof error === 'object' && error && 'message' in error) ? (error as any).message : String(error)
       })
 
       return this.getFallbackAnalysis(movie, userTaste)
@@ -172,12 +166,12 @@ export class EnhancedSynthesisService {
       ])
 
       return {
-        emotional: analysisPromises[0].status === 'fulfilled' ? analysisPromises[0].value : null,
-        thematic: analysisPromises[1].status === 'fulfilled' ? analysisPromises[1].value : null,
-        cinematic: analysisPromises[2].status === 'fulfilled' ? analysisPromises[2].value : null
+        emotional: analysisPromises[0].status === 'fulfilled' ? analysisPromises[0].value : undefined,
+        thematic: analysisPromises[1].status === 'fulfilled' ? analysisPromises[1].value : undefined,
+        cinematic: analysisPromises[2].status === 'fulfilled' ? analysisPromises[2].value : undefined
       }
     } catch (error) {
-      logger.warn('Local AI analysis failed', { movieId: movie.id, error: error.message })
+      logger.warn('Local AI analysis failed', { movieId: movie.id, error: (typeof error === 'object' && error && 'message' in error) ? (error as any).message : String(error) })
       return {}
     }
   }
@@ -230,19 +224,19 @@ export class EnhancedSynthesisService {
     externalContext: any
   ) {
     const prompt = this.buildSynthesisPrompt(movie, userTaste, localAnalysis, externalContext)
-    
     try {
-      const response = await this.costController.callClaudeAPI(prompt, {
-        userId: userTaste.user_id,
-        movieId: movie.id,
-        operation: 'enhanced_movie_synthesis',
-        model: 'claude-3-haiku-20240307',
-        maxTokens: 400
+      const response = await anthropic.messages.create({
+        model: claudeConfig.model,
+        max_tokens: 400,
+        temperature: claudeConfig.temperature,
+        messages: [
+          { role: 'user', content: prompt },
+        ],
       })
-
-      return this.parseClaudeResponse(response.content[0]?.text || '')
+      const textResponse = (response as any).content?.[0]?.text?.trim() || ''
+      return this.parseClaudeResponse(textResponse)
     } catch (error) {
-      logger.error('Claude synthesis failed', { movieId: movie.id, error: error.message })
+      logger.error('Claude synthesis failed', { movieId: movie.id, error: (typeof error === 'object' && error && 'message' in error) ? (error as any).message : String(error) })
       return null
     }
   }
@@ -316,7 +310,7 @@ Respond in JSON format:
         culturalRelevance: 'Claude analysis provided'
       }
     } catch (error) {
-      logger.warn('Failed to parse Claude response', { error: error.message })
+      logger.warn('Failed to parse Claude response', { error: (typeof error === 'object' && error && 'message' in error) ? (error as any).message : String(error) })
       return {
         confidence: 0.6,
         reason: 'AI analysis completed with partial data',

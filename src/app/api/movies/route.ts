@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createRouteSupabaseClient } from '@/lib/supabase/route-client'
 import { APIErrorHandler } from '@/lib/error-handling'
 import { withErrorRecovery, ErrorRecoveryConfigs } from '@/lib/middleware/error-recovery'
-import { logger } from '@/lib/logger'
 import {
   handleLegacyRequest,
   handleRealTimeMovies,
@@ -18,6 +17,7 @@ async function handleMoviesRequest(request: NextRequest): Promise<NextResponse> 
   const smartMode = searchParams.get('smart') === 'true'
   const behavioralMode = searchParams.get('behavioral') === 'true'
   const realTime = searchParams.get('realtime') === 'true'
+  const topRated = searchParams.get('top_rated') === 'true'
   const databaseId = searchParams.get('database')
   const query = searchParams.get('query') || ''
   const mood = searchParams.get('mood') || ''
@@ -26,17 +26,6 @@ async function handleMoviesRequest(request: NextRequest): Promise<NextResponse> 
   const page = Math.max(1, parseInt(searchParams.get('page') || '1') || 1)
 
   try {
-    const includeExplanations = true
-    const includePreferenceInsights = searchParams.get('includePreferenceInsights') === 'true'
-
-    // Advanced intelligence parameters (temporarily disabled)
-    const thematicMode = searchParams.get('thematic') === 'true'
-    const advancedMode = searchParams.get('advanced') === 'true'
-    const enableAdvancedQuery = searchParams.get('enableAdvancedQuery') === 'true'
-    const analysisDepth =
-      (searchParams.get('analysisDepth') as 'basic' | 'standard' | 'comprehensive' | 'expert') ||
-      'standard'
-
     // TODO: Re-enable after fixing hydration issues
     // if (advancedMode && query) {
     //   return await handleAdvancedIntelligenceRequest(supabase, query, limit, analysisDepth)
@@ -67,8 +56,9 @@ async function handleMoviesRequest(request: NextRequest): Promise<NextResponse> 
         query,
         databaseId || undefined,
         supabase,
-        smartMode || enableAdvancedQuery,
-        skipExplanations
+        smartMode,
+        skipExplanations,
+        topRated
       )
       // Cache TMDB data for 15 minutes
       response.headers.set('Cache-Control', 'public, s-maxage=900, stale-while-revalidate=1800')

@@ -27,11 +27,7 @@ import type {
 import {
   PSYCHOLOGICAL_THEMES,
   NARRATIVE_STRUCTURES,
-  VISUAL_MOTIFS,
-  DIRECTORIAL_STYLES,
-  CULTURAL_CONTEXTS,
   GENRE_THEMES,
-  ATMOSPHERIC_QUALITIES,
   ThematicTaxonomy,
 } from './thematic-taxonomy'
 
@@ -386,19 +382,7 @@ Please provide specific examples and evidence for each point. Format your respon
    */
   private extractEmotionalJourney(text: string) {
     // Analyze emotional language and progression
-    const emotionalWords = [
-      'tragic',
-      'uplifting',
-      'melancholic',
-      'hopeful',
-      'intense',
-      'bittersweet',
-      'redemptive',
-      'cathartic',
-      'devastating',
-    ]
-
-    const emotionalPattern = this.identifyEmotionalPattern(text, emotionalWords)
+    const emotionalPattern = this.identifyEmotionalPattern(text)
     const intensityScore = this.calculateEmotionalIntensity(text)
 
     return {
@@ -759,7 +743,7 @@ Please provide specific examples and evidence for each point. Format your respon
     return elements
   }
 
-  private identifyEmotionalPattern(text: string, emotionalWords: string[]): any {
+  private identifyEmotionalPattern(text: string): any {
     const lowerText = text.toLowerCase()
     if (lowerText.includes('tragic') || lowerText.includes('fall')) return 'tragic_fall'
     if (lowerText.includes('redemption') || lowerText.includes('recovery')) return 'redemption_arc'

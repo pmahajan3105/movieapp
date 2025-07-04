@@ -5,7 +5,6 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
-import { logger } from '@/lib/logger'
 
 export interface AIControlSettings {
   recommendation_style: 'conservative' | 'balanced' | 'adventurous'
@@ -79,9 +78,7 @@ export const useAISettings = () => {
         }
       }
     } catch (err) {
-      logger.error('Failed to load AI settings', { 
-        error: err instanceof Error ? err.message : String(err) 
-      })
+      console.warn('AI settings fetch failed:', err instanceof Error ? err.message : String(err))
     } finally {
       setIsLoading(false)
     }
@@ -103,14 +100,14 @@ export const useAISettings = () => {
         setHasChanges(false)
         setSuccessMessage('AI settings saved successfully!')
         setTimeout(() => setSuccessMessage(null), 3000)
-        logger.info('AI settings updated successfully')
+        console.info('AI settings updated:', settings)
       } else {
         throw new Error('Failed to save settings')
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to save settings'
       setError(errorMessage)
-      logger.error('Failed to save AI settings', { error: errorMessage })
+      console.error('Failed to save AI settings:', errorMessage)
     } finally {
       setIsSaving(false)
     }

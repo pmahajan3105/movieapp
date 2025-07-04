@@ -8,14 +8,14 @@
 
 'use client'
 
-import React, { useState, useEffect } from 'react'
-import { Brain, TrendingUp, Settings, Eye, BarChart3, Clock, Zap, AlertCircle, Star, MessageCircle, Sparkles } from 'lucide-react'
+import React, { useState, useEffect, useCallback } from 'react'
+import { Brain, TrendingUp, Eye, BarChart3, Clock, Zap, AlertCircle, Star, MessageCircle, Sparkles } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
-import { logger } from '@/lib/logger'
+import { assessUserOnboardingStatus } from '@/lib/user-onboarding-utils'
 import { NewUserEmptyState } from '@/components/dashboard/NewUserEmptyState'
 import { QuickRatingWidget } from '@/components/dashboard/QuickRatingWidget'
 import { fetchUserActivityData } from '@/lib/user-activity-fetcher'
-import { assessUserOnboardingStatus } from '@/lib/user-onboarding-utils'
+import Image from 'next/image'
 
 interface TasteProfile {
   user_id: string
@@ -62,22 +62,15 @@ export const AILearningDashboard: React.FC = () => {
   const [userActivityData, setUserActivityData] = useState<any>(null)
   const [showQuickRating, setShowQuickRating] = useState(false)
 
-  useEffect(() => {
-    if (user) {
-      loadAILearningData()
-    }
-  }, [user])
-
-  const loadAILearningData = async () => {
+  const loadAILearningData = useCallback(async () => {
     try {
       setIsLoading(true)
       setError(null)
 
       // Load all AI learning data in parallel
-      const [profileResponse, recommendationsResponse, insightsResponse, userActivityResponse] = await Promise.allSettled([
+      const [profileResponse, recommendationsResponse, userActivityResponse] = await Promise.allSettled([
         fetch('/api/user/ai-profile'),
         fetch('/api/recommendations/recent?limit=6'),
-        fetch('/api/user/ai-insights'),
         fetchUserActivityData(user?.id || '')
       ])
 
@@ -105,12 +98,18 @@ export const AILearningDashboard: React.FC = () => {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load AI learning data'
       setError(errorMessage)
-      logger.error('Failed to load AI learning dashboard', { error: errorMessage })
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [user])
 
+  useEffect(() => {
+    if (user) {
+      loadAILearningData()
+    }
+  }, [user, loadAILearningData])
+
+  // Move generateAIInsights here, outside of loadAILearningData and any other function
   const generateAIInsights = (profile: TasteProfile | null, recommendations: RecentRecommendation[]): AIInsight[] => {
     const insights: AIInsight[] = []
 
@@ -162,6 +161,7 @@ export const AILearningDashboard: React.FC = () => {
     userActivityData.interactions
   ).interactionLevel === 'new' : false
 
+
   // Event handlers for new user experience
   const handleStartOnboarding = () => {
     // Navigate to onboarding or trigger onboarding modal
@@ -180,9 +180,10 @@ export const AILearningDashboard: React.FC = () => {
     }
   }
 
-  const handleRatingComplete = (movieId: string, rating: number) => {
-    // Refresh data after rating
-    loadAILearningData()
+  const handleRatingComplete = async () => {
+    // Don't refresh data immediately to avoid resetting QuickRatingWidget state
+    // Data will be refreshed when user exits rating mode
+    // This keeps the rating flow smooth and continuous
   }
 
   if (!user) {
@@ -229,7 +230,7 @@ export const AILearningDashboard: React.FC = () => {
     )
   }
 
-  // Show new user experience if user is new or has minimal data
+  // Show new user experience if user is new or has minimal data  
   if (isNewUser && userActivityData && !showQuickRating) {
     return (
       <div className="space-y-6">
@@ -286,7 +287,11 @@ export const AILearningDashboard: React.FC = () => {
         {/* Quick Rating Widget */}
         <QuickRatingWidget
           onRatingComplete={handleRatingComplete}
-          onSkip={() => setShowQuickRating(false)}
+          onSkip={() => {
+            setShowQuickRating(false)
+            // Refresh data when exiting rating mode
+            loadAILearningData()
+          }}
         />
       </div>
     )
@@ -362,6 +367,8 @@ export const AILearningDashboard: React.FC = () => {
             tasteProfile={tasteProfile}
             recentRecommendations={recentRecommendations}
             aiInsights={aiInsights}
+            onStartRating={handleStartRating}
+            onOpenChat={handleOpenChat}
           />
         )}
         
@@ -386,7 +393,9 @@ const OverviewTab: React.FC<{
   tasteProfile: TasteProfile | null
   recentRecommendations: RecentRecommendation[]
   aiInsights: AIInsight[]
-}> = ({ tasteProfile, recentRecommendations, aiInsights }) => {
+  onStartRating: () => void
+  onOpenChat: () => void
+}> = ({ tasteProfile, recentRecommendations, aiInsights, onStartRating, onOpenChat }) => {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* Taste Profile Summary */}
@@ -446,7 +455,7 @@ const OverviewTab: React.FC<{
                 <p className="text-sm text-base-content/40">Rate some movies to help AI learn your preferences</p>
               </div>
               <button
-                onClick={handleStartRating}
+                onClick={onStartRating}
                 className="btn btn-sm btn-primary gap-2"
               >
                 <Star className="w-4 h-4" />
@@ -488,14 +497,14 @@ const OverviewTab: React.FC<{
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2 justify-center">
                   <button
-                    onClick={handleStartRating}
+                    onClick={onStartRating}
                     className="btn btn-sm btn-primary gap-2"
                   >
                     <Star className="w-4 h-4" />
                     Rate Movies
                   </button>
                   <button
-                    onClick={handleOpenChat}
+                    onClick={onOpenChat}
                     className="btn btn-sm btn-outline gap-2"
                   >
                     <MessageCircle className="w-4 h-4" />
@@ -567,10 +576,13 @@ const RecommendationsTab: React.FC<{ recommendations: RecentRecommendation[] }> 
           <div className="card-body">
             <div className="flex items-start gap-4">
               {rec.movie.poster_url && (
-                <img 
-                  src={rec.movie.poster_url} 
+                <Image
+                  src={rec.movie.poster_url}
                   alt={rec.movie.title}
+                  width={64}
+                  height={96}
                   className="w-16 h-24 object-cover rounded"
+                  unoptimized
                 />
               )}
               

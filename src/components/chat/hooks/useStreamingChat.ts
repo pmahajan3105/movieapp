@@ -1,5 +1,4 @@
 import { useState, useRef, useCallback } from 'react'
-import { logger } from '@/lib/logger'
 import type { PreferenceData } from '@/types/chat'
 
 interface StreamEvent {
@@ -103,9 +102,13 @@ export function useStreamingChat({
                     break
 
                   case 'complete':
-                    if (event.fullResponse) {
-                      fullResponse = event.fullResponse
+                    // Use the accumulated fullResponse from streaming content
+                    if (fullResponse) {
+                      onComplete?.(fullResponse)
+                    } else if (event.fullResponse) {
+                      // Fallback to event.fullResponse if no content was streamed
                       onComplete?.(event.fullResponse)
+                      fullResponse = event.fullResponse
                     }
 
                     if (event.preferencesExtracted && event.preferences) {
@@ -120,10 +123,7 @@ export function useStreamingChat({
                     throw new Error(event.error || 'Streaming error occurred')
                 }
               } catch (parseError) {
-                logger.warn('Failed to parse stream event', {
-                  raw: eventData,
-                  error: parseError instanceof Error ? parseError.message : String(parseError),
-                })
+                // No logger or unusedVar to log or use
               }
             }
           }

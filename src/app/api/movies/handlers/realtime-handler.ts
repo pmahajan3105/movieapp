@@ -11,7 +11,8 @@ export async function handleRealTimeMovies(
   databaseId?: string,
   supabase?: SupabaseClient,
   smartMode?: boolean,
-  skipExplanations?: boolean
+  skipExplanations?: boolean,
+  topRated?: boolean
 ) {
   logger.info('Fetching real-time movies', { limit, page, query, databaseId, smartMode })
 
@@ -122,6 +123,8 @@ export async function handleRealTimeMovies(
     const result =
       query || (smartMode && searchParams.query)
         ? await movieDatabaseService.searchMovies(database, searchParams)
+        : topRated
+        ? await movieDatabaseService.getTopRatedMovies(database, searchParams)
         : await movieDatabaseService.getTrendingMovies(database, searchParams)
 
     // Enhance results with AI reasoning if in smart mode

@@ -38,7 +38,7 @@ export async function hydrateSessionFromCookie(
     const fixedPad = padded + '='.repeat((4 - (padded.length % 4)) % 4)
 
     // Use atob if available otherwise Buffer decoding (Jest / Node environment)
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+     
     // @ts-ignore – atob is not defined in Node typings
     const decodeBase64 =
       typeof atob === 'function'

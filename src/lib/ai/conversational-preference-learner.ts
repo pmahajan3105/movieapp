@@ -451,8 +451,8 @@ export class ConversationalPreferenceLearner {
     ]
 
     for (const [type1, type2] of conflictPairs) {
-      const has1 = preferences.some(p => typeof p.value === 'string' && p.value.toLowerCase().includes(type1));
-      const has2 = preferences.some(p => typeof p.value === 'string' && p.value.toLowerCase().includes(type2));
+      const has1 = preferences.some(p => (typeof p.value === 'string' ? p.value : '').toLowerCase().includes(String(type1)));
+      const has2 = preferences.some(p => (typeof p.value === 'string' ? p.value : '').toLowerCase().includes(String(type2)));
       if (has1 && has2) {
         conflicts.push(`${type1} vs ${type2}`);
       }

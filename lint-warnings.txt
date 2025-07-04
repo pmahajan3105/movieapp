@@ -1,0 +1,4 @@
+
+> cineai@2.0.0 lint
+> next lint --max-warnings=9999
+

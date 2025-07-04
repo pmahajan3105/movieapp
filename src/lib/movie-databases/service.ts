@@ -117,6 +117,33 @@ export class MovieDatabaseService {
     }
   }
 
+  // Get top-rated movies
+  async getTopRatedMovies(
+    database: MovieDatabaseConfig,
+    options: TrendingOptions = {}
+  ): Promise<MovieDatabaseResponse> {
+    logger.info(`Getting top-rated movies from ${database.name}`, {
+      database: database.id,
+      provider: database.provider,
+      limit: options.limit,
+    })
+
+    switch (database.provider) {
+      case 'tmdb':
+        return this.getTopRatedTMDB(database, options)
+
+      case 'local':
+        // Local doesn't have separate top-rated, return sorted by rating
+        return this.searchLocal(database, {
+          limit: options.limit,
+          page: options.page,
+        })
+
+      default:
+        throw new Error(`Provider ${database.provider} not supported for top-rated`)
+    }
+  }
+
   // Get movie details
   async getMovieDetails(database: MovieDatabaseConfig, movieId: string): Promise<Movie | null> {
     logger.info(`Getting movie details from ${database.name}`, {
@@ -217,6 +244,37 @@ export class MovieDatabaseService {
     }
   }
 
+  private async getTopRatedTMDB(
+    database: MovieDatabaseConfig,
+    options: TrendingOptions
+  ): Promise<MovieDatabaseResponse> {
+    const apiKey = process.env.TMDB_API_KEY
+    if (!apiKey) {
+      throw new Error('TMDB API key not configured')
+    }
+
+    const { limit = 20, page = 1 } = options
+
+    const url = `${database.apiUrl}/movie/top_rated?api_key=${apiKey}&page=${page}&language=en-US`
+
+    const response = await fetch(url)
+    const data: TMDBSearchResponse = await response.json()
+
+    if (!response.ok) {
+      throw new Error(`TMDB API error: ${response.status}`)
+    }
+
+    const movies = data.results.slice(0, limit).map(movie => this.transformTMDBToMovie(movie))
+
+    return {
+      movies,
+      total: data.total_results,
+      page: data.page,
+      totalPages: data.total_pages,
+      source: 'tmdb-top-rated',
+    }
+  }
+
   private async getMovieDetailsTMDB(
     database: MovieDatabaseConfig,
     movieId: string
@@ -244,6 +302,7 @@ export class MovieDatabaseService {
       title: tmdbMovie.title,
       year: tmdbMovie.release_date ? new Date(tmdbMovie.release_date).getFullYear() : undefined,
       genre: tmdbMovie.genres?.map(g => g.name) || [],
+      director: [], // TMDB search results don't include director info
       rating: tmdbMovie.vote_average || 0,
       plot: tmdbMovie.overview || '',
       poster_url: tmdbMovie.poster_path
@@ -254,7 +313,7 @@ export class MovieDatabaseService {
         : undefined,
       runtime: tmdbMovie.runtime,
       tmdb_id: tmdbMovie.id,
-      imdb_id: tmdbMovie.imdb_id,
+      imdb_id: tmdbMovie.imdb_id || undefined, // Convert null to undefined
       popularity: tmdbMovie.vote_count,
       source: 'tmdb',
     }

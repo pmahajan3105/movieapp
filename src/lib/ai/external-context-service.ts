@@ -91,7 +91,7 @@ export class ExternalContextService {
       
       return { ...context, source: 'fresh' }
     } catch (error) {
-      console.warn(`Failed to fetch fresh context for ${movie.title}:`, error.message)
+      console.warn(`Failed to fetch fresh context for ${movie.title}:`, error instanceof Error ? error.message : String(error))
       
       // Return stale cache if available
       if (cached) {
@@ -137,7 +137,7 @@ export class ExternalContextService {
       const data = await response.json()
       return this.parseBraveSearchResults(data.web?.results || [])
     } catch (error) {
-      console.warn('Brave Search API failed:', error.message)
+      console.warn('Brave Search API failed:', error instanceof Error ? error.message : String(error))
       return null
     }
   }
@@ -171,7 +171,7 @@ export class ExternalContextService {
         wikipediaSummary: movieSummary?.extract || ''
       }
     } catch (error) {
-      console.warn('Wikipedia API failed:', error.message)
+      console.warn('Wikipedia API failed:', error instanceof Error ? error.message : String(error))
       return null
     }
   }

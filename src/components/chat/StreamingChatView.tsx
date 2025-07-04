@@ -20,19 +20,41 @@ export function StreamingChatView({
   className = '',
 }: StreamingChatViewProps) {
   const [inputValue, setInputValue] = React.useState('')
+  const messagesEndRef = React.useRef<HTMLDivElement>(null)
+  const messagesContainerRef = React.useRef<HTMLDivElement>(null)
+
+  // Auto-scroll to bottom when messages change
+  const scrollToBottom = React.useCallback(() => {
+    if (messagesEndRef.current) {
+      // Use requestAnimationFrame to ensure DOM has updated
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ 
+          behavior: 'smooth',
+          block: 'end'
+        })
+      })
+    }
+  }, [])
+
+  // Scroll to bottom when messages change or streaming updates
+  React.useEffect(() => {
+    scrollToBottom()
+  }, [messages, streamingMessage, scrollToBottom])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (inputValue.trim() && !isStreaming) {
       onSendMessage(inputValue.trim())
       setInputValue('')
+      // Scroll to bottom after sending message (small delay to ensure message is rendered)
+      setTimeout(scrollToBottom, 100)
     }
   }
 
   return (
     <div className={`flex h-full flex-col ${className}`}>
       {/* Messages Area */}
-      <div className="flex-1 space-y-4 overflow-y-auto p-4">
+      <div ref={messagesContainerRef} className="flex-1 space-y-4 overflow-y-auto p-4">
         {messages.length === 0 ? (
           <div className="flex h-full items-center justify-center">
             <div className="text-base-content/60 text-center">
@@ -83,6 +105,9 @@ export function StreamingChatView({
                 </div>
               </div>
             )}
+            
+            {/* Scroll target - invisible element at the bottom */}
+            <div ref={messagesEndRef} />
           </>
         )}
       </div>

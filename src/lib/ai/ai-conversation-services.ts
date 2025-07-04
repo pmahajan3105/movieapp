@@ -41,7 +41,7 @@ export class UnifiedConversationEngine {
       const parser = ConversationalParser.getInstance()
       
       // Parse the user's message to understand intent
-      const parsed = await parser.parseQuery(options.message, options.userId)
+      const parsed = await parser.parseQuery(options.message)
       
       // Generate appropriate response based on intent
       return {

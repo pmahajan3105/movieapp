@@ -1,7 +1,6 @@
 // Unified Movie Service - TMDB as primary source with intelligent fallbacks
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import type { Movie } from '@/types'
-import { logger } from '@/lib/logger'
 
 // TMDB API interfaces
 interface TMDBMovie {
@@ -150,7 +149,7 @@ export class MovieService {
 
     // Initialize genres cache with proper error handling
     this.loadGenres().catch(error => {
-      logger.error('Failed to load genres cache during initialization:', error)
+      console.error('Failed to load genres cache during initialization:', error)
       // Set empty cache on failure to prevent undefined access
       this.genreCacheManager.clear()
     })
@@ -176,7 +175,7 @@ export class MovieService {
         clearTimeout(timeoutId)
 
         if (!response.ok) {
-          logger.warn('Failed to load TMDB genres', { status: response.status })
+          console.warn('Failed to load TMDB genres', { status: response.status })
           return
         }
 
@@ -193,15 +192,15 @@ export class MovieService {
 
           // Set cache expiry using configured max age
           this.genreCacheManager.setExpiry(now + this.cacheMaxAge * 60 * 1000) // Convert minutes to milliseconds
-          logger.info(
+          console.info(
             `Loaded ${this.genreCacheManager.getCacheSize()} genres, cache expires at ${new Date(this.genreCacheManager.getExpiry()).toISOString()}`
           )
         }
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
-          logger.warn('TMDB genres request timed out')
+          console.warn('TMDB genres request timed out')
         } else {
-          logger.warn('Error loading TMDB genres:', { error: String(error) })
+          console.warn('Error loading TMDB genres:', { error: String(error) })
         }
       }
     }
@@ -260,7 +259,7 @@ export class MovieService {
             movies.push(transformedMovie)
           }
         } catch (error) {
-          logger.warn(`Failed to transform movie ${results[i]?.title}:`, { error: String(error) })
+          console.warn(`Failed to transform movie ${results[i]?.title}:`, { error: String(error) })
           // Continue processing other movies
         }
       }
@@ -274,9 +273,9 @@ export class MovieService {
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
-        logger.warn('TMDB trending request timed out')
+        console.warn('TMDB trending request timed out')
       } else {
-        logger.error('TMDB trending error:', { error: String(error) })
+        console.error('TMDB trending error:', { error: String(error) })
       }
       // Fallback to local database
       const fallbackResult = await this.getLocalMovies({ limit: safeLimit, page: safePage })
@@ -348,7 +347,7 @@ export class MovieService {
             movies.push(transformedMovie)
           }
         } catch (error) {
-          logger.warn(`Failed to transform movie ${results[i]?.title}:`, { error: String(error) })
+          console.warn(`Failed to transform movie ${results[i]?.title}:`, { error: String(error) })
           // Continue processing other movies
         }
       }
@@ -361,7 +360,7 @@ export class MovieService {
         fallbackUsed: false,
       }
     } catch (error) {
-      logger.error('TMDB search error:', { error: String(error) })
+      console.error('TMDB search error:', { error: String(error) })
       // Fallback to local database search
       const fallbackResult = await this.searchLocalMovies(query, {
         limit: safeLimit,
@@ -377,7 +376,7 @@ export class MovieService {
   // Get movie by ID from TMDB with local fallback
   async getMovieById(id: number, detailed: boolean = true): Promise<Movie | null> {
     if (!id || id <= 0) {
-      logger.warn('Invalid movie ID provided', { id })
+      console.warn('Invalid movie ID provided', { id })
       return null
     }
 
@@ -402,9 +401,9 @@ export class MovieService {
 
       if (!response.ok) {
         if (response.status === 404) {
-          logger.info(`Movie with ID ${id} not found in TMDB`)
+          console.info(`Movie with ID ${id} not found in TMDB`)
         } else {
-          logger.warn(`TMDB API error for movie ${id}:`, { status: response.status })
+          console.warn(`TMDB API error for movie ${id}:`, { status: response.status })
         }
         // Fall back to local database
         return this.getLocalMovieById(id)
@@ -414,9 +413,9 @@ export class MovieService {
       return this.transformTMDBToMovie(data, detailed)
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
-        logger.warn(`TMDB request timed out for movie ${id}`)
+        console.warn(`TMDB request timed out for movie ${id}`)
       } else {
-        logger.error(`Error fetching movie ${id} from TMDB:`, { error: String(error) })
+        console.error(`Error fetching movie ${id} from TMDB:`, { error: String(error) })
       }
       // Fall back to local database
       return this.getLocalMovieById(id)
@@ -449,7 +448,7 @@ export class MovieService {
 
       return this.formatMovieInfoForChat(detailedMovie)
     } catch (error) {
-      logger.error('Error getting movie info for chat:', { error: String(error), movieTitle })
+      console.error('Error getting movie info for chat:', { error: String(error), movieTitle })
       return `I encountered an error while looking up "${movieTitle}". Please try asking about the movie in a different way.`
     }
   }
@@ -550,7 +549,7 @@ export class MovieService {
         fallbackUsed: false,
       }
     } catch (error) {
-      logger.error('Local database error:', { error: String(error) })
+      console.error('Local database error:', { error: String(error) })
       return {
         movies: [],
         totalResults: 0,
@@ -605,7 +604,7 @@ export class MovieService {
         fallbackUsed: false,
       }
     } catch (error) {
-      logger.error('Local database search error:', { error: String(error) })
+      console.error('Local database search error:', { error: String(error) })
       return {
         movies: [],
         totalResults: 0,
@@ -690,7 +689,7 @@ export class MovieService {
         return null // Return null if no preferences found
       }
 
-      logger.info('Loading preference-based recommendations', {
+      console.info('Loading preference-based recommendations', {
         preferences: userProfile.preferences,
       })
 
@@ -726,7 +725,7 @@ export class MovieService {
         .range(offset, offset + limit - 1)
 
       if (error) {
-        logger.error('Error with preference-based query:', { error: error.message })
+        console.error('Error with preference-based query:', { error: error.message })
         throw new Error(`Failed to fetch preference-based movies: ${error.message}`)
       }
 
@@ -741,7 +740,7 @@ export class MovieService {
         source: 'local-preferences',
       }
     } catch (error) {
-      logger.error('Error fetching movies by preferences:', { error: String(error) })
+      console.error('Error fetching movies by preferences:', { error: String(error) })
       return null
     }
   }
@@ -762,7 +761,7 @@ export class MovieService {
     const { limit = 20, page = 1 } = options
     const offset = (page - 1) * limit
 
-    logger.info('Loading general movie recommendations')
+    console.info('Loading general movie recommendations')
 
     try {
       const { data, error, count } = await this.supabase
@@ -773,7 +772,7 @@ export class MovieService {
         .range(offset, offset + limit - 1)
 
       if (error) {
-        logger.error('Error fetching popular movies:', { error: error.message })
+        console.error('Error fetching popular movies:', { error: error.message })
         throw new Error(`Failed to fetch popular movies: ${error.message}`)
       }
 
@@ -788,7 +787,7 @@ export class MovieService {
         source: 'local-popular',
       }
     } catch (error) {
-      logger.error('Error fetching popular movies:', { error: String(error) })
+      console.error('Error fetching popular movies:', { error: String(error) })
       // Return empty result instead of throwing
       return {
         movies: [],
@@ -807,7 +806,7 @@ export class MovieService {
     try {
       // Get user preferences if they exist
       if (userProfile.preferences?.preferredGenres?.length) {
-        logger.info('Loading preference-based recommendations', {
+        console.info('Loading preference-based recommendations', {
           hasPreferences: true,
           genreCount: userProfile.preferences.preferredGenres?.length || 0,
         })
@@ -835,7 +834,7 @@ export class MovieService {
       const popularResult = await this.getPopularMovies({ limit: 20 })
       return popularResult.movies.map(movie => this.transformToRecommendation(movie))
     } catch (error) {
-      logger.error('Error getting movie recommendations:', { error: String(error) })
+      console.error('Error getting movie recommendations:', { error: String(error) })
       return []
     }
   }
@@ -948,7 +947,7 @@ export class MovieService {
         .single()
 
       if (error || !movie) {
-        logger.info(`Movie with ID ${id} not found in local database`)
+        console.info(`Movie with ID ${id} not found in local database`)
         return null
       }
 
@@ -969,7 +968,7 @@ export class MovieService {
         video: movie.video || false,
       }
     } catch (error) {
-      logger.error(`Error fetching movie ${id} from local database:`, { error: String(error) })
+      console.error(`Error fetching movie ${id} from local database:`, { error: String(error) })
       return null
     }
   }

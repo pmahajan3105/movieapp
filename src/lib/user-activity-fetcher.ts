@@ -20,7 +20,7 @@ export interface UserActivityData {
   aiProfile: {
     favorite_genres: string[]
     ai_confidence: number
-    last_learning_event: string | null
+    last_learning_event?: string
   } | null
 }
 
@@ -96,7 +96,7 @@ export async function fetchUserActivityData(userId: string): Promise<UserActivit
       aiProfile = {
         favorite_genres: insights.favorite_genres || [],
         ai_confidence: aiProfileData.confidence_score || 0,
-        last_learning_event: aiProfileData.updated_at
+        ...(aiProfileData.updated_at ? { last_learning_event: aiProfileData.updated_at } : {})
       }
     }
 
@@ -106,8 +106,8 @@ export async function fetchUserActivityData(userId: string): Promise<UserActivit
         ratings_count,
         watchlist_count,
         chat_messages_count,
-        last_activity,
-        recent_activity_days
+        last_activity: last_activity ?? null,
+        recent_activity_days: typeof recent_activity_days === 'number' ? recent_activity_days : 999
       },
       aiProfile
     }

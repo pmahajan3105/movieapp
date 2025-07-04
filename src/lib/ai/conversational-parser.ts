@@ -106,9 +106,9 @@ export class ConversationalParser {
   /**
    * Parse complex conversational query with advanced multi-intent understanding
    */
-  async parseQuery(query: string, userId: string): Promise<ConversationalQuery> {
+  async parseQuery(query: string): Promise<ConversationalQuery> {
     try {
-      logger.info('Parsing advanced conversational query', { query, userId })
+      logger.info('Parsing advanced conversational query')
 
       // First pass: Basic structure analysis
       const basicAnalysis = await this.performBasicAnalysis(query)
@@ -140,15 +140,15 @@ export class ConversationalParser {
   /**
    * Enhanced query parsing with full advanced intelligence
    */
-  async parseAdvancedQuery(query: string, userId: string): Promise<ConversationalQuery> {
+  async parseAdvancedQuery(query: string): Promise<ConversationalQuery> {
     try {
-      logger.info('Parsing advanced conversational query', { query, userId })
+      logger.info('Parsing advanced conversational query')
 
       // First, get the basic query structure
-      const basicQuery = await this.parseQuery(query, userId)
+      const basicQuery = await this.parseQuery(query)
 
       // Enhance with advanced analysis
-      const enhancedCriteria = await this.enhanceWithAdvancedAnalysis(query, basicQuery, userId)
+      const enhancedCriteria = await this.enhanceWithAdvancedAnalysis(query, basicQuery)
 
       // Combine basic and advanced insights
       const advancedQuery: ConversationalQuery = {
@@ -175,10 +175,9 @@ export class ConversationalParser {
       logger.error('Advanced query parsing failed', {
         error: error instanceof Error ? error.message : 'Unknown error',
         query,
-        userId,
       })
       // Fallback to basic parsing
-      return this.parseQuery(query, userId)
+      return this.parseQuery(query)
     }
   }
 
@@ -530,8 +529,7 @@ Focus on extracting sophisticated cinematic and thematic understanding. Return o
    */
   private async enhanceWithAdvancedAnalysis(
     query: string,
-    basicQuery: ConversationalQuery,
-    userId: string
+    basicQuery: ConversationalQuery
   ): Promise<Partial<ConversationalQuery['extracted_criteria']>> {
     const enhancement: Partial<ConversationalQuery['extracted_criteria']> = {}
 

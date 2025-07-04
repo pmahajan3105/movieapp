@@ -1,4 +1,4 @@
-/* eslint-disable @next/next/no-img-element */
+ 
 
 import React from 'react'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
@@ -436,4 +436,4 @@ describe('OnboardingFlow', () => {
   })
 })
 
-/* eslint-disable @next/next/no-img-element */
+ 

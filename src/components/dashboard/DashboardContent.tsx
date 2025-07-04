@@ -3,8 +3,26 @@
 import React from 'react'
 import dynamic from 'next/dynamic'
 import { PrecomputedRecommendations } from '@/components/dashboard/PrecomputedRecommendations'
-import { AILearningDashboard } from '@/components/dashboard/AILearningDashboard'
 import type { MovieActionsHandlers } from '@/hooks/useMovieActions'
+
+// Dynamically load heavy components to avoid blocking initial render
+const AILearningDashboard = dynamic(
+  () =>
+    import('@/components/dashboard/AILearningDashboard').then(m => ({
+      default: m.AILearningDashboard,
+    })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 flex h-96 animate-pulse items-center justify-center rounded-lg border border-slate-200/50">
+        <div className="text-center">
+          <div className="loading loading-spinner loading-lg text-primary mb-4"></div>
+          <p className="text-slate-600">Loading AI insights...</p>
+        </div>
+      </div>
+    ),
+  }
+)
 
 const BehavioralInsightsPanel = dynamic(
   () =>
@@ -14,8 +32,11 @@ const BehavioralInsightsPanel = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="bg-base-200 flex h-64 animate-pulse items-center justify-center rounded-lg">
-        <span className="loading loading-spinner text-primary"></span>
+      <div className="bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 flex h-64 animate-pulse items-center justify-center rounded-lg border border-slate-200/50">
+        <div className="text-center">
+          <div className="loading loading-spinner loading-lg text-primary mb-4"></div>
+          <p className="text-slate-600">Loading behavioral insights...</p>
+        </div>
       </div>
     ),
   }
@@ -26,7 +47,7 @@ interface DashboardContentProps {
 }
 
 export const DashboardContent: React.FC<DashboardContentProps> = ({ movieActions }) => {
-  const { handleMovieView, handleMovieSave, handleMovieRate } = movieActions
+  const { handleMovieView, handleMovieSave } = movieActions
 
   return (
     <>
@@ -37,7 +58,6 @@ export const DashboardContent: React.FC<DashboardContentProps> = ({ movieActions
           <PrecomputedRecommendations
             onMovieView={handleMovieView}
             onMovieSave={handleMovieSave}
-            onMovieRate={handleMovieRate}
             limit={12}
             showInsights={true}
           />

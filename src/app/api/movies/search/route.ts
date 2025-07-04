@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
 
     // Parse the conversational query
     const parser = new ConversationalParser();
-    const parsedQuery = await parser.parseQuery(query, user.id);
+    const parsedQuery = await parser.parseQuery(query);
 
     // Execute the search
     const searchEngine = new SmartSearchEngine();
@@ -133,7 +133,7 @@ export async function GET(request: NextRequest) {
     try {
       // Use the same conversational search logic
       const parser = new ConversationalParser();
-      const parsedQuery = await parser.parseQuery(query, user.id);
+      const parsedQuery = await parser.parseQuery(query);
 
       const searchEngine = new SmartSearchEngine();
       const results = await searchEngine.executeSearch(parsedQuery, user.id, limit);

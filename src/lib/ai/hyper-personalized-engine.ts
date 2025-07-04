@@ -467,7 +467,7 @@ export class HyperPersonalizedEngine {
   /**
    * Generate human-readable reasoning for the recommendation
    */
-  private generateReasoning(movie: Movie, scores: any, _profile: UserBehaviorProfile): string[] {
+  private generateReasoning(movie: Movie, scores: any, profile: UserBehaviorProfile): string[] {
     const reasoning: string[] = []
 
     if (scores.genre_affinity_score > 0.4) {

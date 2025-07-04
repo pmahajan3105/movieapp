@@ -71,7 +71,7 @@ export class StreamingResponseHandler {
           }
 
           // Process complete response
-          await this.processCompleteStreamingResponse(
+          await StreamingResponseHandler.processCompleteStreamingResponse(
             sessionId,
             userMessage,
             assistantMessage,
@@ -186,6 +186,7 @@ export class StreamingResponseHandler {
                   type: 'complete',
                   sessionId,
                   preferencesExtracted: true,
+                  fullResponse: assistantMessage,
                   message:
                     "Great! I've learned about your movie preferences. You can now get personalized recommendations!",
                 })}\n\n`
@@ -213,6 +214,7 @@ export class StreamingResponseHandler {
             type: 'complete',
             sessionId,
             preferencesExtracted: false,
+            fullResponse: assistantMessage,
           })}\n\n`
         )
       )

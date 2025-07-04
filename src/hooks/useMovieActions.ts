@@ -88,8 +88,18 @@ export const useMovieActions = (): MovieActionsHandlers => {
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to add movie to watchlist'
-      logger.error('Failed to add movie to watchlist', { movieId, error: errorMessage })
-      toast.error(errorMessage)
+      
+      // Handle "already in watchlist" as a positive message instead of an error
+      if (errorMessage.toLowerCase().includes('already in watchlist')) {
+        toast('This movie is already in your watchlist!', {
+          icon: 'ℹ️',
+          duration: 3000,
+        })
+        logger.info('Movie already in watchlist', { movieId })
+      } else {
+        logger.error('Failed to add movie to watchlist', { movieId, error: errorMessage })
+        toast.error(errorMessage)
+      }
     }
   }, [])
 

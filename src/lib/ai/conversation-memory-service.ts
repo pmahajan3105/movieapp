@@ -30,8 +30,7 @@ export class ConversationMemoryService {
       })
 
       // resp.content is Anthropic content blocks; treat as any to access .text safely
-      const text = (resp as any).content?.[0]?.text || 'Sorry, I had trouble coming up with an answer.'
-      return text.trim()
+      return (resp as any).content?.[0]?.text || 'Sorry, I had trouble coming up with an answer.'
     } catch (err) {
       logger.error('Claude generation failed', {
         error: err instanceof Error ? err.message : String(err),

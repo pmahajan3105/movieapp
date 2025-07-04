@@ -6,7 +6,6 @@
 import { logger } from '@/lib/logger'
 import { PerformanceMonitor, measurePerformance } from './performance-monitor'
 import { ReliabilityOrchestrator, SystemHealthStatus } from './reliability-orchestrator'
-import { BackgroundJobOptimizer } from './background-job-optimizer'
 import { ServiceCircuitBreaker } from './service-circuit-breaker'
 
 interface AlertRule {
@@ -78,7 +77,6 @@ export class ProductionReliabilityManager {
   private config: ReliabilityConfig
   private monitor: PerformanceMonitor
   private reliabilityOrchestrator: ReliabilityOrchestrator
-  private backgroundJobs: BackgroundJobOptimizer
   
   private alertRules = new Map<string, AlertRule>()
   private activeAlerts = new Map<string, Alert>()
@@ -106,7 +104,6 @@ export class ProductionReliabilityManager {
     this.config = { ...this.DEFAULT_CONFIG, ...config }
     this.monitor = PerformanceMonitor.getInstance()
     this.reliabilityOrchestrator = ReliabilityOrchestrator.getInstance()
-    this.backgroundJobs = BackgroundJobOptimizer.getInstance()
     
     this.metrics = this.initializeMetrics()
     this.setupDefaultAlertRules()
@@ -284,8 +281,7 @@ export class ProductionReliabilityManager {
       clearInterval(this.metricsInterval)
     }
     
-    // Shutdown background jobs
-    this.backgroundJobs.shutdown()
+    // Background jobs component removed
     
     // Wait for ongoing operations to complete
     await this.waitForCompletion()

@@ -27,19 +27,25 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Check authentication only for dashboard routes
   const pathname = request.nextUrl.pathname
+  
+  // Get current session for auth checks
+  const {
+    data: { session },
+    error,
+  } = await supabase.auth.getSession()
+
+  // Redirect authenticated users from home page to dashboard
+  if (pathname === '/' && session?.user && !error) {
+    return NextResponse.redirect(new URL('/dashboard', request.url))
+  }
+
+  // Check authentication only for dashboard routes
   const isDashboardRoute = pathname.startsWith('/dashboard')
   const isWatchlistRoute = pathname.startsWith('/watchlist') && pathname !== '/watchlist'
 
   // Only check auth for dashboard and specific protected routes
   if (isDashboardRoute || isWatchlistRoute) {
-    // Get current session (will refresh tokens if needed)
-    const {
-      data: { session },
-      error,
-    } = await supabase.auth.getSession()
-
     // If no valid session/user, redirect to login
     if (!session?.user || error) {
       const loginUrl = new URL('/auth/login', request.url)
@@ -59,9 +65,10 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match dashboard and protected routes only
+     * Match home page and protected routes
      * Skip all API routes except specific ones that need auth
      */
+    '/',
     '/dashboard/:path*',
     '/watchlist/:path*',
   ],

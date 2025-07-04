@@ -4,7 +4,6 @@
  */
 
 import { globalRequestCache } from './request-cache'
-import { logger } from '@/lib/logger'
 
 export class RecommendationCacheManager {
   private static readonly CACHE_PREFIXES = [
@@ -32,13 +31,13 @@ export class RecommendationCacheManager {
         }
       })
 
-      logger.info('🗑️ Cleared user recommendation cache', {
+      console.info('🗑️ Cleared user recommendation cache', {
         userId,
         clearedEntries: clearedCount,
         totalCacheSize: stats.size,
       })
     } catch (error) {
-      logger.error('❌ Failed to clear user recommendation cache', {
+      console.error('❌ Failed to clear user recommendation cache', {
         userId,
         error: error instanceof Error ? error.message : String(error),
       })
@@ -63,12 +62,12 @@ export class RecommendationCacheManager {
         }
       })
 
-      logger.info('🗑️ Cleared all recommendation caches', {
+      console.info('🗑️ Cleared all recommendation caches', {
         clearedEntries: clearedCount,
         totalCacheSize: stats.size,
       })
     } catch (error) {
-      logger.error('❌ Failed to clear all recommendation caches', {
+      console.error('❌ Failed to clear all recommendation caches', {
         error: error instanceof Error ? error.message : String(error),
       })
     }
@@ -118,7 +117,7 @@ export class RecommendationCacheManager {
   static forceRefreshUserRecommendations(userId: string): void {
     this.clearUserRecommendations(userId)
 
-    logger.info('♻️ Forced recommendation refresh for user', {
+    console.info('♻️ Forced recommendation refresh for user', {
       userId,
       reason: 'Cache invalidation requested',
     })
