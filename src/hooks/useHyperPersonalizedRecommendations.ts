@@ -86,10 +86,8 @@ export const useHyperPersonalizedRecommendations = (
         setError('User not authenticated')
         return
       }
-
       setIsLoading(true)
       setError(null)
-
       try {
         const finalOptions = { ...stableInitialOptions, ...options }
         setLastOptions(finalOptions)
@@ -185,7 +183,7 @@ export const useHyperPersonalizedRecommendations = (
         setIsLoading(false)
       }
     },
-    [stableUserId, stableInitialOptions]
+    [stableUserId, stableInitialOptions, setLastOptions]
   )
 
   /**

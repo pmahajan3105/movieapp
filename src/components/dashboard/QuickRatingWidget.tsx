@@ -34,8 +34,8 @@ export const QuickRatingWidget: React.FC<QuickRatingWidgetProps> = ({
   onRatingComplete,
   onSkip,
   className = '',
-  title = "Rate Movies You Know",
-  description = "Help AI learn your taste by rating movies you've seen",
+  title = "Rate Top Movies",
+  description = "Rate TMDB's top-rated movies to help AI learn your taste",
   moviesSource = 'popular',
   maxMovies = 10
 }) => {
@@ -48,6 +48,8 @@ export const QuickRatingWidget: React.FC<QuickRatingWidgetProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [ratedMovieIds, setRatedMovieIds] = useState<Set<string>>(new Set())
   const [userRatedMovies, setUserRatedMovies] = useState<Set<string>>(new Set())
+  const [sessionRatedMovies, setSessionRatedMovies] = useState<Set<string>>(new Set())
+  const [tmdbPage, setTmdbPage] = useState(1) // Track TMDB pagination
   
   // Movie actions for modal functionality
   const movieActions = useMovieActions()
@@ -62,103 +64,110 @@ export const QuickRatingWidget: React.FC<QuickRatingWidgetProps> = ({
     { value: 4, icon: Heart, label: "Love it", color: "text-success" }
   ]
   
-  // Load movies for rating
+  // Load movies immediately when user is available
   useEffect(() => {
     if (user) {
-      loadUserRatings()
-      loadMoviesForRating()
+      const loadEverything = async () => {
+        setTmdbPage(1)
+        // Load movies first for immediate display
+        await loadMoviesForRating()
+        // Load user ratings in background for UI hints
+        await loadUserRatings()
+      }
+      loadEverything()
     }
   }, [user, moviesSource])
 
-  // Load user's existing ratings
+  // Load user's existing ratings - with localStorage fallback
   const loadUserRatings = async () => {
     try {
-      const response = await fetch('/api/ratings')
-      if (response.ok) {
-        const data = await response.json()
-        const ratings = data.data?.ratings || []
-        
-        // Create a set of rated movie IDs
-        const ratedIds = new Set<string>(ratings.map((rating: any) => String(rating.movie_id)))
-        
-        // Create title+year mappings from the included movie data
-        const ratedMovieTitles = new Set<string>()
-        
-        ratings.forEach((rating: any) => {
-          if (rating.movies && rating.movies.title && rating.movies.year) {
-            const movieKey = `${rating.movies.title.toLowerCase().trim()}_${rating.movies.year}`
-            ratedMovieTitles.add(movieKey)
-          }
-        })
-        
-        setUserRatedMovies(ratedMovieTitles)
-        setRatedMovieIds(ratedIds)
-        setRatingsGiven(ratedIds.size)
+      console.log('Loading user ratings...')
+      
+      // Try to load from localStorage first (immediate)
+      const localRatings = localStorage.getItem(`rated_movies_${user?.id}`)
+      if (localRatings) {
+        try {
+          const parsedRatings = JSON.parse(localRatings)
+          const localKeys = new Set<string>(parsedRatings)
+          setUserRatedMovies(localKeys)
+          setSessionRatedMovies(localKeys)
+          console.log('Loaded from localStorage:', Array.from(localKeys))
+        } catch (e) {
+          console.warn('Failed to parse localStorage ratings')
+        }
+      }
+      
+      // Then try to load from API (when it works)
+      try {
+        const response = await fetch('/api/ratings')
+        if (response.ok) {
+          const data = await response.json()
+          const ratings = data.data?.ratings || []
+          
+          console.log('Loaded ratings from API:', ratings.length)
+          
+          // Create a set of rated movie IDs
+          const ratedIds = new Set<string>(ratings.map((rating: any) => String(rating.movie_id)))
+          setRatedMovieIds(ratedIds)
+          setRatingsGiven(ratedIds.size)
+          
+          // Also populate title+year keys for better matching
+          const titleYearKeys = new Set<string>()
+          ratings.forEach((rating: any) => {
+            if (rating.movie_data?.title && rating.movie_data?.year) {
+              const key = `${rating.movie_data.title.toLowerCase().trim()}_${rating.movie_data.year}`
+              titleYearKeys.add(key)
+            }
+          })
+          
+          console.log('Generated title+year keys for filtering:', titleYearKeys.size)
+          
+          // Merge with existing localStorage data
+          setUserRatedMovies(prev => new Set([...prev, ...titleYearKeys]))
+          
+        } else {
+          console.warn('API ratings failed, using localStorage only')
+        }
+      } catch (apiError) {
+        console.warn('API ratings failed, using localStorage only:', apiError)
       }
     } catch (error) {
-      // Failed to load user ratings
+      console.error('Failed to load user ratings:', error)
     }
   }
   
-  // Find next unrated movie starting from given index
-  const findNextUnratedMovie = (startIndex: number): number => {
-    for (let i = startIndex; i < movies.length; i++) {
-      const movie = movies[i]
-      if (movie && !isMovieRated(movie)) {
-        return i
-      }
-    }
-    // If no unrated movie found after startIndex, check from beginning
-    for (let i = 0; i < startIndex; i++) {
-      const movie = movies[i]
-      if (movie && !isMovieRated(movie)) {
-        return i
-      }
-    }
-    return -1 // All movies rated
-  }
 
   // Check if a movie is already rated (by ID or by title+year for TMDB movies)
   const isMovieRated = (movie: Movie): boolean => {
-    // Debug logging
-    console.log('Checking movie:', {
-      title: movie.title,
-      year: movie.year,
-      id: movie.id,
-      ratedMovieIds: Array.from(ratedMovieIds),
-      userRatedMovies: Array.from(userRatedMovies)
-    })
+    const movieKey = movie.title && movie.year ? `${movie.title.toLowerCase().trim()}_${movie.year}` : null
     
-    // Check by database ID first
-    if (ratedMovieIds.has(movie.id)) {
-      console.log('Movie rated by ID:', movie.id)
+    // Check session ratings first (most reliable for current session)
+    if (movieKey && sessionRatedMovies.has(movieKey)) {
       return true
     }
     
-    // Check by title and year for TMDB movies that may have been rated
-    if (movie.title && movie.year) {
-      const movieKey = `${movie.title.toLowerCase().trim()}_${movie.year}`
-      console.log('Checking movie key:', movieKey)
-      if (userRatedMovies.has(movieKey)) {
-        console.log('Movie rated by title+year:', movieKey)
-        return true
-      }
+    // Check by database ID (most reliable for existing ratings)
+    if (ratedMovieIds.has(movie.id)) {
+      return true
     }
     
-    console.log('Movie NOT rated')
+    // Check by title and year for TMDB movies (fallback)
+    if (movieKey && userRatedMovies.has(movieKey)) {
+      return true
+    }
+    
     return false
   }
 
-  const loadMoviesForRating = async (useTmdb = false) => {
+  const loadMoviesForRating = async () => {
     try {
       setIsLoading(true)
       setError(null)
       
-      // If we need fresh movies or have exhausted local movies, fetch from TMDB top-rated
-      const apiUrl = useTmdb 
-        ? `/api/movies?realtime=true&top_rated=true&limit=${maxMovies}&page=1`
-        : `/api/movies?limit=${maxMovies}&page=1`
+      console.log(`Loading TMDB movies page ${tmdbPage}`)
       
+      // Fetch from TMDB top-rated movies
+      const apiUrl = `/api/movies?realtime=true&top_rated=true&limit=${maxMovies}&page=${tmdbPage}`
       const response = await fetch(apiUrl)
       
       if (!response.ok) {
@@ -166,33 +175,28 @@ export const QuickRatingWidget: React.FC<QuickRatingWidgetProps> = ({
       }
       
       const data = await response.json()
+      const moviesList = data.movies || []
       
-      // Handle different response formats
-      const moviesData = data.success ? data.data : (data.movies || data)
-      const moviesList = Array.isArray(moviesData) ? moviesData : []
-      
-      if (useTmdb) {
-        // When loading from TMDB, append to existing movies to avoid duplicates
-        setMovies(prevMovies => {
-          const existingIds = new Set(prevMovies.map(m => m.id))
-          const newMovies = moviesList.filter(movie => !existingIds.has(movie.id))
-          const updatedMovies = [...prevMovies, ...newMovies]
-          
-          // Find first unrated movie in the updated list
-          const firstUnratedIndex = updatedMovies.findIndex(movie => !isMovieRated(movie))
-          if (firstUnratedIndex >= 0) {
-            setCurrentIndex(firstUnratedIndex)
-          }
-          
-          return updatedMovies
-        })
-      } else {
-        setMovies(moviesList)
-        
-        // Start with first unrated movie
-        const firstUnratedIndex = moviesList.findIndex(movie => !isMovieRated(movie))
-        setCurrentIndex(firstUnratedIndex >= 0 ? firstUnratedIndex : 0)
+      if (moviesList.length === 0) {
+        setError('No more movies available')
+        return
       }
+      
+      // Simply add new movies to the list (no complex filtering)
+      setMovies(prevMovies => {
+        const existingIds = new Set(prevMovies.map(m => m.id))
+        const newMovies = moviesList.filter((movie: Movie) => !existingIds.has(movie.id))
+        const allMovies = [...prevMovies, ...newMovies]
+        
+        console.log(`Loaded ${allMovies.length} total movies`)
+        
+        // Start with first movie if this is initial load
+        if (prevMovies.length === 0) {
+          setCurrentIndex(0)
+        }
+        
+        return allMovies
+      })
       
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load movies'
@@ -205,9 +209,17 @@ export const QuickRatingWidget: React.FC<QuickRatingWidgetProps> = ({
   const handleRating = async (rating: number) => {
     if (!currentMovie || !user || isSubmitting) return
     
-    setIsSubmitting(true)
+    // Check if movie is already rated and show toast
+    if (isMovieRated(currentMovie)) {
+      toast(`You've already rated "${currentMovie.title}"`, { duration: 3000 })
+      await goToNext()
+      return
+    }
     
+    setIsSubmitting(true)
     try {
+      console.log('Submitting rating for:', currentMovie.title, currentMovie.year, 'Rating:', rating)
+      
       const response = await fetch('/api/ratings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -224,90 +236,93 @@ export const QuickRatingWidget: React.FC<QuickRatingWidgetProps> = ({
             imdb_id: currentMovie.imdb_id,
           },
           rating: rating,
-          interested: rating >= 3 // 3+ stars means interested
+          interested: rating >= 3
         })
       })
-      
       if (!response.ok) {
         const errorData = await response.text()
         throw new Error(errorData || 'Failed to save rating')
       }
-
       const ratingResult = await response.json()
       const actualMovieId = ratingResult.data?.movie_id || currentMovie.id
       
-      // Success toast
-      toast.success(`Rated "${currentMovie.title}" ${rating} star${rating !== 1 ? 's' : ''}!`, {
-        duration: 2000,
-      })
-      
+      toast.success(`Rated "${currentMovie.title}" ${rating} star${rating !== 1 ? 's' : ''}!`, { duration: 2000 })
       setRatingsGiven(prev => prev + 1)
       
-      // Track this movie as rated using both the original ID and the database ID
+      // Store both the original movie ID and the actual database ID
       setRatedMovieIds(prev => new Set([...prev, currentMovie.id, actualMovieId]))
       
-      // Also track by title+year for future duplicate detection
       if (currentMovie.title && currentMovie.year) {
         const movieKey = `${currentMovie.title.toLowerCase().trim()}_${currentMovie.year}`
-        setUserRatedMovies(prev => new Set([...prev, movieKey]))
+        
+        // Update all three storage methods consistently
+        setSessionRatedMovies(prev => new Set([...prev, movieKey]))
+        setUserRatedMovies(prev => {
+          const newSet = new Set([...prev, movieKey])
+          if (user?.id) {
+            localStorage.setItem(`rated_movies_${user.id}`, JSON.stringify(Array.from(newSet)))
+          }
+          return newSet
+        })
+        
+        console.log(`Stored rating for ${currentMovie.title} (${currentMovie.year}) with key: ${movieKey}`)
+      }
+      if (onRatingComplete) {
+        onRatingComplete(actualMovieId, rating)
       }
       
-      // Call onRatingComplete callback
-      onRatingComplete?.(actualMovieId, rating)
-      
-      // Find next unrated movie
-      const nextUnratedIndex = findNextUnratedMovie(currentIndex + 1)
-      if (nextUnratedIndex !== -1) {
-        setCurrentIndex(nextUnratedIndex)
-      } else {
-        // All current movies rated, load fresh movies from TMDB
-        await loadMoviesForRating(true)
-      }
-      
+      // Move to next movie
+      await goToNext()
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to save rating'
-      
-      // Show error toast
-      toast.error(`Failed to rate movie: ${errorMessage}`, {
-        duration: 4000,
-      })
+      toast.error(`Failed to rate movie: ${errorMessage}`, { duration: 4000 })
     } finally {
       setIsSubmitting(false)
     }
   }
   
-  const handleSkip = () => {
-    const nextUnratedIndex = findNextUnratedMovie(currentIndex + 1)
-    if (nextUnratedIndex !== -1) {
-      setCurrentIndex(nextUnratedIndex)
-    } else {
-      onSkip?.()
-    }
+  const handleSkip = async () => {
+    await goToNext()
   }
   
-  const goToNext = () => {
-    const nextUnratedIndex = findNextUnratedMovie(currentIndex + 1)
-    if (nextUnratedIndex !== -1) {
-      setCurrentIndex(nextUnratedIndex)
+  const goToNext = async () => {
+    const nextIndex = currentIndex + 1
+    if (nextIndex < movies.length) {
+      setCurrentIndex(nextIndex)
+    } else {
+      // Load more movies when we reach the end
+      const newPage = tmdbPage + 1
+      setTmdbPage(newPage)
+      
+      try {
+        setIsLoading(true)
+        const apiUrl = `/api/movies?realtime=true&top_rated=true&limit=${maxMovies}&page=${newPage}`
+        const response = await fetch(apiUrl)
+        
+        if (response.ok) {
+          const data = await response.json()
+          const newMovies = data.movies || []
+          
+          if (newMovies.length > 0) {
+            setMovies(prev => {
+              const existingIds = new Set(prev.map(m => m.id))
+              const filteredNewMovies = newMovies.filter((movie: Movie) => !existingIds.has(movie.id))
+              return [...prev, ...filteredNewMovies]
+            })
+            setCurrentIndex(nextIndex)
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load more movies:', err)
+      } finally {
+        setIsLoading(false)
+      }
     }
   }
   
   const goToPrevious = () => {
-    // Find previous unrated movie
-    for (let i = currentIndex - 1; i >= 0; i--) {
-      const movie = movies[i]
-      if (movie && !ratedMovieIds.has(movie.id)) {
-        setCurrentIndex(i)
-        return
-      }
-    }
-    // If no unrated movie found before current, wrap around to end
-    for (let i = movies.length - 1; i > currentIndex; i--) {
-      const movie = movies[i]
-      if (movie && !ratedMovieIds.has(movie.id)) {
-        setCurrentIndex(i)
-        return
-      }
+    if (currentIndex > 0) {
+      setCurrentIndex(currentIndex - 1)
     }
   }
   
@@ -362,6 +377,36 @@ export const QuickRatingWidget: React.FC<QuickRatingWidgetProps> = ({
       </div>
     )
   }
+
+  // If no current movie (index out of bounds), show loading or try to find a valid movie
+  if (!currentMovie) {
+    // Try to find first valid movie
+    const validIndex = movies.findIndex(movie => movie && movie.title)
+    if (validIndex !== -1) {
+      setCurrentIndex(validIndex)
+      return (
+        <div className={`space-y-4 ${className}`}>
+          <div className="card bg-base-200 animate-pulse">
+            <div className="card-body">
+              <div className="flex items-center justify-center h-64">
+                <span className="loading loading-spinner loading-lg"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )
+    }
+    
+    return (
+      <div className={`text-center py-8 ${className}`}>
+        <p className="text-base-content/60">No valid movies found for rating</p>
+        <button onClick={() => loadMoviesForRating()} className="btn btn-sm btn-outline mt-2">
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Load More Movies
+        </button>
+      </div>
+    )
+  }
   
   return (
     <div className={`space-y-4 ${className}`}>
@@ -376,7 +421,7 @@ export const QuickRatingWidget: React.FC<QuickRatingWidgetProps> = ({
         {/* Progress */}
         <div className="flex items-center justify-center gap-2 text-sm">
           <span className="text-base-content/60">
-            {movies.filter(m => !isMovieRated(m)).length} unrated movies
+            Movie {currentIndex + 1} of {movies.length}
           </span>
           {ratingsGiven > 0 && (
             <div className="badge badge-primary badge-sm">
@@ -415,9 +460,17 @@ export const QuickRatingWidget: React.FC<QuickRatingWidgetProps> = ({
               </div>
               {/* Movie Info */}
               <div className="flex-1 min-w-0">
-                <h4 className="font-semibold text-lg leading-tight mb-1 hover:text-primary transition-colors">
-                  {currentMovie.title} ({currentMovie.year})
-                </h4>
+                <div className="flex items-center gap-2 mb-1">
+                  <h4 className="font-semibold text-lg leading-tight hover:text-primary transition-colors">
+                    {currentMovie.title} ({currentMovie.year})
+                  </h4>
+                  {isMovieRated(currentMovie) && (
+                    <div className="badge badge-success badge-sm gap-1">
+                      <Star className="w-3 h-3" />
+                      Rated
+                    </div>
+                  )}
+                </div>
                 <div className="flex flex-wrap gap-1 mb-2">
                   {currentMovie.genre.slice(0, 2).map((genre, index) => (
                     <span key={index} className="badge badge-outline badge-sm">
@@ -439,21 +492,38 @@ export const QuickRatingWidget: React.FC<QuickRatingWidgetProps> = ({
       
       {/* Rating Options */}
       <div className="grid grid-cols-2 gap-2">
-        {ratingOptions.map((option) => (
-          <button
-            key={option.value}
-            onClick={(e) => {
-              e.stopPropagation() // Prevent movie card click
-              handleRating(option.value)
-            }}
-            disabled={isSubmitting}
-            className={`btn btn-outline hover:btn-primary gap-2 ${isSubmitting ? 'btn-disabled' : ''}`}
-          >
-            <option.icon className={`w-4 h-4 ${option.color}`} />
-            <span className="text-sm">{option.label}</span>
-          </button>
-        ))}
+        {ratingOptions.map((option) => {
+          const isAlreadyRated = isMovieRated(currentMovie)
+          return (
+            <button
+              key={option.value}
+              onClick={(e) => {
+                e.stopPropagation() // Prevent movie card click
+                handleRating(option.value)
+              }}
+              disabled={isSubmitting || isAlreadyRated}
+              className={`btn gap-2 ${
+                isAlreadyRated 
+                  ? 'btn-disabled opacity-50' 
+                  : isSubmitting 
+                  ? 'btn-disabled' 
+                  : 'btn-outline hover:btn-primary'
+              }`}
+            >
+              <option.icon className={`w-4 h-4 ${option.color}`} />
+              <span className="text-sm">{option.label}</span>
+            </button>
+          )
+        })}
       </div>
+      
+      {/* Already rated message */}
+      {isMovieRated(currentMovie) && (
+        <div className="alert alert-info">
+          <Star className="w-4 h-4" />
+          <span className="text-sm">You've already rated this movie. Use navigation to find unrated movies.</span>
+        </div>
+      )}
       
       {/* Navigation */}
       <div className="flex items-center justify-between">
@@ -469,15 +539,27 @@ export const QuickRatingWidget: React.FC<QuickRatingWidgetProps> = ({
           Previous
         </button>
         
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            handleSkip()
-          }}
-          className="btn btn-sm btn-ghost"
-        >
-          Skip
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              handleSkip()
+            }}
+            className="btn btn-sm btn-ghost"
+          >
+            Skip
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              loadMoviesForRating()
+            }}
+            className="btn btn-sm btn-outline"
+            disabled={isLoading}
+          >
+            {isLoading ? 'Loading...' : 'More Movies'}
+          </button>
+        </div>
         
         <button
           onClick={(e) => {

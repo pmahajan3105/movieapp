@@ -53,7 +53,7 @@ interface PrecomputedRecommendation {
 interface RecommendationsResponse {
   recommendations: PrecomputedRecommendation[]
   total: number
-  source: 'precomputed' | 'fallback'
+  source: 'precomputed' | 'fallback' | 'smart-recommendations'
   message?: string
   refreshTriggered?: boolean
   meta: {
@@ -562,11 +562,14 @@ export const PrecomputedRecommendations: React.FC<PrecomputedRecommendationsProp
           
           {/* Source indicator */}
           <div className={`badge gap-1 text-white font-medium ${
-            data.source === 'precomputed' 
+            data.source === 'smart-recommendations' 
+              ? 'bg-gradient-to-r from-green-500 to-blue-500' 
+              : data.source === 'precomputed'
               ? 'bg-gradient-to-r from-purple-500 to-blue-500' 
               : 'bg-gradient-to-r from-orange-500 to-red-500'
           }`}>
-            {data.source === 'precomputed' ? 'AI Enhanced' : 'Popular Picks'}
+            {data.source === 'smart-recommendations' ? 'Personalized' : 
+             data.source === 'precomputed' ? 'AI Enhanced' : 'Popular Picks'}
           </div>
         </div>
 
@@ -580,11 +583,21 @@ export const PrecomputedRecommendations: React.FC<PrecomputedRecommendationsProp
         </button>
       </div>
 
-      {/* Fallback message */}
-      {data.source === 'fallback' && data.message && (
-        <div className="alert alert-info mb-6">
-          <TrendingUp className="w-5 h-5" />
-          <span>{data.message}</span>
+      {/* Success/Info message for any source */}
+      {data.message && (
+        <div className={`alert mb-6 ${
+          data.source === 'smart-recommendations' 
+            ? 'alert-success border-green-200 bg-green-50'
+            : data.source === 'fallback'
+            ? 'alert-info border-blue-200 bg-blue-50'
+            : 'alert-info'
+        }`}>
+          <TrendingUp className={`w-5 h-5 ${
+            data.source === 'smart-recommendations' ? 'text-green-600' : 'text-blue-600'
+          }`} />
+          <span className={
+            data.source === 'smart-recommendations' ? 'text-green-800 font-medium' : 'text-blue-800'
+          }>{data.message}</span>
         </div>
       )}
 

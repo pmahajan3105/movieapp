@@ -86,7 +86,7 @@ function SearchPageContent() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [toast])
 
   // Handle filter changes
   const handleFiltersChange = useCallback(
@@ -96,7 +96,7 @@ function SearchPageContent() {
       setCurrentPage(1)
       performSearch(updatedFilters)
     },
-    [performSearch]
+    [performSearch, setFilters, setCurrentPage]
   )
 
   // Handle filter removal
@@ -126,7 +126,7 @@ function SearchPageContent() {
       setCurrentPage(page)
       performSearch(newFilters)
     },
-    [filters, performSearch]
+    [filters, performSearch, setFilters, setCurrentPage]
   )
 
   // Use centralized watchlist function
@@ -142,6 +142,7 @@ function SearchPageContent() {
     if (filters.query || filters.genres?.length || filters.yearRange || filters.minRating) {
       performSearch(filters)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters, performSearch])
 
   // Update filters when URL search params change
@@ -151,6 +152,7 @@ function SearchPageContent() {
       setFilters(prev => ({ ...prev, query: queryFromUrl, offset: 0 }))
       setCurrentPage(1)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, filters.query])
 
   const currentQuery = filters.query || searchParams.get('q') || ''

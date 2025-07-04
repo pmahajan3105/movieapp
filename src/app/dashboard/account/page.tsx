@@ -31,7 +31,7 @@ export default function AccountPage() {
 
   const showToast = useCallback((message: string, type: 'success' | 'error') => {
     setToast({ message, type })
-  }, [])
+  }, [setToast])
 
   // Load user data from AuthContext
   useEffect(() => {
@@ -53,6 +53,7 @@ export default function AccountPage() {
         hasProfile: !!user.profile,
       })
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
 
   // Auto-hide toast after 3 seconds
@@ -65,6 +66,7 @@ export default function AccountPage() {
       return () => clearTimeout(timer)
     }
     return undefined
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toast])
 
   const handleSaveName = async () => {

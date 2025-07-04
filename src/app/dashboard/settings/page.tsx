@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Component, ErrorInfo, ReactNode } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -41,6 +41,32 @@ interface ToastMessage {
   type: 'success' | 'error'
 }
 
+class ErrorBoundary extends Component<
+  { fallback: ReactNode; children: ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { fallback: ReactNode; children: ReactNode }) {
+    super(props)
+    this.state = { hasError: false }
+  }
+
+  static getDerivedStateFromError(): { hasError: boolean } {
+    return { hasError: true }
+  }
+
+  override componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('ErrorBoundary caught an error:', error, errorInfo)
+  }
+
+  override render() {
+    if (this.state.hasError) {
+      return this.props.fallback
+    }
+
+    return this.props.children
+  }
+}
+
 export default function SettingsPage() {
   const { user } = useAuth()
   const [loading, setLoading] = useState(true)
@@ -54,7 +80,7 @@ export default function SettingsPage() {
   const showToast = useCallback((message: string, type: 'success' | 'error') => {
     setToast({ message, type })
     setTimeout(() => setToast(null), 5000)
-  }, [])
+  }, [setToast])
 
   const loadAiPreferences = useCallback(async () => {
     try {
@@ -161,7 +187,7 @@ export default function SettingsPage() {
     } catch (error) {
       // Fail silently - AI preferences are optional
     }
-  }, [])
+  }, [setAiPreferences])
 
   const loadManualPreferences = useCallback(async () => {
     try {
@@ -178,7 +204,7 @@ export default function SettingsPage() {
       // Fail silently - show no manual preferences
       setHasManualPreferences(false)
     }
-  }, [])
+  }, [setManualPreferences, setHasManualPreferences])
 
   useEffect(() => {
     if (user) {
@@ -186,6 +212,7 @@ export default function SettingsPage() {
         setLoading(false)
       })
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, loadAiPreferences, loadManualPreferences])
 
   const handleSaveManualPreferences = async (preferences: ManualPreferences) => {
@@ -452,7 +479,9 @@ export default function SettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <EditableTasteProfile />
+              <ErrorBoundary fallback={<div className="p-4 text-center text-red-600">Error loading taste profile. Please refresh the page.</div>}>
+                <EditableTasteProfile />
+              </ErrorBoundary>
             </CardContent>
           </Card>
         </TabsContent>
@@ -471,7 +500,9 @@ export default function SettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <AIControlPanel />
+              <ErrorBoundary fallback={<div className="p-4 text-center text-red-600">Error loading AI controls. Please refresh the page.</div>}>
+                <AIControlPanel />
+              </ErrorBoundary>
             </CardContent>
           </Card>
         </TabsContent>

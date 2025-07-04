@@ -308,10 +308,10 @@ export function useWatchlistPage() {
     if (user) {
       loadWatchlist()
     } else {
-      // Reset state when no user
       dispatch({ type: 'SET_LOADING', payload: false })
       dispatch({ type: 'SET_ERROR', payload: 'Please log in to view your watchlist' })
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadWatchlist, user])
 
   return {

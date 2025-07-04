@@ -135,7 +135,6 @@ export class ProgressiveAnalysisEngine {
   /**
    * Analyze movie with adaptive depth based on context and performance
    */
-  @measurePerformance('progressive_analysis')
   async analyzeMovie(request: AnalysisRequest): Promise<AnalysisResult> {
     const startTime = performance.now()
     const cacheKey = this.generateCacheKey(request)
@@ -181,7 +180,6 @@ export class ProgressiveAnalysisEngine {
   /**
    * Batch analyze multiple movies with load balancing
    */
-  @measurePerformance('batch_progressive_analysis')
   async batchAnalyzeMovies(requests: AnalysisRequest[]): Promise<AnalysisResult[]> {
     // Group requests by priority and context
     const groupedRequests = this.groupRequestsByPriority(requests)
@@ -252,7 +250,7 @@ export class ProgressiveAnalysisEngine {
     
     // Adjust based on current performance
     const performance = await this.getCurrentPerformance()
-    const adjustedDepth = this.adjustDepthForPerformance(contextDepth, performance)
+    const adjustedDepth = await this.adjustDepthForPerformance(contextDepth, performance)
     
     return adjustedDepth
   }
@@ -294,26 +292,24 @@ export class ProgressiveAnalysisEngine {
   private async adjustDepthForPerformance(
     depth: AnalysisDepth, 
     performance: PerformanceProfile
-  ): AnalysisDepth {
-    
-    // If system is under high load, reduce depth
+  ): Promise<AnalysisDepth> {
     if (performance.currentLoad > 80) {
-      if (depth === 'comprehensive') return 'enhanced'
-      if (depth === 'enhanced') return 'standard'
-      if (depth === 'standard') return 'minimal'
+      if (depth === 'comprehensive') return Promise.resolve('enhanced')
+      if (depth === 'enhanced') return Promise.resolve('standard')
+      if (depth === 'standard') return Promise.resolve('minimal')
     }
     
     // If error rate is high, use simpler analysis
     if (performance.errorRate > 10) {
-      if (depth === 'comprehensive' || depth === 'enhanced') return 'standard'
+      if (depth === 'comprehensive' || depth === 'enhanced') return Promise.resolve('standard')
     }
     
     // If response time is slow, reduce depth
     if (performance.avgResponseTime > 1000) {
-      if (depth === 'comprehensive') return 'enhanced'
+      if (depth === 'comprehensive') return Promise.resolve('enhanced')
     }
     
-    return depth
+    return Promise.resolve(depth)
   }
 
   private async performProgressiveAnalysis(
@@ -607,7 +603,7 @@ export class ProgressiveAnalysisEngine {
   }
 }
 
-export { 
+export type { 
   AnalysisRequest, 
   AnalysisResult, 
   AnalysisDepth, 

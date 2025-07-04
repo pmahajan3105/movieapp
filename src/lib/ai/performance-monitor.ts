@@ -246,7 +246,7 @@ export class PerformanceMonitor {
     
     const sorted = [...values].sort((a, b) => a - b)
     const index = Math.ceil((percentile / 100) * sorted.length) - 1
-    return sorted[Math.max(0, index)]
+    return sorted[Math.max(0, index)] ?? 0
   }
 
   private calculateRate(successes: number[], total: number): number {
@@ -377,4 +377,4 @@ export function measurePerformance(operationName: string) {
   }
 }
 
-export { PerformanceMetric, PerformanceReport, PerformanceThreshold }
+export type { PerformanceMetric, PerformanceReport, PerformanceThreshold }

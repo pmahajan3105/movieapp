@@ -30,7 +30,7 @@ export function NavigationHeader() {
   // Ensure client-side hydration is complete before rendering user-dependent content
   useEffect(() => {
     setMounted(true)
-  }, [])
+  }, [setMounted])
 
   // Get user display name from the profile data in AuthContext
   const getUserDisplayName = () => {

@@ -1,7 +1,7 @@
 import { requireAuth, withError, ok, fail } from '@/lib/api/factory'
 import { z } from 'zod'
 
-// GET /api/ratings – get user's ratings
+// GET /api/ratings – get user's ratings with movie details for filtering
 export const GET = withError(
   requireAuth(async ({ supabase, user }) => {
     const { data: ratings, error } = await supabase
@@ -10,19 +10,36 @@ export const GET = withError(
         movie_id, 
         rating, 
         interested, 
-        created_at,
-        movies(title, year, tmdb_id)
+        rated_at,
+        movies:movie_id (
+          title,
+          year,
+          tmdb_id
+        )
       `)
       .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
+      .order('rated_at', { ascending: false })
 
     if (error) {
       return fail('Failed to fetch ratings', 500)
     }
 
+    // Transform the data to include movie_data for compatibility with QuickRatingWidget
+    const ratingsWithMovieData = (ratings || []).map((rating: any) => ({
+      movie_id: rating.movie_id,
+      rating: rating.rating,
+      interested: rating.interested,
+      rated_at: rating.rated_at,
+      movie_data: rating.movies ? {
+        title: rating.movies.title,
+        year: rating.movies.year,
+        tmdb_id: rating.movies.tmdb_id
+      } : null
+    }))
+
     return ok({ 
-      ratings: ratings || [], 
-      count: ratings?.length || 0 
+      ratings: ratingsWithMovieData, 
+      count: ratingsWithMovieData.length 
     })
   })
 )
@@ -138,21 +155,50 @@ export const POST = withError(
       return fail('Could not determine movie ID', 400)
     }
 
-    // Upsert rating
-    const { data, error } = await supabase
+    // Try to update existing rating first, then insert if not found
+    let data, error
+    
+    // Check if rating already exists
+    const { data: existingRating } = await supabase
       .from('ratings')
-      .upsert(
-        {
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('movie_id', finalMovieId)
+      .single()
+    
+    if (existingRating) {
+      // Update existing rating
+      const updateResult = await supabase
+        .from('ratings')
+        .update({
+          interested: interested ?? true,
+          rating,
+          rated_at: new Date().toISOString(),
+        })
+        .eq('user_id', user.id)
+        .eq('movie_id', finalMovieId)
+        .select('*')
+        .single()
+      
+      data = updateResult.data
+      error = updateResult.error
+    } else {
+      // Insert new rating
+      const insertResult = await supabase
+        .from('ratings')
+        .insert({
           user_id: user.id,
           movie_id: finalMovieId,
           interested: interested ?? true,
           rating,
           rated_at: new Date().toISOString(),
-        },
-        { onConflict: 'user_id,movie_id' }
-      )
-      .select('*')
-      .single()
+        })
+        .select('*')
+        .single()
+      
+      data = insertResult.data
+      error = insertResult.error
+    }
 
     if (error) {
       return fail(error.message, 500)

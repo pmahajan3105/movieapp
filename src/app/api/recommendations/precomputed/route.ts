@@ -44,53 +44,29 @@ export const GET = withError(
         includeInsights
       })
 
-      // Fetch pre-computed recommendations with movie details
-      const { data: recommendations, error: recError } = await supabase
-        .from('recommendations')
-        .select(`
-          *,
-          movies:movie_id (
-            id,
-            title,
-            year,
-            genre,
-            director,
-            plot,
-            poster_url,
-            rating,
-            runtime
-          )
-        `)
-        .eq('user_id', user.id)
-        .order('confidence', { ascending: false })
-        .order('generated_at', { ascending: false })
-        .limit(limit)
+      // Use the enhanced simple recommendations function directly
+      logger.info('Using generate_simple_recommendations function for user recommendations')
+      
+      const { data: simpleRecs, error: simpleError } = await supabase
+        .rpc('generate_simple_recommendations', {
+          p_user_id: user.id,
+          p_limit: limit
+        })
 
-      if (recError) {
-        logger.error('Failed to fetch recommendations', { error: recError.message })
-        return fail('Failed to fetch recommendations', 500)
-      }
-
-      // If no pre-computed recommendations, trigger background job and return fallback
-      if (!recommendations || recommendations.length === 0) {
-        console.log('No pre-computed recommendations found, getting fallback')
-        logger.info('No pre-computed recommendations found, triggering background job')
+      if (simpleError) {
+        logger.error('Simple recommendations function failed, using fallback', { error: simpleError.message })
         
-        // Queue recommendation refresh for this user
-        await queueRecommendationRefresh(user.id, 'manual_refresh')
-        
-        // Return fallback recommendations
+        // Fallback to our existing fallback system
         const fallbackRecs = await getFallbackRecommendations(user.id, limit)
         
-        // Always return a fallback response, even if no recommendations are found
         return ok({
           recommendations: fallbackRecs,
           total: fallbackRecs.length,
           source: 'fallback',
           message: fallbackRecs.length > 0 
-            ? 'Generating personalized recommendations in background. Please check back in a few minutes.'
-            : 'No recommendations available yet. Customize the settings below to help us understand your preferences better.',
-          refreshTriggered: true,
+            ? 'Smart recommendations in progress. Showing popular movies based on your taste.'
+            : 'No recommendations available yet. Rate more movies to help us understand your preferences better.',
+          refreshTriggered: false,
           meta: {
             generatedAt: new Date().toISOString(),
             analysisSource: 'fallback',
@@ -100,6 +76,30 @@ export const GET = withError(
         })
       }
 
+      // Transform simple recommendations to expected format
+      const recommendations = (simpleRecs || []).map((movie: any) => ({
+        id: `smart-${movie.id}`,
+        movies: {
+          id: movie.id,
+          title: movie.title || 'Unknown Title',
+          year: movie.year || new Date().getFullYear(),
+          genre: movie.genre || ['Drama'],
+          director: movie.director || ['Unknown Director'],
+          plot: movie.plot || 'No plot available',
+          poster_url: movie.poster_url,
+          rating: movie.rating || 7.0,
+          runtime: movie.runtime || 120
+        },
+        score: movie.recommendation_score || 0.7,
+        confidence: 0.85, // High confidence for personalized recommendations
+        reason: 'Recommended based on your viewing preferences and rating history',
+        discovery_source: 'personalized',
+        analysis_source: 'smart-algorithm',
+        generated_at: new Date().toISOString(),
+        enhanced_at: null,
+        ai_insights: null
+      }))
+
       // Process recommendations for response
       const processedRecs = recommendations.map(rec => ({
         id: rec.id,
@@ -108,45 +108,37 @@ export const GET = withError(
         confidence: rec.confidence,
         reason: rec.reason,
         discoverySource: rec.discovery_source,
-        analysisSource: rec.analysis_source || 'standard',
+        analysisSource: rec.analysis_source || 'smart-algorithm',
         generatedAt: rec.generated_at,
         enhancedAt: rec.enhanced_at,
-        ...(includeInsights && rec.ai_insights && {
+        ...(includeInsights && rec.ai_insights ? {
           insights: rec.ai_insights
-        })
+        } : {})
       }))
 
       // Get metadata about the recommendations
-      const latestGeneration = recommendations[0]?.generated_at
-      // Simplified analysis source counting to avoid TypeScript complexity
+      const latestGeneration = new Date().toISOString()
       const totalSources = recommendations.length
       const analysisSourceCounts = { total: totalSources }
 
-      // Check if recommendations are stale (older than 6 hours)
-      const isStale = latestGeneration && 
-        (Date.now() - new Date(latestGeneration).getTime()) > (6 * 60 * 60 * 1000)
-
-      if (isStale) {
-        // Trigger background refresh for stale recommendations
-        await queueRecommendationRefresh(user.id, 'scheduled')
-      }
-
-      logger.info('Successfully served pre-computed recommendations', {
+      logger.info('Successfully served smart recommendations', {
         count: processedRecs.length,
-        latestGeneration,
-        analysisSourceCounts,
-        isStale
+        source: 'smart-algorithm',
+        latestGeneration
       })
 
       return ok({
         recommendations: processedRecs,
         total: processedRecs.length,
-        source: 'precomputed',
+        source: 'smart-recommendations',
+        message: processedRecs.length > 0 
+          ? `Showing ${processedRecs.length} personalized recommendations based on your ${(await supabase.from('ratings').select('id').eq('user_id', user.id)).data?.length || 0} ratings`
+          : 'Building your personalized recommendations...',
         meta: {
           generatedAt: latestGeneration,
           analysisSourceBreakdown: analysisSourceCounts,
-          isStale,
-          refreshTriggered: isStale
+          isStale: false,
+          refreshTriggered: false
         }
       })
 
@@ -159,42 +151,10 @@ export const GET = withError(
   })
 )
 
-/**
- * Queue a recommendation refresh for the user
- */
-async function queueRecommendationRefresh(userId: string, triggerType: string) {
-  try {
-    // Initialize Supabase client for internal functions
-    const { createClient } = await import('@supabase/supabase-js')
-    const { getSupabaseUrl, getSupabaseServiceRoleKey } = await import('@/lib/env')
-    
-    const serviceRoleKey = getSupabaseServiceRoleKey()
-    if (!serviceRoleKey) {
-      logger.warn('Service role key not available for queueing refresh')
-      return
-    }
-    
-    const supabase = createClient(getSupabaseUrl(), serviceRoleKey)
-    
-    // Use the database function we created in the migration
-    const { error } = await supabase.rpc('queue_recommendation_refresh', {
-      p_user_id: userId,
-      p_trigger_type: triggerType,
-      p_priority: triggerType === 'manual_refresh' ? 3 : 5 // Higher priority for manual
-    })
-
-    if (error) {
-      logger.warn('Failed to queue recommendation refresh', { error: error.message })
-    }
-  } catch (error) {
-    logger.warn('Error queueing recommendation refresh', { 
-      error: error instanceof Error ? error.message : String(error) 
-    })
-  }
-}
 
 /**
  * Get fallback recommendations when no pre-computed ones exist
+ * Uses different strategies based on user's rating history
  */
 async function getFallbackRecommendations(userId: string, limit: number) {
   try {
@@ -210,8 +170,30 @@ async function getFallbackRecommendations(userId: string, limit: number) {
     
     const supabase = createClient(getSupabaseUrl(), serviceRoleKey)
     
+    // Check how many movies the user has rated
+    const { data: userRatings, error: ratingsError } = await supabase
+      .from('ratings')
+      .select('movie_id, rating, interested')
+      .eq('user_id', userId)
+    
+    const ratingCount = userRatings?.length || 0
+    logger.info(`User has ${ratingCount} ratings, using appropriate recommendation strategy`)
+    
+    // For users with significant rating history (5+), use personalized recommendations
+    if (ratingCount >= 5 && userRatings) {
+      try {
+        const personalizedRecs = await getPersonalizedRecommendations(supabase, userId, userRatings, limit)
+        if (personalizedRecs.length > 0) {
+          return personalizedRecs
+        }
+      } catch (error) {
+        logger.warn('Personalized recommendations failed, falling back to basic', { error })
+      }
+    }
+    
+    // For new users or fallback, use trending/popular movies
     try {
-      // First try to use the stored procedure if it exists
+      // Try the stored procedure for basic recommendations
       const { data: fallbackMovies } = await supabase
         .rpc('generate_simple_recommendations', {
           p_user_id: userId,
@@ -219,6 +201,9 @@ async function getFallbackRecommendations(userId: string, limit: number) {
         })
 
       if (fallbackMovies && fallbackMovies.length > 0) {
+        const analysisSource = ratingCount >= 5 ? 'fallback-experienced' : 'trending-new-user'
+        const reason = ratingCount >= 5 ? 'Popular movie in your preferred genres' : 'Trending movie perfect for discovering your taste'
+        
         return fallbackMovies.map((movie: any) => ({
           id: `fallback-${movie.id}`,
           movie: {
@@ -233,10 +218,10 @@ async function getFallbackRecommendations(userId: string, limit: number) {
             runtime: movie.runtime || 120
           },
           score: movie.recommendation_score || 0.7,
-          confidence: 0.6,
-          reason: 'Popular movie you might enjoy',
-          discoverySource: 'popular',
-          analysisSource: 'fallback',
+          confidence: ratingCount >= 5 ? 0.6 : 0.8, // Higher confidence for trending to new users
+          reason,
+          discoverySource: ratingCount >= 5 ? 'genre-popular' : 'trending',
+          analysisSource,
           generatedAt: new Date().toISOString()
         }))
       }
@@ -282,5 +267,130 @@ async function getFallbackRecommendations(userId: string, limit: number) {
     })
     return []
   }
+}
+
+/**
+ * Generate personalized recommendations based on user's rating history
+ */
+async function getPersonalizedRecommendations(supabase: any, userId: string, userRatings: any[], limit: number) {
+  // Analyze user's preferences from their ratings
+  const likedMovies = userRatings.filter(r => r.rating >= 3 && r.interested)
+  const dislikedMovies = userRatings.filter(r => r.rating <= 2 || !r.interested)
+  
+  // Get movie details for liked movies to analyze genres
+  const { data: likedMovieDetails } = await supabase
+    .from('movies')
+    .select('id, title, genre, director, year, rating')
+    .in('id', likedMovies.map(r => r.movie_id))
+  
+  if (!likedMovieDetails || likedMovieDetails.length === 0) {
+    return []
+  }
+  
+  // Calculate genre preferences
+  const genreScores = new Map<string, number>()
+  const directorScores = new Map<string, number>()
+  
+  likedMovieDetails.forEach((movie: any) => {
+    const userRating = userRatings.find(r => r.movie_id === movie.id)?.rating || 3
+    const weight = userRating / 4 // Normalize to 0-1
+    
+    // Weight genres by how much user liked movies in that genre
+    movie.genre?.forEach((genre: string) => {
+      genreScores.set(genre, (genreScores.get(genre) || 0) + weight)
+    })
+    
+    // Weight directors similarly
+    movie.director?.forEach((director: string) => {
+      directorScores.set(director, (directorScores.get(director) || 0) + weight)
+    })
+  })
+  
+  // Get top preferred genres
+  const topGenres = Array.from(genreScores.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([genre]) => genre)
+  
+  // Get top directors
+  const topDirectors = Array.from(directorScores.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([director]) => director)
+  
+  // Find movies that match user preferences but haven't been rated
+  const { data: recommendedMovies } = await supabase
+    .from('movies')
+    .select('*')
+    .overlaps('genre', topGenres)
+    .not('id', 'in', `(${userRatings.map(r => `'${r.movie_id}'`).join(',')})`)
+    .gte('rating', 6.5) // Only recommend well-rated movies
+    .order('rating', { ascending: false })
+    .limit(limit * 2) // Get more to filter and rank
+  
+  if (!recommendedMovies) {
+    return []
+  }
+  
+  // Score movies based on how well they match user preferences
+  const scoredMovies = recommendedMovies.map((movie: any) => {
+    let score = movie.rating / 10 // Base score from movie rating
+    
+    // Bonus for preferred genres
+    const genreMatches = movie.genre?.filter((g: string) => topGenres.includes(g)).length || 0
+    score += genreMatches * 0.15
+    
+    // Bonus for preferred directors
+    const directorMatches = movie.director?.filter((d: string) => topDirectors.includes(d)).length || 0
+    score += directorMatches * 0.1
+    
+    // Prefer newer movies slightly
+    const currentYear = new Date().getFullYear()
+    if (movie.year && movie.year >= currentYear - 5) {
+      score += 0.05
+    }
+    
+    return {
+      ...movie,
+      personalizedScore: Math.min(score, 1.0) // Cap at 1.0
+    }
+  })
+  
+  // Sort by personalized score and take top recommendations
+  const topRecommendations = scoredMovies
+    .sort((a: any, b: any) => b.personalizedScore - a.personalizedScore)
+    .slice(0, limit)
+  
+  // Format for response
+  return topRecommendations.map((movie: any) => {
+    const matchedGenres = movie.genre?.filter((g: string) => topGenres.includes(g)) || []
+    const matchedDirectors = movie.director?.filter((d: string) => topDirectors.includes(d)) || []
+    
+    let reason = `Based on your love for ${matchedGenres.slice(0, 2).join(' and ')} movies`
+    if (matchedDirectors.length > 0) {
+      reason += ` and films by ${matchedDirectors[0]}`
+    }
+    
+    return {
+      id: `personalized-${movie.id}`,
+      movie: {
+        id: movie.id,
+        title: movie.title || 'Unknown Title',
+        year: movie.year || new Date().getFullYear(),
+        genre: movie.genre || [],
+        director: movie.director || [],
+        plot: movie.plot || 'No plot available',
+        poster_url: movie.poster_url,
+        rating: movie.rating || 7.0,
+        runtime: movie.runtime || 120
+      },
+      score: movie.personalizedScore,
+      confidence: 0.85,
+      reason,
+      discoverySource: 'personalized',
+      analysisSource: 'user-preferences',
+      generatedAt: new Date().toISOString()
+    }
+  })
 }
 

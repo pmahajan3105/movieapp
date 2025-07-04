@@ -37,22 +37,17 @@ export function SearchInterface({
       setShowSuggestions(false)
       return
     }
-
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current)
     }
-
     timeoutRef.current = setTimeout(async () => {
       setIsLoading(true)
       try {
-        // Use TMDB for autocomplete to ensure consistent movie ID format
         const response = await fetch(
           `/api/movies?realtime=true&database=tmdb&query=${encodeURIComponent(query)}&limit=6`
         )
         const data: { success: boolean; movies: Movie[] } = await response.json()
-
         if (data.success && data.movies) {
-          // Transform TMDB response to match AutocompleteResponse format
           const autocompleteData: AutocompleteResponse['data'] = {
             movies: data.movies.slice(0, 6).map(movie => ({
               id: movie.id,
@@ -60,9 +55,9 @@ export function SearchInterface({
               year: movie.year ?? null,
               poster_url: movie.poster_url,
             })),
-            directors: [], // TMDB doesn't provide directors in search results
-            actors: [], // TMDB doesn't provide actors in search results
-            suggestions: data.movies.slice(0, 3).map(movie => movie.title), // Top 3 titles as suggestions
+            directors: [],
+            actors: [],
+            suggestions: data.movies.slice(0, 3).map(movie => movie.title),
           }
           setAutocompleteData(autocompleteData)
           setShowSuggestions(true)
@@ -73,12 +68,12 @@ export function SearchInterface({
         setIsLoading(false)
       }
     }, 300)
-
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current)
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, showAutocomplete])
 
   // Handle search submission

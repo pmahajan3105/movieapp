@@ -79,7 +79,20 @@ export const EditableTasteProfile: React.FC = () => {
       }
 
       const data = await response.json()
-      setProfile(data.profile || createEmptyProfile())
+      // Handle the API factory response format: { success: true, data: { profile: ... } }
+      const profileData = data.success ? data.data?.profile : data.profile
+      
+      // Ensure profile has proper structure with default preferences
+      const safeProfile = profileData ? {
+        ...profileData,
+        preferences: {
+          favorite_genres: [],
+          mood_preferences: {},
+          ...profileData.preferences
+        }
+      } : createEmptyProfile()
+      
+      setProfile(safeProfile)
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load profile'
       setError(errorMessage)
@@ -120,7 +133,9 @@ export const EditableTasteProfile: React.FC = () => {
       }
 
       const data = await response.json()
-      setProfile(data.profile)
+      // Handle the API factory response format: { success: true, data: { profile: ... } }
+      const profileData = data.success ? data.data?.profile : data.profile
+      setProfile(profileData)
       setHasChanges(false)
       setIsEditing(false)
     } catch (err) {
@@ -166,7 +181,7 @@ export const EditableTasteProfile: React.FC = () => {
   const handleMoodPreferenceChange = (mood: string, value: number) => {
     if (!profile) return
 
-    const moodPreferences = profile.preferences.mood_preferences || {}
+    const moodPreferences = profile.preferences?.mood_preferences || {}
     setProfile({
       ...profile,
       preferences: {
@@ -351,7 +366,7 @@ export const EditableTasteProfile: React.FC = () => {
             </h4>
 
             <select
-              value={profile.preferences.visual_style || ''}
+              value={profile.preferences?.visual_style || ''}
               onChange={(e) => handlePreferenceChange('visual_style', e.target.value)}
               disabled={!isEditing}
               className="select select-bordered w-full"
@@ -367,7 +382,7 @@ export const EditableTasteProfile: React.FC = () => {
             <div className="divider">Pacing Preference</div>
 
             <select
-              value={profile.preferences.pacing_preference || ''}
+              value={profile.preferences?.pacing_preference || ''}
               onChange={(e) => handlePreferenceChange('pacing_preference', e.target.value)}
               disabled={!isEditing}
               className="select select-bordered w-full"
@@ -430,7 +445,7 @@ export const EditableTasteProfile: React.FC = () => {
                   key={theme}
                   onClick={() => {
                     if (!isEditing) return
-                    const currentThemes = profile.preferences.thematic_interests || []
+                    const currentThemes = profile.preferences?.thematic_interests || []
                     const newThemes = currentThemes.includes(theme)
                       ? currentThemes.filter(t => t !== theme)
                       : [...currentThemes, theme]
@@ -438,7 +453,7 @@ export const EditableTasteProfile: React.FC = () => {
                   }}
                   disabled={!isEditing}
                   className={`btn btn-sm justify-start ${
-                    profile.preferences.thematic_interests?.includes(theme)
+                    profile.preferences?.thematic_interests?.includes(theme)
                       ? 'btn-secondary'
                       : 'btn-outline'
                   } ${!isEditing ? 'cursor-default' : ''}`}

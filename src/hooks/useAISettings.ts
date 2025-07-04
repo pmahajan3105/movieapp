@@ -90,11 +90,16 @@ export const useAISettings = () => {
       setError(null)
       setSuccessMessage(null)
 
+      console.log('Saving AI settings...', settings)
+
       const response = await fetch('/api/user/ai-settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // Ensure cookies are included
         body: JSON.stringify({ settings })
       })
+      
+      console.log('AI settings response status:', response.status)
 
       if (response.ok) {
         setHasChanges(false)
@@ -102,7 +107,15 @@ export const useAISettings = () => {
         setTimeout(() => setSuccessMessage(null), 3000)
         console.info('AI settings updated:', settings)
       } else {
-        throw new Error('Failed to save settings')
+        // Get the actual error message from the API response
+        let errorMessage = 'Failed to save settings'
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorData.message || `Server error: ${response.status}`
+        } catch {
+          errorMessage = `Server error: ${response.status} ${response.statusText}`
+        }
+        throw new Error(errorMessage)
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to save settings'

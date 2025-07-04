@@ -137,12 +137,12 @@ export const PUT = withError(
         return fail('Unauthorized', 401)
       }
 
-      // Update taste profile
+      // Update taste profile with proper conflict resolution
       const { data: updatedProfile, error: updateError } = await supabase
         .from('user_preference_insights')
         .upsert({
           user_id: user.id,
-          insight_type: 'taste_profile',
+          insight_type: 'genre_preference',
           insights: {
             preferences,
             favorite_genres,
@@ -151,6 +151,8 @@ export const PUT = withError(
           confidence_score: ai_confidence,
           time_window: 'all_time',
           updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id,insight_type,time_window'
         })
         .select()
         .single()

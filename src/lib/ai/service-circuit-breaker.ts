@@ -388,4 +388,4 @@ export function withCircuitBreaker(
   }
 }
 
-export { CircuitState, CircuitConfig, CircuitMetrics, CircuitResult }
+export type { CircuitState, CircuitConfig, CircuitMetrics, CircuitResult }

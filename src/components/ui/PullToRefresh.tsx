@@ -29,29 +29,21 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     if (disabled || isRefreshing) return
-    
     const touch = e.touches[0]
     if (!touch) return
-    
     startY.current = touch.clientY
     currentY.current = touch.clientY
   }, [disabled, isRefreshing])
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (disabled || isRefreshing || !containerRef.current) return
-    
     const touch = e.touches[0]
     if (!touch) return
-    
     currentY.current = touch.clientY
     const deltaY = currentY.current - startY.current
-    
-    // Only pull when at top of page
     const isAtTop = containerRef.current.scrollTop === 0
-    
     if (deltaY > 0 && isAtTop) {
       e.preventDefault()
-      
       const distance = Math.min(deltaY * 0.5, maxPullDistance)
       setPullDistance(distance)
       setIsPulling(distance > 10)
@@ -60,7 +52,6 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
 
   const handleTouchEnd = useCallback(async () => {
     if (disabled || isRefreshing) return
-    
     if (pullDistance > refreshThreshold) {
       setIsRefreshing(true)
       try {
@@ -71,7 +62,6 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
         setIsRefreshing(false)
       }
     }
-    
     setIsPulling(false)
     setPullDistance(0)
   }, [disabled, isRefreshing, pullDistance, refreshThreshold, onRefresh])

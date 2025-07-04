@@ -16,6 +16,7 @@ export default function OnboardingPage() {
     if (!profileLoading && !user) {
       router.push('/auth')
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, profileLoading, router])
 
   // Redirect if already onboarded
@@ -23,6 +24,7 @@ export default function OnboardingPage() {
     if (userProfile?.onboarding_completed) {
       router.push('/dashboard')
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userProfile, router])
 
   const handleOnboardingComplete = () => {

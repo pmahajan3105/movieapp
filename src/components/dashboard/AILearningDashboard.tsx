@@ -8,7 +8,7 @@
 
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { Brain, TrendingUp, Eye, BarChart3, Clock, Zap, AlertCircle, Star, MessageCircle, Sparkles } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { assessUserOnboardingStatus } from '@/lib/user-onboarding-utils'
@@ -61,6 +61,8 @@ export const AILearningDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'insights' | 'recommendations' | 'learning'>('overview')
   const [userActivityData, setUserActivityData] = useState<any>(null)
   const [showQuickRating, setShowQuickRating] = useState(false)
+  const [selectedMovie, setSelectedMovie] = useState<RecentRecommendation | null>(null)
+  const [showModal, setShowModal] = useState(false)
 
   const loadAILearningData = useCallback(async () => {
     try {
@@ -185,6 +187,24 @@ export const AILearningDashboard: React.FC = () => {
     // Data will be refreshed when user exits rating mode
     // This keeps the rating flow smooth and continuous
   }
+
+  const handleTabChange = useCallback((tab: 'overview' | 'insights' | 'recommendations' | 'learning') => {
+    setActiveTab(tab)
+  }, [])
+
+  const handleRecommendationClick = useCallback((movie: RecentRecommendation) => {
+    setSelectedMovie(movie)
+    setShowModal(true)
+  }, [])
+
+  const handleCloseModal = useCallback(() => {
+    setShowModal(false)
+    setSelectedMovie(null)
+  }, [])
+
+  const handleRating = useCallback((movieId: string, rating: number) => {
+    // ...
+  }, [])
 
   if (!user) {
     return (

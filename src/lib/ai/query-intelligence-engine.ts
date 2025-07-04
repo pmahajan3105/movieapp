@@ -66,10 +66,7 @@ export class QueryIntelligenceEngine {
       logger.info('Starting advanced query processing', { query, userId })
 
       // Step 1: Parse query with conversational parser
-      const conversationalQuery = await ConversationalParser.getInstance().parseAdvancedQuery(
-        query,
-        userId
-      )
+      const conversationalQuery = await ConversationalParser.getInstance().parseAdvancedQuery(query)
 
       // Step 2: Enhance with entity extraction
       const entities = await this.extractEntities(query, conversationalQuery)
@@ -727,7 +724,7 @@ Return only valid JSON.
   ): Promise<QueryProcessingResult> {
     try {
       const parser = ConversationalParser.getInstance()
-      const basicQuery = await parser.parseQuery(query, userId)
+      const basicQuery = await parser.parseQuery(query)
 
       return {
         advancedQuery: this.createBasicAdvancedQuery(query, basicQuery),

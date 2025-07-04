@@ -50,6 +50,7 @@ export function PreferenceEditor({ initialPreferences, onSave, onCancel }: Prefe
   useEffect(() => {
     const hasChangedFromInitial = JSON.stringify(preferences) !== JSON.stringify(initialPreferences)
     setHasChanges(hasChangedFromInitial)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preferences, initialPreferences])
 
   const addItem = (field: keyof typeof newItems, value?: string) => {

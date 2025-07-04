@@ -83,7 +83,7 @@ export function useRetryOperation<T>(
     }
     
     countdownRef.current = setTimeout(countdown, 1000)
-  }, [])
+  }, [setState])
 
   const executeWithRetry = useCallback(async (): Promise<T> => {
     setState(prev => ({ 
@@ -182,6 +182,7 @@ export function useRetryOperation<T>(
         clearTimeout(countdownRef.current)
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return {

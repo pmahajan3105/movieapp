@@ -5,8 +5,6 @@ import { anthropic, claudeConfig } from '@/lib/anthropic/config'
 import { RecommendationExplanation } from '@/types/explanation'
 import type { Movie } from '@/types'
 
-// simple in-memory rate limit per user (generate max 1 every 10 seconds)
-const generationTimestamps = new Map<string, number>()
 
 export class ExplanationService {
   private supabase = createClient(getSupabaseUrl()!, getSupabaseServiceRoleKey()!)
@@ -58,21 +56,15 @@ export class ExplanationService {
   }
 
   private async generateWithClaude(userId: string, movie: any): Promise<RecommendationExplanation> {
-    const now = Date.now()
-    const last = generationTimestamps.get(userId) || 0
-    if (now - last < 10_000) {
-      // If called too soon return basic fallback to save tokens
-      return {
-        primary_reason: `Recommended based on your taste for ${(movie.genre_ids || []).join(', ')}`,
-        explanation_type: 'similarity',
-        confidence_score: 60,
-        discovery_factor: 'safe',
-      }
-    }
-    generationTimestamps.set(userId, now)
+    // Get user's rating history for context
+    const userContext = await this.getUserContext(userId)
 
-    // Build prompt for Claude
+    // Build personalized prompt for Claude
     const genreNames = (movie.genre_ids || []).join(', ')
+    const contextualPrompt = userContext ? 
+      `\nUser's preference context:\n${userContext}\n` : 
+      '\nNew user - focus on movie quality and broad appeal.\n'
+    
     const prompt = `Generate a JSON explanation (keys snake_case) for why the following movie was recommended to a user. Return ONLY valid JSON with the following schema:\n{
   "primary_reason": string,                     // one sentence personalised reason
   "explanation_type": "similarity|pattern|mood|discovery|temporal",
@@ -80,7 +72,7 @@ export class ExplanationService {
   "discovery_factor": "safe|stretch|adventure",
   "optimal_viewing_time": string | null,       // optional suggestion
   "supporting_movies": string[]               // up to 3 movie titles that justify the pick
-}\nMovie context:\n- id: ${movie.id}\n- title: ${movie.title}\n- release_year: ${movie.release_date?.split('-')[0] || 'N/A'}\n- genres: ${genreNames}\n`;
+}\nMovie context:\n- id: ${movie.id}\n- title: ${movie.title}\n- release_year: ${movie.release_date?.split('-')[0] || 'N/A'}\n- genres: ${genreNames}\n${contextualPrompt}`;
 
     try {
       const claudePromise = anthropic.messages.create({
@@ -92,10 +84,10 @@ export class ExplanationService {
         ],
       })
 
-      // 5s timeout
+      // 10s timeout for better reliability
       const response = await Promise.race([
         claudePromise,
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Claude timeout')), 5000)),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Claude timeout')), 10000)),
       ]) as any
 
       const textResponse = (response as any).content?.[0]?.text?.trim() || '{}'
@@ -207,21 +199,11 @@ export class ExplanationService {
   ): Promise<Map<string, RecommendationExplanation>> {
     const results = new Map<string, RecommendationExplanation>()
     
-    // Rate limit: prevent too many calls for a single user
-    const now = Date.now()
-    const lastGeneration = generationTimestamps.get(userId) || 0
-    if (now - lastGeneration < 10000) { // 10 second cooldown
-      // Return fallback explanations
-      for (const movie of movies) {
-        results.set(movie.id, this.createFallbackExplanation(movie))
-      }
-      return results
-    }
-    
-    generationTimestamps.set(userId, now)
+    // Get user context for personalized batch explanations
+    const userContext = await this.getUserContext(userId)
     
     // Build batch prompt for multiple movies
-    const batchPrompt = this.buildBatchExplanationPrompt(movies)
+    const batchPrompt = this.buildBatchExplanationPrompt(movies, userContext)
     
     try {
       const response = await Promise.race([
@@ -234,7 +216,7 @@ export class ExplanationService {
           ],
         }),
         new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Claude timeout')), 8000)
+          setTimeout(() => reject(new Error('Claude timeout')), 15000)
         )
       ]) as any
       
@@ -262,17 +244,21 @@ export class ExplanationService {
     return results
   }
 
-  private buildBatchExplanationPrompt(movies: any[]): string {
+  private buildBatchExplanationPrompt(movies: any[], userContext: string | null): string {
     const movieList = movies.map(movie => {
       const genreNames = (movie.genre_ids || []).map((id: number) => this.getGenreName(id)).join(', ')
       return `- "${movie.title}" (${movie.release_date?.split('-')[0] || 'Unknown'}) | Genres: ${genreNames} | Rating: ${movie.vote_average || 'N/A'}/10 | ID: ${movie.id}`
     }).join('\n')
     
+    const contextualPrompt = userContext ? 
+      `\nUser's preference context:\n${userContext}\n` : 
+      '\nNew user - focus on movie quality and broad appeal.\n'
+    
     return `Generate personalized movie recommendation explanations for these ${movies.length} movies. Return ONLY valid JSON with movie IDs as keys:
 
 Movies to explain:
 ${movieList}
-
+${contextualPrompt}
 Return format:
 {
   "movie_id_1": {
@@ -378,6 +364,70 @@ Keep each explanation concise but personal. Focus on why each movie would appeal
       })
     }
     return undefined
+  }
+
+  /**
+   * Get user context for personalized explanations
+   */
+  private async getUserContext(userId: string): Promise<string | null> {
+    try {
+      // Get user's rating history
+      const { data: ratings } = await this.supabase
+        .from('ratings')
+        .select(`
+          rating,
+          interested,
+          movies:movie_id (
+            title,
+            genre,
+            director,
+            year
+          )
+        `)
+        .eq('user_id', userId)
+        .eq('interested', true)
+        .gte('rating', 3)
+        .order('rating', { ascending: false })
+        .limit(10)
+
+      if (!ratings || ratings.length === 0) {
+        return null
+      }
+
+      // Analyze preferences
+      const genrePrefs = new Map<string, number>()
+      const likedMovies: string[] = []
+      
+      ratings.forEach((r: any) => {
+        if (r.movies && !Array.isArray(r.movies)) {
+          likedMovies.push(r.movies.title)
+          r.movies.genre?.forEach((genre: string) => {
+            genrePrefs.set(genre, (genrePrefs.get(genre) || 0) + r.rating)
+          })
+        }
+      })
+
+      const topGenres = Array.from(genrePrefs.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([genre]) => genre)
+
+      // Build context summary
+      const context = [
+        `- Rated ${ratings.length} movies positively`,
+        `- Prefers: ${topGenres.join(', ')} genres`,
+        `- Recently enjoyed: ${likedMovies.slice(0, 3).join(', ')}`
+      ].join('\n')
+
+      return context
+
+    } catch (error) {
+      logger.warn('Failed to get user context for explanations', { 
+        userId, 
+        error: error instanceof Error ? error.message : String(error) 
+      })
+      return null
+    }
   }
 
   /**

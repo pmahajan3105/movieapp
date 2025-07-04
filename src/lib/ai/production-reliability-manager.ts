@@ -289,7 +289,6 @@ export class ProductionReliabilityManager {
     logger.info('Graceful shutdown completed')
   }
 
-  @measurePerformance('health_check')
   private async performHealthChecks(): Promise<void> {
     const startTime = Date.now()
     
@@ -642,7 +641,7 @@ export class ProductionReliabilityManager {
   }
 }
 
-export { 
+export type { 
   AlertRule, 
   Alert, 
   HealthCheckEndpoint, 

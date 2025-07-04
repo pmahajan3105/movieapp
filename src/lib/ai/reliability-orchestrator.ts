@@ -107,7 +107,6 @@ export class ReliabilityOrchestrator {
   /**
    * Get reliable recommendations with automatic fallbacks
    */
-  @measurePerformance('reliable_recommendations')
   async getReliableRecommendations(
     options: OptimizedRecommendationOptions
   ): Promise<ReliableRecommendationResult> {
@@ -540,4 +539,4 @@ export class ReliabilityOrchestrator {
   }
 }
 
-export { ReliabilityConfig, SystemHealthStatus, ServiceHealth, ReliableRecommendationResult }
+export type { ReliabilityConfig, SystemHealthStatus, ServiceHealth, ReliableRecommendationResult }

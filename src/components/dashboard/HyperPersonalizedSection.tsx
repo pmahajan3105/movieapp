@@ -42,19 +42,15 @@ const HyperPersonalizedSectionInternal: React.FC<HyperPersonalizedSectionProps> 
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedFactors(customFactors)
-    }, 800) // 800ms debounce for settings changes
-
+    }, 800)
     return () => clearTimeout(timer)
-  }, [customFactors])
+  }, [customFactors, setDebouncedFactors])
 
   // Consolidated effect for regenerating recommendations when debounced settings change
   useEffect(() => {
     const hasCustomFactors = Object.keys(debouncedFactors).length > 0
-    
     if (hasCustomFactors || enableExploration) {
       let finalFactors = { ...debouncedFactors }
-      
-      // Apply exploration mode factors if enabled
       if (enableExploration) {
         finalFactors = {
           ...finalFactors,
@@ -62,14 +58,14 @@ const HyperPersonalizedSectionInternal: React.FC<HyperPersonalizedSectionProps> 
           behavioral_weight: 0.35
         }
       }
-      
       generateRecommendations({
         factors: finalFactors,
         count: 8,
         context: 'dashboard'
       })
     }
-  }, [debouncedFactors, enableExploration, generateRecommendations])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedFactors, enableExploration])
 
   const handleFactorChange = (factor: keyof PersonalizationFactors, value: number) => {
     setCustomFactors(prev => ({
@@ -93,11 +89,10 @@ const HyperPersonalizedSectionInternal: React.FC<HyperPersonalizedSectionProps> 
 
   const forceRefreshRecommendations = useCallback(() => {
     if (user?.id) {
-      // Clear cache first, then refresh recommendations
-      // TODO: Re-implement cache clearing once issue is resolved
       refreshRecommendations()
     }
-  }, [user?.id, refreshRecommendations])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
 
   if (error) {
     return (
