@@ -9,11 +9,22 @@ import { logger } from '@/lib/logger'
  * Works for local development, Vercel previews, and production
  */
 export function getSiteURL(): string {
+  // In development, always prioritize localhost detection
+  if (process.env.NODE_ENV === 'development') {
+    // If NEXT_PUBLIC_SITE_URL is localhost, use it
+    if (process.env.NEXT_PUBLIC_SITE_URL?.includes('localhost')) {
+      return process.env.NEXT_PUBLIC_SITE_URL
+    }
+    // Otherwise, use smart localhost detection
+    return getLocalDevelopmentURL()
+  }
+
+  // For production, use the configured URLs
   let url =
     process.env.NEXT_PUBLIC_SITE_URL || // Set this to your site URL in production
     process.env.NEXT_PUBLIC_VERCEL_URL || // Automatically set by Vercel
     process.env.VERCEL_URL || // Fallback for Vercel environments
-    getLocalDevelopmentURL() // Smart localhost detection
+    'http://localhost:3000' // Ultimate fallback
 
   // Make sure to include `https://` when not localhost
   url = url.startsWith('http') ? url : `https://${url}`

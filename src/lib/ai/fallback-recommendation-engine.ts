@@ -133,7 +133,6 @@ export class FallbackRecommendationEngine {
   /**
    * Generate fallback recommendations using cascading strategies
    */
-  @measurePerformance('fallback_recommendations')
   async getFallbackRecommendations(options: FallbackOptions): Promise<FallbackResult> {
     const startTime = performance.now()
     
@@ -149,7 +148,7 @@ export class FallbackRecommendationEngine {
             continue
           }
           
-          const result = await this.executeStrategy(strategy, options, userProfile)
+          const result = await this.executeStrategy(strategy, options, userProfile || undefined)
           
           if (result && result.movies.length > 0 && result.confidence >= strategy.minConfidence) {
             this.monitor.incrementCounter('fallback_success')
@@ -570,4 +569,4 @@ export class FallbackRecommendationEngine {
   }
 }
 
-export { FallbackOptions, FallbackResult, FallbackMethod, UserFallbackProfile }
+export type { FallbackOptions, FallbackResult, FallbackMethod, UserFallbackProfile }

@@ -120,19 +120,32 @@ export const QuickRatingWidget: React.FC<QuickRatingWidgetProps> = ({
 
   // Check if a movie is already rated (by ID or by title+year for TMDB movies)
   const isMovieRated = (movie: Movie): boolean => {
+    // Debug logging
+    console.log('Checking movie:', {
+      title: movie.title,
+      year: movie.year,
+      id: movie.id,
+      ratedMovieIds: Array.from(ratedMovieIds),
+      userRatedMovies: Array.from(userRatedMovies)
+    })
+    
     // Check by database ID first
     if (ratedMovieIds.has(movie.id)) {
+      console.log('Movie rated by ID:', movie.id)
       return true
     }
     
     // Check by title and year for TMDB movies that may have been rated
     if (movie.title && movie.year) {
       const movieKey = `${movie.title.toLowerCase().trim()}_${movie.year}`
+      console.log('Checking movie key:', movieKey)
       if (userRatedMovies.has(movieKey)) {
+        console.log('Movie rated by title+year:', movieKey)
         return true
       }
     }
     
+    console.log('Movie NOT rated')
     return false
   }
 
