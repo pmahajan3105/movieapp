@@ -101,7 +101,7 @@ export const MovieGridCard: React.FC<MovieGridCardProps> = ({
     >
       {/* Movie Poster */}
       <div className={cn('relative', posterAspectRatio)}>
-        {movie.poster_url ? (
+        {movie.poster_url && movie.poster_url.trim() ? (
           <Image
             src={movie.poster_url}
             alt={movie.title}
@@ -111,6 +111,16 @@ export const MovieGridCard: React.FC<MovieGridCardProps> = ({
             priority={priority || index < 6} // Prioritize first 6 images
             placeholder="blur"
             blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k="
+            onError={(e) => {
+              // Handle image loading errors by showing fallback
+              const target = e.target as HTMLImageElement
+              target.style.display = 'none'
+              target.parentElement!.innerHTML = `
+                <div class="flex h-full w-full items-center justify-center bg-gradient-to-br from-gray-300 to-gray-500">
+                  <span class="text-lg font-bold text-white">${movie.title.charAt(0)}</span>
+                </div>
+              `
+            }}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-gray-300 to-gray-500">
