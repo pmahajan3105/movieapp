@@ -12,11 +12,13 @@ const TEST_MOVIE = {
   genre: ['Action'],
 }
 
-// Skip test if environment variables are not properly configured
+// Skip test if environment variables are not properly configured or are test values
 const shouldRunIntegrationTests = supabaseUrl && 
   supabaseServiceKey && 
   !supabaseUrl.includes('placeholder') && 
-  !supabaseServiceKey.includes('placeholder')
+  !supabaseServiceKey.includes('placeholder') &&
+  !supabaseUrl.includes('test.supabase.co') &&
+  !supabaseServiceKey.includes('test-')
 
 describe('Watchlist PATCH supports watchlist_id', () => {
   beforeAll(() => {

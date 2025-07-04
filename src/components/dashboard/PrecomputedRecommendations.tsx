@@ -15,6 +15,10 @@ import { logger } from '@/lib/logger'
 import { RecommendationBehaviorSection } from '@/components/ai/RecommendationBehaviorSection'
 import { useAISettings } from '@/hooks/useAISettings'
 import { supabase } from '@/lib/supabase/browser-client'
+import { NewUserEmptyState } from '@/components/dashboard/NewUserEmptyState'
+import { QuickRatingWidget } from '@/components/dashboard/QuickRatingWidget'
+import { fetchUserActivityData } from '@/lib/user-activity-fetcher'
+import { assessUserOnboardingStatus } from '@/lib/user-onboarding-utils'
 
 interface PrecomputedRecommendation {
   id: string
@@ -182,6 +186,7 @@ export const PrecomputedRecommendations: React.FC<PrecomputedRecommendationsProp
 
       return () => clearTimeout(timeoutId)
     }
+    return undefined
   }, [settings, user, data?.source, settingsLoading])
 
   if (!user) {

@@ -309,3 +309,6 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 
 [functions.movie-enricher]
 verify_jwt = false
+
+[functions.personal-movie-scout]
+verify_jwt = false

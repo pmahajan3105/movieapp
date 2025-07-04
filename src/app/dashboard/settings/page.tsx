@@ -8,7 +8,9 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import PreferencesSetup from '@/components/PreferencesSetup'
-import { Settings, Brain, User, Trash2, AlertCircle, CheckCircle, Clock, X } from 'lucide-react'
+import { EditableTasteProfile } from '@/components/profile/EditableTasteProfile'
+import { AIControlPanel } from '@/components/ai/AIControlPanel'
+import { Settings, Brain, User, Trash2, AlertCircle, CheckCircle, Clock, X, Heart, Sliders } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { logger } from '@/lib/logger'
 
@@ -334,10 +336,18 @@ export default function SettingsPage() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="ai-learned" className="flex items-center gap-2">
             <Brain className="h-4 w-4" />
             AI Learned ({getTotalAiPreferences()})
+          </TabsTrigger>
+          <TabsTrigger value="taste-profile" className="flex items-center gap-2">
+            <Heart className="h-4 w-4" />
+            Taste Profile
+          </TabsTrigger>
+          <TabsTrigger value="ai-controls" className="flex items-center gap-2">
+            <Sliders className="h-4 w-4" />
+            AI Controls
           </TabsTrigger>
           <TabsTrigger value="manual-setup" className="flex items-center gap-2">
             <User className="h-4 w-4" />
@@ -425,6 +435,44 @@ export default function SettingsPage() {
                   )}
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Taste Profile Tab */}
+        <TabsContent value="taste-profile" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Heart className="h-5 w-5 text-red-500" />
+                AI Taste Profile
+              </CardTitle>
+              <CardDescription>
+                View and edit your detailed taste profile that the AI uses to understand your preferences.
+                This helps generate more personalized recommendations.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <EditableTasteProfile />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* AI Controls Tab */}
+        <TabsContent value="ai-controls" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sliders className="h-5 w-5 text-blue-500" />
+                AI Behavior Controls
+              </CardTitle>
+              <CardDescription>
+                Configure how the AI learns, recommends, and explains its choices. 
+                Fine-tune the recommendation engine to match your preferences.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AIControlPanel />
             </CardContent>
           </Card>
         </TabsContent>

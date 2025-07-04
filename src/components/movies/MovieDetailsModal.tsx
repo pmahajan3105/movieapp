@@ -3,9 +3,10 @@ import Image from 'next/image'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Minus, Star, Calendar, Clock } from 'lucide-react'
+import { Plus, Minus, Star, Calendar, Clock, Brain } from 'lucide-react'
 import type { Movie } from '@/types'
 import { toast } from 'react-hot-toast'
+import { MovieAIInsights } from './MovieAIInsights'
 
 interface MovieDetailsModalProps {
   movie: Movie | null
@@ -17,6 +18,7 @@ interface MovieDetailsModalProps {
   isWatched?: boolean
   watchlistItem?: any
   onEditRating?: () => void
+  aiInsights?: any // AI analysis insights for this recommendation
 }
 
 export function MovieDetailsModal({
@@ -29,6 +31,7 @@ export function MovieDetailsModal({
   isWatched = false,
   watchlistItem = null,
   onEditRating,
+  aiInsights,
 }: MovieDetailsModalProps) {
   const [isLoading, setIsLoading] = useState(false)
 
@@ -225,6 +228,16 @@ export function MovieDetailsModal({
                   Cast
                 </h3>
                 <p className="text-sm text-gray-700">{actors.slice(0, 5).join(', ')}</p>
+              </div>
+            )}
+
+            {/* AI Insights */}
+            {aiInsights && (
+              <div className="mb-6 rounded-lg border border-purple-200 bg-gradient-to-r from-purple-50 to-blue-50 p-4">
+                <MovieAIInsights 
+                  insights={aiInsights}
+                  movieTitle={movie.title}
+                />
               </div>
             )}
           </div>

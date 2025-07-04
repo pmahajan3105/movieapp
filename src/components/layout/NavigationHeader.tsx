@@ -199,20 +199,12 @@ export function NavigationHeader() {
                 )}
               </div>
             ) : (
-              <div className="flex items-center space-x-3">
-                <Link
-                  href="/auth/login"
-                  className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-white/50 transition-all"
-                >
-                  Sign In
-                </Link>
-                <Link
-                  href="/auth/register"
-                  className="rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 px-6 py-2 text-sm font-medium text-white shadow-sm hover:shadow-md hover:from-purple-700 hover:to-blue-700 transition-all"
-                >
-                  Sign Up
-                </Link>
-              </div>
+              <Link
+                href="/auth/login"
+                className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-white/50 transition-all"
+              >
+                Sign In
+              </Link>
             )}
 
             {/* Mobile Menu Button */}

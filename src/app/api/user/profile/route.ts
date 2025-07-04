@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createRouteSupabaseClient } from '@/lib/supabase/route-client'
 import { z } from 'zod'
 import { logger } from '@/lib/logger'
+import { APIErrorHandler } from '@/lib/error-handling'
 
 const profileUpdateSchema = z.object({
   fullName: z.string().optional(),
@@ -49,8 +50,10 @@ export async function GET(request: NextRequest) {
       error: error?.message,
     })
   } catch (error) {
-    logger.apiError('/api/user/profile', error as Error)
-    return NextResponse.json({ error: 'Failed to fetch profile' }, { status: 500 })
+    return APIErrorHandler.handle(error, {
+      endpoint: '/api/user/profile',
+      method: 'GET'
+    })
   }
 }
 
@@ -93,33 +96,10 @@ export async function PUT(request: NextRequest) {
       message: 'Profile updated successfully',
     })
   } catch (error) {
-    logger.apiError('/api/user/profile', error as Error)
-
-    if (error instanceof Error && error.message === 'Authentication required') {
-      return NextResponse.json(
-        { error: 'Authentication required', success: false },
-        { status: 401 }
-      )
-    }
-
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        {
-          error: 'Invalid profile data',
-          details: error.errors,
-          success: false,
-        },
-        { status: 400 }
-      )
-    }
-
-    return NextResponse.json(
-      {
-        error: 'Failed to update profile',
-        success: false,
-      },
-      { status: 500 }
-    )
+    return APIErrorHandler.handle(error, {
+      endpoint: '/api/user/profile',
+      method: 'PUT'
+    })
   }
 }
 
@@ -161,13 +141,7 @@ export async function PATCH(request: NextRequest) {
 
     if (error) {
       logger.dbError('profile update via PATCH', error as Error)
-      return NextResponse.json(
-        {
-          success: false,
-          error: error.message || 'Failed to update profile',
-        },
-        { status: 500 }
-      )
+      throw error
     }
 
     logger.info('Profile updated successfully via PATCH', {
@@ -181,15 +155,10 @@ export async function PATCH(request: NextRequest) {
       message: 'Profile updated successfully',
     })
   } catch (error) {
-    logger.apiError('/api/user/profile', error as Error)
-
-    return NextResponse.json(
-      {
-        error: 'Failed to update profile',
-        success: false,
-      },
-      { status: 500 }
-    )
+    return APIErrorHandler.handle(error, {
+      endpoint: '/api/user/profile',
+      method: 'PATCH'
+    })
   }
 }
 
@@ -240,14 +209,7 @@ export async function POST(request: NextRequest) {
         details: error.details,
         hint: error.hint,
       })
-      return NextResponse.json(
-        {
-          success: false,
-          error: error.message,
-          details: error,
-        },
-        { status: 500 }
-      )
+      throw error
     }
 
     logger.info('Successfully created/updated profile', { profile })
@@ -258,13 +220,9 @@ export async function POST(request: NextRequest) {
       profile,
     })
   } catch (error) {
-    logger.apiError('/api/user/profile', error as Error)
-    return NextResponse.json(
-      {
-        error: 'Failed to create profile',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    )
+    return APIErrorHandler.handle(error, {
+      endpoint: '/api/user/profile',
+      method: 'POST'
+    })
   }
 }
