@@ -127,9 +127,10 @@ export class StreamingResponseHandler {
   ): Promise<void> {
     try {
       const aiResponse: ChatMessage = {
+        id: crypto.randomUUID(),
         role: 'assistant',
         content: assistantMessage,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date(),
       }
 
       // Check if we have enough conversation for preference extraction

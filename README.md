@@ -7,6 +7,21 @@
 [![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=flat&logo=supabase&logoColor=white)](https://supabase.com/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=flat&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 [![daisyUI](https://img.shields.io/badge/daisyUI-5A0EF8?style=flat&logo=daisyui&logoColor=white)](https://daisyui.com/)
+[![Self-Hosted](https://img.shields.io/badge/Self--Hosted-🏠-green?style=flat)](docs/LOCAL_SETUP.md)
+
+## 🏠 100% Self-Hosted - Your Data, Your Control
+
+CineAI is designed to run completely locally with your own data. No cloud dependencies, complete privacy, and full control over your movie recommendations.
+
+### 🎯 **Frictionless Local Mode** - NEW!
+
+- **No Sign-Up Required** - Just enter your name and start using
+- **Zero Authentication** - No passwords, no OAuth, no hassle
+- **Instant Access** - Start getting recommendations in seconds
+- **Full Privacy** - All data stored locally in your browser
+- **Perfect for Self-Hosting** - Ideal for personal media servers
+
+[Learn more about Local Mode →](docs/LOCAL_USER_MODE.md)
 
 ## ✨ Features
 
@@ -31,7 +46,11 @@
 - **Contextual Recommendations** - Different suggestions for weekend vs. weekday viewing
 - **Quality Filtering** - Respects your standards for movie quality
 - **Exploration Mode** - Discover new genres while staying true to your taste
-- **Memory System** - Remembers your preferences across sessions
+- **Unified Memory System** - Advanced memory aggregation with novelty tracking
+- **Single User Mode** - Frictionless local development for personal use
+- **Model Validation** - Runtime AI model validation with graceful fallbacks
+- **Rate Limiting** - Built-in protection against API abuse
+- **Transparent Scoring** - See exactly why each movie was recommended
 
 ### 📊 **Analytics & Insights**
 
@@ -40,60 +59,106 @@
 - **Performance Monitoring** - Real-time system health and metrics
 - **Comprehensive Testing** - 90%+ test coverage with E2E automation
 
-## 🚀 Quick Start
+## 🚀 Quick Start (Cloud Setup - Recommended)
 
-### Prerequisites
-
-- Node.js 18+
-- Docker Desktop (for local Supabase)
-- No additional API keys required for voice features (uses built-in Web Speech)
-
-### 1. Clone & Install
+### ⚡ 5-Minute Setup
 
 ```bash
-git clone https://github.com/your-username/cineai.git
+# 1. Clone the repository
+git clone https://github.com/yourusername/cineai.git
 cd cineai
-npm install
-```
 
-### 2. Environment Setup
+# 2. Run cloud setup (no Docker required!)
+chmod +x scripts/setup-cloud.sh
+./scripts/setup-cloud.sh
 
-```bash
-cp env.example .env.local
-```
-
-Configure your `.env.local`:
-
-```env
-# Supabase
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-
-# AI Services
-ANTHROPIC_API_KEY=your_anthropic_key
-
-# Features
-# (No voice-service flags required)
-```
-
-### 3. Database Setup
-
-```bash
-# Start Supabase locally
-npx supabase start
-
-# Run migrations
-npx supabase db reset
-```
-
-### 4. Start Development
-
-```bash
+# 3. Start the app
 npm run dev
 ```
 
-Visit [http://localhost:3000](http://localhost:3000) to start using CineAI!
+**Windows users:** Run `scripts\setup-cloud.bat` instead.
+
+### 📋 Prerequisites
+
+- **Node.js 18+** - [Download here](https://nodejs.org/)
+- **Supabase Account** - [Free at supabase.com](https://supabase.com/dashboard)
+- **API Keys** (we'll help you get these):
+  - OpenAI API Key (for GPT-5-mini)
+  - Anthropic API Key (for Claude fallback)  
+  - TMDB API Key (for movie data)
+
+### 🎯 What the Setup Script Does
+
+The automated setup script will:
+- ✅ Check all dependencies (Node.js only!)
+- ✅ Install npm packages
+- ✅ Create `.env.local` with your credentials
+- ✅ Guide you through API key setup
+- ✅ Validate everything is working
+
+### 🔑 Getting Your Keys
+
+#### 1. Supabase Project (Required)
+1. Go to [Supabase Dashboard](https://supabase.com/dashboard)
+2. Create a new project (free tier available)
+3. Get your project URL and API keys from Settings > API
+
+#### 2. OpenAI API Key (Required)
+1. Go to [OpenAI API Keys](https://platform.openai.com/api-keys)
+2. Create a new API key
+3. Copy the key (starts with `sk-`)
+
+#### 3. Anthropic API Key (Required)
+1. Go to [Anthropic Console](https://console.anthropic.com/)
+2. Create a new API key
+3. Copy the key (starts with `sk-ant-`)
+
+#### 4. TMDB API Key (Required)
+1. Go to [TMDB Settings](https://www.themoviedb.org/settings/api)
+2. Request an API key (free)
+3. Copy the key
+
+### 🎬 Start Using CineAI
+
+After setup completes:
+1. Open [http://localhost:3000](http://localhost:3000)
+2. Sign up for your account
+3. Rate some movies to train your AI
+4. Start getting personalized recommendations!
+
+### 🛠️ Daily Usage
+
+```bash
+# Start CineAI (no database to start!)
+npm run dev
+
+# Access your Supabase dashboard
+# https://supabase.com/dashboard
+```
+
+---
+
+## 🏠 Alternative: Local Setup (Complete Privacy)
+
+For users who want complete local control:
+
+```bash
+# Local setup with Docker
+./scripts/setup-local.sh
+```
+
+**Benefits of Local Setup:**
+- ✅ Complete privacy (data never leaves your machine)
+- ✅ No cloud dependencies
+- ✅ Full control over your data
+
+**Requirements:**
+- Docker Desktop
+- More setup time (~15 minutes)
+
+---
+
+**Need help?** Check out our [Quick Start Guide](docs/LOCAL_SETUP.md) or [Troubleshooting Guide](docs/TROUBLESHOOTING.md)
 
 ## 🏗️ Architecture
 

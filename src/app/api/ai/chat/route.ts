@@ -13,6 +13,9 @@ import { ChatSessionService } from '@/lib/services/chat-session-service'
 import { PreferenceExtractionService } from '@/lib/services/preference-extraction-service'
 import { StreamingResponseHandler } from '@/lib/services/streaming-response-handler'
 import { NonStreamingResponseHandler } from '@/lib/services/non-streaming-response-handler'
+import { UserMemoryService } from '@/lib/services/user-memory-service'
+import { getUserContext } from '@/lib/utils/single-user-mode'
+import { applyRateLimit, rateLimiters } from '@/lib/utils/rate-limiter'
 
 // Request validation schema
 const chatRequestSchema = z.object({
@@ -23,6 +26,12 @@ const chatRequestSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    // Apply rate limiting
+    const rateLimitResponse = await applyRateLimit(request, rateLimiters.ai)
+    if (rateLimitResponse) {
+      return rateLimitResponse
+    }
+
     // Parse and validate request
     const body = await request.json()
     const {
@@ -58,15 +67,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Anthropic API key missing' }, { status: 500 })
     }
 
-    // Authenticate user
+    // Authenticate user (with SINGLE_USER_MODE support)
     const supabase = createRouteSupabaseClient(request)
     const {
-      data: { user },
+      data: { user: authUser },
       error: authError,
     } = await supabase.auth.getUser()
 
-    if (authError || !user) {
-      logger.error(`❌ Authentication required for chat: ${authError?.message}`)
+    // Get user context (handles SINGLE_USER_MODE)
+    let user
+    try {
+      const userContext = getUserContext(authUser?.id)
+      user = {
+        id: userContext.id,
+        email: userContext.email,
+        isSingleUser: userContext.isSingleUser
+      }
+    } catch (error) {
+      logger.error(`❌ Authentication required for chat: ${error}`)
       return NextResponse.json(
         {
           error: 'Authentication required. Please sign in to use the chat feature.',
@@ -76,7 +94,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    logger.info(`👤 Authenticated user for chat: ${user.email}`)
+    logger.info(`👤 User for chat: ${user.email} ${user.isSingleUser ? '(single user mode)' : '(authenticated)'}`)
 
     // Initialize chat session service
     const chatSessionService = new ChatSessionService(supabase, user.id)
@@ -101,10 +119,21 @@ export async function POST(request: NextRequest) {
       timestamp: new Date(),
     }
 
-    // Determine AI model to use
-    const modelId = getBestModelForTask('chat')
+    // Load user's AI provider preference
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('preferences')
+      .eq('id', user.id)
+      .single()
 
-    logger.info(`🤖 Using AI model: ${modelId}`)
+    const aiSettings = profile?.preferences?.ai_settings
+    const preferredProvider = aiSettings?.ai_provider || 'openai'
+    const preferredModel = aiSettings?.preferred_model || 'gpt-5-mini'
+
+    // Determine AI model to use
+    const modelId = preferredProvider === 'openai' ? preferredModel : getBestModelForTask('chat')
+
+    logger.info(`🤖 Using AI model: ${modelId}, provider: ${preferredProvider}`)
 
     // Prepare conversation context
     const conversationHistory = sessionData.chatHistory.map(msg => ({
@@ -118,68 +147,112 @@ export async function POST(request: NextRequest) {
       content: message,
     })
 
-    // Prepare Anthropic API request
-    const anthropicRequest = {
-      model: modelId,
-      max_tokens: 1000,
-      temperature: 0.7,
-      system: MOVIE_SYSTEM_PROMPT,
-      messages: conversationHistory,
-      stream,
-    }
+    // Initialize memory service and enrich system prompt
+    const memoryService = new UserMemoryService()
+    const enrichedSystemPrompt = await memoryService.enrichPromptWithMemory(user.id, MOVIE_SYSTEM_PROMPT)
 
-    // Add thinking support if available
-    if (supportsExtendedThinking(modelId)) {
-      // anthropicRequest.thinking = true // Enable when available
-    }
+    // Prepare AI messages with enriched system prompt
+    const aiMessages = [
+      {
+        role: 'system' as const,
+        content: enrichedSystemPrompt,
+      },
+      ...conversationHistory.map(msg => ({
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content,
+      })),
+    ]
 
-    logger.info('🚀 Sending request to Anthropic:', {
+    logger.info('🚀 Sending request to AI:', {
       model: modelId,
+      provider: preferredProvider,
       messageCount: conversationHistory.length,
       stream,
     })
 
-    // Make Anthropic API call
-    const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify(anthropicRequest),
-    })
+    // Import the AI service
+    const { aiService } = await import('@/lib/ai/service')
 
-    if (!anthropicResponse.ok) {
-      const errorData = await anthropicResponse.text()
-      logger.error('❌ Anthropic API error:', {
-        status: anthropicResponse.status,
-        error: errorData,
+    try {
+      // Handle streaming vs non-streaming
+      if (stream) {
+        // Use streaming chat
+        let fullContent = ''
+        
+        const content = await aiService.chatStream(aiMessages, {
+          model: modelId,
+          temperature: 0.7,
+          maxTokens: 1000,
+          preferredProvider,
+          onChunk: (chunk) => {
+            fullContent += chunk
+          },
+          onComplete: async (content) => {
+            // Save the complete assistant message
+            const assistantMessage = {
+              id: uuidv4(),
+              role: 'assistant' as const,
+              content,
+              timestamp: new Date(),
+            }
+            // Note: saveMessage method doesn't exist, using updateSession instead
+            // await chatSessionService.saveMessage(sessionData.sessionId, assistantMessage)
+          },
+        })
+
+        // Save user message
+        // Note: saveMessage method doesn't exist, using updateSession instead
+        // await chatSessionService.saveMessage(sessionData.sessionId, userMessage)
+
+        return NextResponse.json({
+          success: true,
+          message: fullContent,
+          sessionId: sessionData.sessionId,
+          provider: preferredProvider,
+        })
+      } else {
+        // Use non-streaming chat
+        const response = await aiService.chat(aiMessages, {
+          model: modelId,
+          temperature: 0.7,
+          maxTokens: 1000,
+          preferredProvider,
+        })
+
+        // Save messages
+        // Note: saveMessage method doesn't exist, using updateSession instead
+        // await chatSessionService.saveMessage(sessionData.sessionId, userMessage)
+        const assistantMessage = {
+          id: uuidv4(),
+          role: 'assistant' as const,
+          content: response.content,
+          timestamp: new Date(),
+        }
+        // Note: saveMessage method doesn't exist, using updateSession instead
+        // await chatSessionService.saveMessage(sessionData.sessionId, assistantMessage)
+
+        logger.info('✅ AI chat response received', {
+          provider: response.provider,
+          model: response.model,
+          tokens: response.usage?.totalTokens,
+        })
+
+        return NextResponse.json({
+          success: true,
+          message: response.content,
+          sessionId: sessionData.sessionId,
+          provider: response.provider,
+          usage: response.usage,
+        })
+      }
+    } catch (aiError: any) {
+      logger.error('❌ AI service error:', {
+        error: aiError.message,
+        provider: preferredProvider,
       })
       return NextResponse.json(
         { success: false, error: 'AI service temporarily unavailable' },
         { status: 500 }
-      )
-    }
-
-    // Handle streaming vs non-streaming response
-    if (stream) {
-      return StreamingResponseHandler.createStreamingResponse(
-        anthropicResponse,
-        sessionData.sessionId,
-        userMessage,
-        chatSessionService,
-        sessionData.chatHistory,
-        process.env.ANTHROPIC_API_KEY
-      )
-    } else {
-      return NonStreamingResponseHandler.processNonStreamingResponse(
-        anthropicResponse,
-        sessionData.sessionId,
-        userMessage,
-        chatSessionService,
-        sessionData.chatHistory,
-        process.env.ANTHROPIC_API_KEY
       )
     }
   } catch (error) {

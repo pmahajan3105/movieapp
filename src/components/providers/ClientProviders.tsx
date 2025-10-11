@@ -10,6 +10,7 @@ import { AuthProvider } from '@/contexts/AuthContext'
 import { ThemeProvider } from '@/contexts/ThemeContext'
 import { ErrorRecoveryProvider } from '@/contexts/ErrorRecoveryContext'
 import { QueryProvider } from './QueryProvider'
+import { LocalUserGate } from '@/components/auth/LocalUserGate'
 
 export function ClientProviders({ children }: { children: React.ReactNode }) {
   return (
@@ -18,7 +19,9 @@ export function ClientProviders({ children }: { children: React.ReactNode }) {
         <QueryProvider>
           <ThemeProvider defaultTheme="pastel">
             <AuthProvider>
-              {children}
+              <LocalUserGate>
+                {children}
+              </LocalUserGate>
               <Toaster />
               <LoadingOverlay />
               <OfflineIndicator showOnlineStatus={true} />

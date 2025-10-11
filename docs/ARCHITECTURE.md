@@ -12,8 +12,9 @@ CineAI is a modern web application built with Next.js 14, providing AI-powered m
 - **Backend**: Next.js API Routes, Server Components
 - **Database**: Supabase (PostgreSQL)
 - **Authentication**: Supabase Auth
-- **AI**: Anthropic Claude API
-- **Movie Data**: TMDB API
+- **AI**: OpenAI GPT-5-mini (primary), Anthropic Claude API (fallback)
+- **Movie Data**: TMDB API with caching
+- **Memory System**: Unified UserMemoryService with recency decay
 - **State Management**: React Query, React Context
 - **Testing**: Jest, React Testing Library
 
@@ -92,26 +93,83 @@ sequenceDiagram
     API->>App: Return enriched data
 ```
 
+## Memory System Architecture
+
+The CineAI memory system provides unified user context across all AI interactions through a centralized `UserMemoryService`.
+
+### Memory System Flow
+
+```mermaid
+graph TD
+    A[User Request] --> B[UserMemoryService]
+    B --> C[Batch Database Query]
+    C --> D[Unified Memory Object]
+    D --> E[Filter Seen Movies]
+    D --> F[Enrich AI Prompts]
+    D --> G[Apply User Preferences]
+    
+    H[Watchlist] --> C
+    I[Ratings] --> C
+    J[Behavior Signals] --> C
+    K[User Preferences] --> C
+    
+    E --> L[Filtered Recommendations]
+    F --> M[Contextual AI Responses]
+    G --> N[Personalized Search Results]
+    
+    style B fill:#e3f2fd
+    style D fill:#e8f5e8
+    style L fill:#fff3e0
+    style M fill:#fff3e0
+    style N fill:#fff3e0
+```
+
+### Memory Components
+
+1. **Unified Memory Aggregation**: Single batch query for all user data
+2. **Recency Decay**: Time-based weighting (95% retention per day)
+3. **Graceful Degradation**: App continues working if memory fails
+4. **Cross-Endpoint Integration**: Consistent memory usage across chat, search, recommendations
+
+### Memory Data Structure
+
+```typescript
+interface UserMemory {
+  seenMovieIds: Set<number>           // Movies user has watched/rated
+  ratedMovies: Rating[]              // User's movie ratings
+  watchlistMovies: WatchlistItem[]   // User's watchlist
+  genrePreferences: Map<string, number> // Genre weights with decay
+  recentInteractions: BehaviorSignal[] // Recent user activity
+  qualityThreshold: number            // User's quality standards
+  explorationWeight: number          // Exploration vs exploitation balance
+}
+```
+
 ## AI Recommendation Pipeline
 
 ```mermaid
 graph LR
-    A[User Input] --> B[Preference Extraction]
+    A[User Input] --> B[Memory Service]
     B --> C[Context Building]
-    C --> D[Claude API Call]
-    D --> E[Response Processing]
-    E --> F[Movie Matching]
-    F --> G[Score Calculation]
-    G --> H[Result Ranking]
-    H --> I[Recommendation Output]
+    C --> D[AI Provider Selection]
+    D --> E[OpenAI GPT-5-mini]
+    D --> F[Claude Fallback]
+    E --> G[Response Processing]
+    F --> G
+    G --> H[Movie Matching]
+    H --> I[Score Calculation]
+    I --> J[Result Ranking]
+    J --> K[Recommendation Output]
 
-    J[User History] --> C
-    K[Movie Database] --> F
-    L[Ratings Data] --> G
+    L[User History] --> B
+    M[Movie Database] --> H
+    N[Ratings Data] --> I
 
     style A fill:#e3f2fd
-    style D fill:#fff3e0
-    style I fill:#e8f5e8
+    style B fill:#e8f5e8
+    style E fill:#fff3e0
+    style F fill:#fff3e0
+    style K fill:#e8f5e8
 ```
 
 ### AI Processing Steps

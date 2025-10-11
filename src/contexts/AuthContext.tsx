@@ -10,6 +10,14 @@ import {
 } from '@/lib/supabase/session'
 import { logger } from '@/lib/logger'
 import type { UserProfile } from '@/lib/supabase/browser-client'
+import { isSingleUserMode, getSingleUserConfig } from '@/lib/utils/single-user-mode'
+import { 
+  isLocalMode, 
+  getLocalUser, 
+  createLocalUser, 
+  hasLocalUser,
+  type LocalUser 
+} from '@/lib/utils/local-user'
 
 interface AuthUser extends User {
   profile?: UserProfile
@@ -21,6 +29,9 @@ interface AuthContextType {
   signOut: () => Promise<void>
   refreshUser: () => Promise<void>
   isSessionValid: boolean
+  isLocalMode: boolean
+  needsLocalSetup: boolean
+  createLocalUserAccount: (name: string) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -28,6 +39,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [needsLocalSetup, setNeedsLocalSetup] = useState(false)
   const userUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -39,6 +51,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   )
 
   const supabase = hasValidSupabaseConfig ? browserClient : null
+
+  // Check if single user mode is enabled
+  const singleUserMode = isSingleUserMode()
+  const singleUserConfig = getSingleUserConfig()
+  const localMode = isLocalMode()
 
   const supabaseCookieName = supabaseUrl
     ? `sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`
@@ -98,6 +115,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, supabase, debouncedSetUser])
 
+  const createLocalUserAccount = useCallback(async (name: string) => {
+    if (!localMode) {
+      throw new Error('Local mode is not enabled')
+    }
+
+    try {
+      const localUser = createLocalUser(name)
+      
+      const authUser: AuthUser = {
+        id: localUser.id,
+        email: `${localUser.id}@local.cineai`,
+        user_metadata: { name: localUser.name },
+        app_metadata: {},
+        aud: 'authenticated',
+        created_at: localUser.createdAt,
+      } as AuthUser
+      
+      setUser(authUser)
+      setNeedsLocalSetup(false)
+      logger.info('Local user account created', { userId: localUser.id, name: localUser.name })
+    } catch (error) {
+      logger.error('Error creating local user account', { error })
+      throw error
+    }
+  }, [localMode])
+
   const signOut = useCallback(async () => {
     if (!supabase) return
     try {
@@ -112,6 +155,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [supabase])
 
   useEffect(() => {
+    // Handle local mode (frictionless local usage)
+    if (localMode) {
+      logger.info('Local mode enabled - checking for local user')
+      
+      const localUser = getLocalUser()
+      
+      if (localUser) {
+        // User exists, log them in
+        logger.info('Found local user', { userId: localUser.id, name: localUser.name })
+        const authUser: AuthUser = {
+          id: localUser.id,
+          email: `${localUser.id}@local.cineai`,
+          user_metadata: { name: localUser.name },
+          app_metadata: {},
+          aud: 'authenticated',
+          created_at: localUser.createdAt,
+        } as AuthUser
+        
+        setUser(authUser)
+        setNeedsLocalSetup(false)
+        setIsLoading(false)
+      } else {
+        // No user exists, show welcome screen
+        logger.info('No local user found - showing welcome screen')
+        setUser(null)
+        setNeedsLocalSetup(true)
+        setIsLoading(false)
+      }
+      return
+    }
+
+    // Handle single user mode (for testing/development)
+    if (singleUserMode) {
+      logger.info('Single user mode enabled - bypassing authentication')
+      const singleUser: AuthUser = {
+        id: singleUserConfig.userId,
+        email: 'single-user@local.dev',
+        user_metadata: {},
+        app_metadata: {},
+        aud: 'authenticated',
+        created_at: new Date().toISOString(),
+        isSingleUser: true
+      } as AuthUser & { isSingleUser: boolean }
+      
+      setUser(singleUser)
+      setNeedsLocalSetup(false)
+      setIsLoading(false)
+      return
+    }
+
     if (!supabase) {
       logger.warn('Supabase not configured - auth will be disabled')
       setIsLoading(false)
@@ -193,7 +286,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signOut,
     refreshUser: reloadProfile,
     isSessionValid: !!user,
-  }), [user, isLoading, signOut, reloadProfile])
+    isLocalMode: localMode,
+    needsLocalSetup,
+    createLocalUserAccount,
+  }), [user, isLoading, signOut, reloadProfile, localMode, needsLocalSetup, createLocalUserAccount])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

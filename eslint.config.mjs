@@ -71,13 +71,6 @@ const tsConfig = [
       'no-console': 'off', // Allow console in debug components and logger
     },
   },
-  // Specific config for debug components and logger
-  {
-    files: ['src/components/debug/**/*.tsx', 'src/lib/logger.ts'],
-    rules: {
-      'no-console': 'off', // Allow console in debug components and logger
-    },
-  },
 ]
 
 // Combine configs

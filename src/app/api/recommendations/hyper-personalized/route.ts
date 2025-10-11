@@ -1,10 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteSupabaseClient } from '@/lib/supabase/route-client'
 import { hyperPersonalizedEngine } from '@/lib/ai/hyper-personalized-engine'
+import { UserMemoryService } from '@/lib/services/user-memory-service'
 import { logger } from '@/lib/logger'
+import { getUserContext } from '@/lib/utils/single-user-mode'
+import { applyRateLimit, rateLimiters } from '@/lib/utils/rate-limiter'
+import { createRecommendationResponse, StandardErrors } from '@/lib/utils/api-response'
 
 export async function GET(request: NextRequest) {
   try {
+    // Apply rate limiting
+    const rateLimitResponse = await applyRateLimit(request, rateLimiters.ai)
+    if (rateLimitResponse) {
+      return rateLimitResponse
+    }
+
     const { searchParams } = new URL(request.url)
     const count = parseInt(searchParams.get('count') || '10')
     const context = searchParams.get('context') || undefined
@@ -19,9 +29,19 @@ export async function GET(request: NextRequest) {
 
     const supabase = createRouteSupabaseClient(request)
     
-    // Get authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
+    // Get authenticated user (with SINGLE_USER_MODE support)
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
+    
+    // Get user context (handles SINGLE_USER_MODE)
+    let user
+    try {
+      const userContext = getUserContext(authUser?.id)
+      user = {
+        id: userContext.id,
+        email: userContext.email,
+        isSingleUser: userContext.isSingleUser
+      }
+    } catch (error) {
       return NextResponse.json(
         { error: 'Authentication required' }, 
         { status: 401 }
@@ -44,7 +64,7 @@ export async function GET(request: NextRequest) {
     if (recencyWeight) customFactors.recency_weight = parseFloat(recencyWeight)
 
     // Generate recommendations using the hyper-personalized engine
-    const recommendations = await hyperPersonalizedEngine.generateRecommendations(
+    let recommendations = await hyperPersonalizedEngine.generateRecommendations(
       user.id,
       {
         count,
@@ -55,36 +75,51 @@ export async function GET(request: NextRequest) {
       }
     )
 
+    // Filter using memory service to remove seen movies
+    if (excludeWatched) {
+      const memoryService = new UserMemoryService()
+      // Extract movies from recommendations for filtering
+      const movies = recommendations.map(r => r.movie)
+      const filteredMovies = await memoryService.filterUnseenMovies(user.id, movies)
+      // Filter recommendations to only include those with movies that passed the filter
+      recommendations = recommendations.filter(r => 
+        filteredMovies.some(m => m.id === r.movie.id)
+      )
+      
+      // Apply novelty penalties to avoid recommending similar recent movies
+      recommendations = await memoryService.applyNoveltyPenalties(user.id, recommendations)
+    }
+
     logger.info('✅ Hyper-personalized recommendations generated', { 
       userId: user.id,
       recommendationCount: recommendations.length,
       averageConfidence: recommendations.reduce((sum, r) => sum + r.confidence_score, 0) / recommendations.length
     })
 
-    return NextResponse.json({
-      success: true,
+    // Calculate scoring transparency
+    const averageConfidence = recommendations.reduce((sum, r) => sum + r.confidence_score, 0) / recommendations.length
+    const noveltyPenalties = recommendations.filter(r => r.noveltyPenalty).length
+    
+    return createRecommendationResponse(
       recommendations,
-      metadata: {
-        count: recommendations.length,
-        averageConfidence: Math.round(
-          recommendations.reduce((sum, r) => sum + r.confidence_score, 0) / recommendations.length
-        ),
-        engine: 'hyper-personalized',
-        generatedAt: new Date().toISOString()
-      }
-    })
+      {
+        algorithm: 'hyper-personalized',
+        confidence: Math.round(averageConfidence * 100) / 100,
+        factors: ['user_preferences', 'behavioral_signals', 'recency_decay', 'novelty_tracking'],
+        userPreferences: {}, // Would be populated from memory service
+        noveltyPenalty: noveltyPenalties > 0,
+        recencyDecay: 0.95
+      },
+      `Generated ${recommendations.length} hyper-personalized recommendations`
+    )
 
   } catch (error) {
     logger.error('❌ Failed to generate hyper-personalized recommendations', { 
       errorMessage: error instanceof Error ? error.message : String(error)
     })
 
-    return NextResponse.json(
-      { 
-        error: 'Failed to generate recommendations',
-        details: error instanceof Error ? error.message : String(error)
-      }, 
-      { status: 500 }
+    return StandardErrors.INTERNAL_ERROR(
+      error instanceof Error ? error.message : String(error)
     )
   }
 }

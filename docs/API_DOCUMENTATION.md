@@ -262,6 +262,11 @@ Content-Type: application/json
 }
 ```
 
+**Features**:
+- **Memory Integration**: Automatically enriches prompts with user context
+- **Multi-Provider Support**: Uses OpenAI GPT-5-mini (primary) or Claude (fallback)
+- **User Context**: Includes seen movies, preferences, and recent activity
+
 **Streaming Response** (when `stream: true`):
 
 ```
@@ -277,11 +282,16 @@ GET /api/recommendations/hyper-personalized?count=10&excludeWatched=true
 Authorization: Bearer <token>
 ```
 
+**Features**:
+- **Memory Filtering**: Automatically filters out movies user has already seen
+- **Preference Integration**: Uses user's genre preferences and quality standards
+- **Recency Decay**: Recent preferences weighted higher than older ones
+
 **Query Parameters**:
 
 - `count` (number): Number of recommendations
 - `context` (string): Recommendation context
-- `excludeWatched` (boolean): Filter out watched movies
+- `excludeWatched` (boolean): Filter out watched movies (uses memory service)
 - Custom weighting parameters
 
 ```http
@@ -293,6 +303,65 @@ Content-Type: application/json
   "signal": "positive_rating",
   "movieId": "uuid",
   "strength": 0.8
+}
+```
+
+### Memory System
+
+#### Get User Memory
+
+```http
+GET /api/user/memory
+Authorization: Bearer <token>
+```
+
+**Response**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "seenMovieIds": [1, 2, 3],
+    "ratedMovies": [...],
+    "watchlistMovies": [...],
+    "genrePreferences": {
+      "Action": 0.8,
+      "Drama": 0.6
+    },
+    "recentInteractions": [...],
+    "qualityThreshold": 7.0,
+    "explorationWeight": 0.2
+  }
+}
+```
+
+#### Filter Unseen Movies
+
+```http
+POST /api/user/memory/filter-unseen
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "movies": [
+    {"id": "movie-1", "tmdb_id": 1},
+    {"id": "movie-2", "tmdb_id": 2}
+  ]
+}
+```
+
+**Response**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "filteredMovies": [
+      {"id": "movie-2", "tmdb_id": 2}
+    ],
+    "filteredCount": 1,
+    "totalCount": 2
+  }
 }
 ```
 
@@ -455,24 +524,53 @@ Content-Type: application/json
 ### Health Check
 
 ```http
-GET /api/healthz
+GET /api/health
 ```
 
 **Response**:
 
 ```json
 {
-  "success": true,
-  "data": {
-    "status": "healthy",
-    "database": "connected",
-    "aiService": "operational",
-    "timestamp": "2024-01-01T00:00:00Z",
-    "version": "1.0.0",
-    "uptime": 3600
-  }
+  "status": "healthy",
+  "timestamp": "2024-01-01T00:00:00Z",
+  "version": "2.0.0",
+  "checks": {
+    "supabase": "✅ connected",
+    "database": "✅ migrations applied",
+    "openai_api_key": "✅ configured",
+    "anthropic_api_key": "✅ configured",
+    "tmdb_api_key": "✅ configured",
+    "environment": "✅ development"
+  },
+  "responseTime": 376
 }
 ```
+
+**Health Check Features**:
+- **Database Status**: Verifies Supabase connection and migrations
+- **API Keys**: Validates OpenAI, Anthropic, and TMDB API keys
+- **Environment**: Checks development/production configuration
+- **Response Time**: Measures endpoint performance
+
+### Movie Sync Script
+
+```bash
+npm run sync:movies
+```
+
+**Features**:
+- **Rate Limiting**: Respects TMDB API limits (40 requests per 10 seconds)
+- **Batch Processing**: Fetches trending and popular movies
+- **Upsert Logic**: Prevents duplicate movies in database
+- **Error Handling**: Continues processing even if some requests fail
+- **Progress Logging**: Shows sync progress and results
+
+**What it does**:
+1. Fetches trending movies from TMDB (last 3 months)
+2. Fetches popular movies
+3. Removes duplicates based on TMDB ID
+4. Upserts movies into database
+5. Logs sync results and sample movies
 
 ### Admin: Tune Recommendation Weights
 
@@ -507,18 +605,45 @@ Content-Type: application/json
 | `DATABASE_ERROR`       | Database connection issue         |
 | `EXTERNAL_API_ERROR`   | External service failure          |
 
+## 🧠 Memory System
+
+### User Memory Service
+
+The unified memory system aggregates all user data to provide context-aware recommendations:
+
+**Features**:
+- **Seen Movies Tracking** - Remembers all watched and rated movies
+- **Recent Activity** - Tracks movies seen in the last 30 days for novelty detection
+- **Genre Preferences** - Learns from user ratings with recency decay
+- **Behavioral Signals** - Captures interaction patterns and preferences
+- **Novelty Penalties** - Reduces scores for movies similar to recently seen ones
+
+**Memory Endpoints**:
+- `GET /api/user/memory` - Get unified user memory
+- `POST /api/user/memory/filter-unseen` - Filter unseen movies
+- `POST /api/user/memory/apply-novelty-penalties` - Apply novelty penalties
+
+### Single User Mode
+
+For personal use, enable `SINGLE_USER_MODE=true` in environment variables:
+- Skips authentication for frictionless local development
+- Uses default user ID for all operations
+- Perfect for personal movie recommendation setup
+
 ## 🔒 Rate Limiting
 
-- **Default**: 10 requests per minute per IP
-- **Authenticated**: 60 requests per minute per user
-- **Admin**: 100 requests per minute
+- **AI Endpoints**: 10 requests per minute (expensive operations)
+- **Search Endpoints**: 30 requests per minute
+- **General API**: 60 requests per minute
+- **Health Check**: 5 requests per minute (prevent abuse)
 
 Rate limit headers:
 
 ```
-X-RateLimit-Limit: 60
-X-RateLimit-Remaining: 59
-X-RateLimit-Reset: 1640995200
+X-RateLimit-Limit: 10
+X-RateLimit-Remaining: 9
+X-RateLimit-Reset: 2024-01-01T00:01:00Z
+Retry-After: 60
 ```
 
 ## 📝 Request/Response Examples

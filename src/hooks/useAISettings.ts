@@ -7,6 +7,12 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 
 export interface AIControlSettings {
+  // AI Provider Settings
+  ai_provider: 'openai' | 'claude'
+  auto_fallback: boolean
+  preferred_model: string
+  
+  // Recommendation Settings
   recommendation_style: 'conservative' | 'balanced' | 'adventurous'
   discovery_preference: 'safe' | 'mixed' | 'exploratory'
   genre_diversity: number
@@ -29,6 +35,12 @@ export interface AIControlSettings {
 }
 
 const DEFAULT_SETTINGS: AIControlSettings = {
+  // AI Provider Settings (GPT-5-mini as default)
+  ai_provider: 'openai',
+  auto_fallback: true,
+  preferred_model: 'gpt-5-mini',
+  
+  // Recommendation Settings
   recommendation_style: 'balanced',
   discovery_preference: 'mixed',
   genre_diversity: 70,

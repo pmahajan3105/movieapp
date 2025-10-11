@@ -10,6 +10,12 @@ import { z } from 'zod'
 
 // AI Settings validation schema
 const AISettingsSchema = z.object({
+  // AI Provider Settings
+  ai_provider: z.enum(['openai', 'claude']).optional(),
+  auto_fallback: z.boolean().optional(),
+  preferred_model: z.string().optional(),
+  
+  // Recommendation Settings
   recommendation_style: z.enum(['conservative', 'balanced', 'adventurous']),
   discovery_preference: z.enum(['safe', 'mixed', 'exploratory']),
   genre_diversity: z.number().min(0).max(100),
@@ -37,6 +43,12 @@ const UpdateAISettingsSchema = z.object({
 
 // Default AI settings
 const DEFAULT_AI_SETTINGS = {
+  // AI Provider Settings (GPT-5-mini as default)
+  ai_provider: 'openai',
+  auto_fallback: true,
+  preferred_model: 'gpt-5-mini',
+  
+  // Recommendation Settings
   recommendation_style: 'balanced',
   discovery_preference: 'mixed',
   genre_diversity: 70,
@@ -82,7 +94,7 @@ export const GET = withError(
       }
 
       // Extract AI settings from preferences.ai_settings
-      const aiSettings = profile?.preferences?.ai_settings
+      const aiSettings = (profile?.preferences as any)?.ai_settings
       const settings = aiSettings 
         ? { ...DEFAULT_AI_SETTINGS, ...aiSettings }
         : DEFAULT_AI_SETTINGS
@@ -138,7 +150,7 @@ export const PUT = withError(
 
       // Merge AI settings with existing preferences
       const updatedPreferences = {
-        ...existingProfile?.preferences,
+        ...(existingProfile?.preferences as any || {}),
         ai_settings: settings
       }
 
@@ -147,6 +159,7 @@ export const PUT = withError(
         .from('user_profiles')
         .upsert({
           id: user.id,
+          email: user.email || '',
           preferences: updatedPreferences,
           updated_at: new Date().toISOString()
         }, {
@@ -199,7 +212,7 @@ export const DELETE = withError(
 
       // Remove only AI settings, keep other preferences
       const updatedPreferences = {
-        ...existingProfile?.preferences
+        ...(existingProfile?.preferences as any || {})
       }
       delete updatedPreferences.ai_settings
 

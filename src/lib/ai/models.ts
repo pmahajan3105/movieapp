@@ -1,7 +1,7 @@
 // AI Model Management System
 // Centralized configuration for all AI models and providers
 
-export type AIProvider = 'anthropic'
+export type AIProvider = 'anthropic' | 'openai'
 
 export interface AIModel {
   id: string
@@ -15,10 +15,39 @@ export interface AIModel {
   description: string
   contextWindow: number
   supportsExtendedThinking?: boolean
+  supportsFunctionCalling?: boolean
+  supportsMultimodal?: boolean
 }
 
-// Anthropic Models - Primary and only provider
+// OpenAI Models - Primary provider
+const openaiModels: AIModel[] = [
+  {
+    id: 'gpt-5-mini',
+    name: 'GPT-5 Mini',
+    provider: 'openai',
+    maxTokens: 16384,
+    costPer1kTokens: { input: 0.004, output: 0.012 },
+    description: '92% of GPT-5 capability, 60% lower cost, 400K context, multimodal',
+    contextWindow: 400000,
+    supportsExtendedThinking: true,
+    supportsFunctionCalling: true,
+    supportsMultimodal: true,
+  },
+]
+
+// Anthropic Models - Fallback provider for complex analysis
 const anthropicModels: AIModel[] = [
+  {
+    id: 'claude-sonnet-4-20250514',
+    name: 'Claude 4.5 Sonnet',
+    provider: 'anthropic',
+    maxTokens: 64000,
+    costPer1kTokens: { input: 0.003, output: 0.015 },
+    description:
+      'Claude 4.5 Sonnet - Latest model for complex analytical tasks and structured outputs',
+    contextWindow: 200000,
+    supportsExtendedThinking: true,
+  },
   {
     id: 'claude-3-7-sonnet-20250219',
     name: 'Claude 3.7 Sonnet',
@@ -43,11 +72,13 @@ const anthropicModels: AIModel[] = [
 ]
 
 // All available models
-export const AI_MODELS: AIModel[] = [...anthropicModels]
+export const AI_MODELS: AIModel[] = [...openaiModels, ...anthropicModels]
 
 // Default model configurations
-export const DEFAULT_MODEL = 'claude-3-7-sonnet-20250219'
-export const FAST_MODEL = 'claude-3-5-haiku-20241022'
+export const DEFAULT_MODEL = 'gpt-5-mini' // Primary AI model
+export const FAST_MODEL = 'gpt-5-mini' // GPT-5-mini is already fast
+export const FALLBACK_MODEL = 'claude-sonnet-4-20250514' // Claude 4.5 Sonnet for fallback
+export const BEHAVIORAL_MODEL = 'claude-sonnet-4-20250514' // Claude optimized for analytics
 
 // Model selection helpers
 export function getModelById(id: string): AIModel | undefined {

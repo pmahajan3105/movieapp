@@ -116,7 +116,7 @@ const HyperPersonalizedSectionInternal: React.FC<HyperPersonalizedSectionProps> 
   }
 
   return (
-    <div className={`${className}`}>
+    <div data-testid="hyper-personalized" className={`${className}`}>
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">

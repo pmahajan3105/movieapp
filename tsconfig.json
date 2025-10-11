@@ -45,11 +45,6 @@
     "node_modules",
     ".next",
     "e2e",
-    "src/lib/services/streaming-response-handler.ts",
-    "src/lib/services/non-streaming-response-handler.ts",
-    "src/app/api/ai/chat/route.ts",
-    "src/lib/ai/thematic-analysis-engine.ts",
-    "src/lib/ai/hyper-personalized-engine.ts",
     "src/__tests__/setupMocks.ts",
     "supabase/functions"
   ]

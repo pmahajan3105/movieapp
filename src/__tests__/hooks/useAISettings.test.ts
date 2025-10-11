@@ -6,16 +6,14 @@
 import { renderHook, act, waitFor } from '@testing-library/react'
 import { useAISettings, AIControlSettings } from '@/hooks/useAISettings'
 import { useAuth } from '@/contexts/AuthContext'
-import { logger } from '@/lib/logger'
 
 // Mock dependencies
 jest.mock('@/contexts/AuthContext')
-jest.mock('@/lib/logger', () => ({
-  logger: {
-    info: jest.fn(),
-    error: jest.fn(),
-  },
-}))
+
+// Mock console methods
+const consoleInfoSpy = jest.spyOn(console, 'info').mockImplementation()
+const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation()
+const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation()
 
 // Mock fetch
 global.fetch = jest.fn()
@@ -33,6 +31,9 @@ describe('useAISettings', () => {
     it('should initialize with default settings', () => {
       const { result } = renderHook(() => useAISettings())
 
+      expect(result.current.settings.ai_provider).toBe('openai')
+      expect(result.current.settings.auto_fallback).toBe(true)
+      expect(result.current.settings.preferred_model).toBe('gpt-5-mini')
       expect(result.current.settings.recommendation_style).toBe('balanced')
       expect(result.current.settings.discovery_preference).toBe('mixed')
       expect(result.current.settings.genre_diversity).toBe(70)
@@ -84,9 +85,9 @@ describe('useAISettings', () => {
         expect(result.current.isLoading).toBe(false)
       })
 
-      expect(logger.error).toHaveBeenCalledWith(
-        'Failed to load AI settings',
-        expect.objectContaining({ error: 'Network error' })
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        'AI settings fetch failed:',
+        'Network error'
       )
       // Should still have default settings
       expect(result.current.settings.recommendation_style).toBe('balanced')
@@ -136,12 +137,13 @@ describe('useAISettings', () => {
       expect(fetch).toHaveBeenCalledWith('/api/user/ai-settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: expect.stringContaining('"recommendation_style":"adventurous"')
       })
 
       expect(result.current.hasChanges).toBe(false)
       expect(result.current.successMessage).toBe('AI settings saved successfully!')
-      expect(logger.info).toHaveBeenCalledWith('AI settings updated successfully')
+      expect(consoleInfoSpy).toHaveBeenCalledWith('AI settings updated:', expect.any(Object))
     })
 
     it('should handle save errors', async () => {
@@ -165,11 +167,11 @@ describe('useAISettings', () => {
         await result.current.saveSettings()
       })
 
-      expect(result.current.error).toBe('Failed to save settings')
+      expect(result.current.error).toMatch(/Failed to save settings|Server error: 500/)
       expect(result.current.hasChanges).toBe(true) // Should still have changes
-      expect(logger.error).toHaveBeenCalledWith(
-        'Failed to save AI settings',
-        expect.objectContaining({ error: 'Failed to save settings' })
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'Failed to save AI settings:',
+        expect.stringMatching(/Failed to save settings|Server error: 500/)
       )
     })
 

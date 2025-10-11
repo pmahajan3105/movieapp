@@ -1,9 +1,11 @@
-// AI Service for CineAI - Anthropic Claude only
+// AI Service for CineAI - Multi-Provider (OpenAI primary, Anthropic fallback)
 import Anthropic from '@anthropic-ai/sdk'
+import { openaiProvider } from './providers/openai-provider'
 import { logger } from '@/lib/logger'
-import { DEFAULT_MODEL } from './models'
+import { DEFAULT_MODEL, FALLBACK_MODEL, getModelById } from './models'
+import { validateModel, logModelValidation } from '@/lib/utils/model-validation'
 
-// Initialize Anthropic client
+// Initialize Anthropic client for fallback
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
 })
@@ -21,7 +23,7 @@ export interface AIResponse {
     totalTokens: number
   }
   model: string
-  provider: 'anthropic'
+  provider: 'anthropic' | 'openai'
 }
 
 export interface StreamingOptions {
@@ -35,70 +37,139 @@ export interface AICallOptions {
   model?: string
   temperature?: number
   maxTokens?: number
+  useFallback?: boolean // Force Claude fallback
+  preferredProvider?: 'openai' | 'claude' // User's provider preference
 }
 
 export class AIService {
   /**
    * Call AI with messages and get a response
+   * Primary: OpenAI GPT-5-mini, Fallback: Claude 4.5 Sonnet
    */
   async chat(messages: AIMessage[], options: AICallOptions = {}): Promise<AIResponse> {
-    const { model = DEFAULT_MODEL, temperature = 0.7, maxTokens = 4000 } = options
+    const {
+      model = DEFAULT_MODEL,
+      temperature = 0.7,
+      maxTokens = 4000,
+      useFallback = false,
+      preferredProvider,
+    } = options
+
+    // Validate model ID with graceful fallback
+    const validation = validateModel(model)
+    const actualModel = validation.isValid ? validation.modelId : validation.fallbackModelId!
+    logModelValidation(validation, 'AI Service chat')
+
+    // Determine provider based on preference or model
+    const modelConfig = getModelById(actualModel)
+    let provider = modelConfig?.provider || 'openai'
+
+    // Override with user preference
+    if (preferredProvider === 'claude') {
+      provider = 'anthropic'
+    } else if (preferredProvider === 'openai') {
+      provider = 'openai'
+    }
+
+    // Force fallback if requested
+    if (useFallback) {
+      provider = 'anthropic'
+    }
 
     try {
-      logger.debug(`AI chat request`, { model, messageCount: messages.length })
+      logger.debug(`AI chat request`, { model: actualModel, originalModel: model, provider, messageCount: messages.length })
 
-      // Prepare messages for Anthropic format
-      const anthropicMessages = messages
-        .filter(msg => msg.role !== 'system')
-        .map(msg => ({
-          role: msg.role as 'user' | 'assistant',
-          content: msg.content,
-        }))
-
-      const systemMessage = messages.find(msg => msg.role === 'system')?.content
-
-      // Build request parameters
-      const requestParams: Anthropic.MessageCreateParams = {
-        model,
-        max_tokens: maxTokens,
-        temperature,
-        messages: anthropicMessages,
+      // Route to appropriate provider
+      if (provider === 'openai') {
+        try {
+          return await this.chatWithOpenAI(messages, { model: actualModel, temperature, maxTokens })
+        } catch (openaiError) {
+          // Auto-fallback to Claude on OpenAI errors
+          logger.warn('OpenAI failed, falling back to Claude', {
+            error: openaiError instanceof Error ? openaiError.message : String(openaiError),
+          })
+          return await this.chatWithAnthropic(messages, {
+            model: actualModel,
+            temperature,
+            maxTokens,
+          })
+        }
+      } else {
+        return await this.chatWithAnthropic(messages, {
+          model: actualModel,
+          temperature,
+          maxTokens,
+        })
       }
+    } catch (error: any) {
+      logger.error('AI chat error', { error: error.message, provider })
+      throw error
+    }
+  }
 
-      if (systemMessage) {
-        requestParams.system = systemMessage
-      }
+  /**
+   * OpenAI GPT-5-mini Implementation
+   */
+  private async chatWithOpenAI(
+    messages: AIMessage[],
+    options: { model: string; temperature: number; maxTokens: number }
+  ): Promise<AIResponse> {
+    return await openaiProvider.chat(messages, options)
+  }
 
-      const response = await anthropic.messages.create(requestParams)
+  /**
+   * Anthropic Claude Implementation (Fallback)
+   */
+  private async chatWithAnthropic(
+    messages: AIMessage[],
+    options: { model: string; temperature: number; maxTokens: number }
+  ): Promise<AIResponse> {
+    const { model, temperature, maxTokens } = options
 
-      const content = response.content
-        .filter(block => block.type === 'text')
-        .map(block => block.text)
-        .join('\n')
+    // Prepare messages for Anthropic format
+    const anthropicMessages = messages
+      .filter(msg => msg.role !== 'system')
+      .map(msg => ({
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content,
+      }))
 
-      return {
-        content,
-        usage: response.usage
-          ? {
-              inputTokens: response.usage.input_tokens,
-              outputTokens: response.usage.output_tokens,
-              totalTokens: response.usage.input_tokens + response.usage.output_tokens,
-            }
-          : undefined,
-        model,
-        provider: 'anthropic',
-      }
-    } catch (error) {
-      logger.error('AI chat error', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        model,
-      })
-      throw new Error(`AI chat failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    const systemMessage = messages.find(msg => msg.role === 'system')?.content
+
+    // Build request parameters
+    const requestParams: Anthropic.MessageCreateParams = {
+      model,
+      max_tokens: maxTokens,
+      temperature,
+      messages: anthropicMessages,
+    }
+
+    if (systemMessage) {
+      requestParams.system = systemMessage
+    }
+
+    const response = await anthropic.messages.create(requestParams)
+
+    const content = response.content
+      .filter(block => block.type === 'text')
+      .map(block => block.text)
+      .join('\n')
+
+    return {
+      content,
+      usage: {
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+        totalTokens: response.usage.input_tokens + response.usage.output_tokens,
+      },
+      model: response.model,
+      provider: 'anthropic',
     }
   }
 
   /**
    * Stream AI response in real-time
+   * Supports both OpenAI and Claude with automatic fallback
    */
   async chatStream(
     messages: AIMessage[],
@@ -112,12 +183,70 @@ export class AIService {
       onComplete,
       onError,
       signal,
+      preferredProvider,
     } = options
 
-    try {
-      logger.debug(`AI stream request`, { model, messageCount: messages.length })
+    // Validate model ID with graceful fallback
+    const validation = validateModel(model)
+    const actualModel = validation.isValid ? validation.modelId : validation.fallbackModelId!
+    logModelValidation(validation, 'AI Service streaming')
 
-      // Prepare messages for Anthropic format
+    const modelConfig = getModelById(actualModel)
+    let provider = modelConfig?.provider || 'openai'
+
+    if (preferredProvider === 'claude') {
+      provider = 'anthropic'
+    } else if (preferredProvider === 'openai') {
+      provider = 'openai'
+    }
+
+    try {
+      logger.debug(`AI stream request`, { model: actualModel, originalModel: model, provider, messageCount: messages.length })
+
+      if (provider === 'openai') {
+        try {
+          const response = await openaiProvider.chatStream(
+            messages,
+            { model: actualModel, temperature, maxTokens },
+            { onChunk, onComplete, onError, signal }
+          )
+          return response.content
+        } catch (openaiError) {
+          logger.warn('OpenAI streaming failed, falling back to Claude', {
+            error: openaiError instanceof Error ? openaiError.message : String(openaiError),
+          })
+          return await this.chatStreamAnthropic(
+            messages,
+            { model: actualModel, temperature, maxTokens },
+            { onChunk, onComplete, onError, signal }
+          )
+        }
+      } else {
+        return await this.chatStreamAnthropic(
+          messages,
+          { model: actualModel, temperature, maxTokens },
+          { onChunk, onComplete, onError, signal }
+        )
+      }
+    } catch (error: any) {
+      logger.error('AI stream error', { error: error.message, provider })
+      onError?.(error)
+      throw error
+    }
+  }
+
+  /**
+   * Anthropic streaming implementation
+   */
+  private async chatStreamAnthropic(
+    messages: AIMessage[],
+    options: { model: string; temperature: number; maxTokens: number },
+    streamingOptions: StreamingOptions
+  ): Promise<string> {
+    const { model, temperature, maxTokens } = options
+    const { onChunk, onComplete, onError, signal } = streamingOptions
+
+    try {
       const anthropicMessages = messages
         .filter(msg => msg.role !== 'system')
         .map(msg => ({
@@ -127,7 +256,6 @@ export class AIService {
 
       const systemMessage = messages.find(msg => msg.role === 'system')?.content
 
-      // Build request parameters
       const requestParams: Anthropic.MessageCreateParams = {
         model,
         max_tokens: maxTokens,
@@ -157,21 +285,15 @@ export class AIService {
 
       onComplete?.(fullContent)
       return fullContent
-    } catch (error) {
-      logger.error('AI stream error', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        model,
-      })
-      const aiError = new Error(
-        `AI stream failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-      )
-      onError?.(aiError)
-      throw aiError
+    } catch (error: any) {
+      logger.error('Anthropic streaming error', { error: error.message })
+      onError?.(error)
+      throw error
     }
   }
 
   /**
-   * Generate movie recommendations
+   * Generate movie recommendations (using GPT-5-mini for creativity)
    */
   async generateRecommendations(
     userPreferences: string,
@@ -209,7 +331,7 @@ Please provide personalized movie recommendations.`,
   }
 
   /**
-   * Extract user preferences from chat conversation
+   * Extract user preferences from chat conversation (using GPT-5-mini)
    */
   async extractPreferences(chatHistory: string, options: AICallOptions = {}): Promise<AIResponse> {
     const messages: AIMessage[] = [
