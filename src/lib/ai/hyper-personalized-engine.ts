@@ -329,7 +329,8 @@ export class HyperPersonalizedEngine {
     supabaseClient?: any
   ): Promise<Movie[]> {
     const client = supabaseClient || supabase
-    let query = client.from('movies').select('*').order('rating', { ascending: false }).limit(500)
+    // Reduced from 500 to 200 for faster processing - still plenty for good recommendations
+    let query = client.from('movies').select('*').order('rating', { ascending: false }).limit(200)
 
     if (excludeWatched) {
       // Exclude movies the user has already rated or watched

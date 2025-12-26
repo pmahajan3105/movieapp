@@ -1,7 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Movie } from '@/types'
 import { logger } from '@/lib/logger'
-// import { movieMemoryService } from '@/lib/mem0/client' // Disabled - package removed
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -463,102 +462,7 @@ export async function generateIntelligenceInsights(
 }
 
 /**
- * Store behavioral insights in Mem0 for semantic access
- */
-export async function storeBehavioralInsightsInMem0(
-  userId: string,
-  profile: UserBehaviorProfile
-): Promise<void> {
-  try {
-    const insights: string[] = []
-
-    // Rating insights
-    if (profile.rating_patterns.five_star_movies.length > 0) {
-      const topGenres = getTopGenresFromMovies(profile.rating_patterns.five_star_movies)
-      const topDirectors = getTopDirectorsFromMovies(profile.rating_patterns.five_star_movies)
-
-      insights.push(
-        `User LOVES these movies (5-star ratings): ${profile.rating_patterns.five_star_movies
-          .map(p => p.movie.title)
-          .slice(0, 5)
-          .join(', ')}`
-      )
-
-      if (topGenres.length > 0) {
-        insights.push(
-          `User's highest-rated genres: ${topGenres.join(', ')} (average rating ${profile.rating_patterns.average_rating}/5)`
-        )
-      }
-
-      if (topDirectors.length > 0) {
-        insights.push(`User consistently rates these directors highly: ${topDirectors.join(', ')}`)
-      }
-    }
-
-    // Watchlist behavior insights
-    if (profile.watchlist_patterns.completion_rate > 0) {
-      insights.push(
-        `User has ${profile.watchlist_patterns.completion_rate}% watchlist completion rate`
-      )
-
-      if (profile.watchlist_patterns.impulse_watches.length > 0) {
-        const impulseGenres = getTopGenresFromWatchlist(profile.watchlist_patterns.impulse_watches)
-        insights.push(`User watches these genres immediately: ${impulseGenres.join(', ')}`)
-      }
-
-      if (profile.watchlist_patterns.abandoned_movies.length > 0) {
-        const abandonedGenres = getTopGenresFromWatchlist(
-          profile.watchlist_patterns.abandoned_movies
-        )
-        insights.push(`User tends to add but not watch: ${abandonedGenres.join(', ')}`)
-      }
-    }
-
-    // Temporal insights
-    if (profile.temporal_patterns.weekend_genres.length > 0) {
-      insights.push(
-        `User prefers these genres on weekends: ${profile.temporal_patterns.weekend_genres.join(', ')}`
-      )
-    }
-
-    if (profile.temporal_patterns.weekday_genres.length > 0) {
-      insights.push(
-        `User prefers these genres on weekdays: ${profile.temporal_patterns.weekday_genres.join(', ')}`
-      )
-    }
-
-    // Intelligence insights
-    insights.push(
-      `User's taste consistency score: ${profile.intelligence_insights.taste_consistency_score} (${profile.intelligence_insights.taste_consistency_score > 0.7 ? 'very consistent' : 'diverse'} tastes)`
-    )
-    insights.push(
-      `User's quality threshold: ${profile.intelligence_insights.quality_threshold}/5 stars`
-    )
-
-    // Store each insight as a behavioral memory - DISABLED (mem0 package removed)
-    // for (const insight of insights) {
-    //   await movieMemoryService.addConversation(
-    //     [{ role: 'assistant', content: insight }] as any,
-    //     userId,
-    //     {
-    //       category: 'behavioral_intelligence',
-    //       confidence: 0.9,
-    //       source: 'behavioral_analysis',
-    //       timestamp: Math.floor(Date.now() / 1000) // Unix timestamp in seconds
-    //     }
-    //   )
-    // }
-
-    if (process.env.NODE_ENV === 'development') {
-      logger.debug(`Generated behavioral insights (mem0 storage disabled)`, { insightCount: insights.length })
-    }
-  } catch (error) {
-    logger.error('Error storing behavioral insights in Mem0', { error })
-  }
-}
-
-/**
- * Main function to analyze all user behavior and store insights
+ * Main function to analyze all user behavior
  */
 export async function analyzeCompleteUserBehavior(userId: string): Promise<UserBehaviorProfile> {
   logger.info('Starting complete behavioral analysis for user', { userId })
@@ -581,9 +485,6 @@ export async function analyzeCompleteUserBehavior(userId: string): Promise<UserB
     temporal_patterns: temporalPatterns,
     intelligence_insights: intelligenceInsights,
   }
-
-  // Store insights in Mem0 for semantic access - DISABLED (mem0 package removed)
-  // await storeBehavioralInsightsInMem0(userId, completeProfile)
 
   logger.info('Complete behavioral analysis finished')
   return completeProfile
