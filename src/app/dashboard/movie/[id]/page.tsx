@@ -83,7 +83,7 @@ export default function MovieDetailPage() {
     if (movieId) {
       fetchMovieDetails()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [movieId, user, router])
 
   // Add to watchlist

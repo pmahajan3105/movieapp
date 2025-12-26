@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { User, Calendar, Clock, Settings, AlertCircle, CheckCircle, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { updateLocalUser, getLocalUser } from '@/lib/utils/local-user'
 
 interface ProfileData {
   email?: string
@@ -22,7 +23,7 @@ interface ToastMessage {
 }
 
 export default function AccountPage() {
-  const { user, refreshUser } = useAuth()
+  const { user, refreshUser, isLocalMode } = useAuth()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [userName, setUserName] = useState('')
@@ -53,7 +54,7 @@ export default function AccountPage() {
         hasProfile: !!user.profile,
       })
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [user])
 
   // Auto-hide toast after 3 seconds
@@ -66,7 +67,7 @@ export default function AccountPage() {
       return () => clearTimeout(timer)
     }
     return undefined
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [toast])
 
   const handleSaveName = async () => {
@@ -77,27 +78,41 @@ export default function AccountPage() {
 
     setSaving(true)
     try {
-      const response = await fetch('/api/user/profile', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          full_name: userName.trim(),
-        }),
-      })
-
-      const data = await response.json()
-
-      if (data.success) {
-        showToast('Name updated successfully!', 'success')
-
-        // Reload the profile data in AuthContext
-        await refreshUser()
-
-        console.log('✅ Profile updated and reloaded')
+      // Handle local mode separately
+      if (isLocalMode) {
+        const updatedUser = updateLocalUser({ name: userName.trim() })
+        if (updatedUser) {
+          showToast('Name updated successfully!', 'success')
+          // Reload the profile data in AuthContext
+          await refreshUser()
+          console.log('✅ Local user profile updated', updatedUser)
+        } else {
+          throw new Error('Failed to update local user')
+        }
       } else {
-        throw new Error(data.error || 'Failed to update name')
+        // Regular authenticated user flow
+        const response = await fetch('/api/user/profile', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            full_name: userName.trim(),
+          }),
+        })
+
+        const data = await response.json()
+
+        if (data.success) {
+          showToast('Name updated successfully!', 'success')
+
+          // Reload the profile data in AuthContext
+          await refreshUser()
+
+          console.log('✅ Profile updated and reloaded')
+        } else {
+          throw new Error(data.error || 'Failed to update name')
+        }
       }
     } catch (error) {
       console.error('❌ Error updating name:', error)

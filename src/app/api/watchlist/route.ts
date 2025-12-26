@@ -5,17 +5,35 @@ import { MovieRepository } from '@/repositories/MovieRepository'
 import { logger } from '@/lib/logger'
 import RecommendationCacheManager from '@/lib/utils/recommendation-cache'
 import { fetchTmdbMovieById } from '@/lib/utils/tmdb-helpers'
+import { getUserContext } from '@/lib/utils/single-user-mode'
 
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createServerClient()
     const {
-      data: { user },
-      error: authError,
+      data: { user: authUser },
     } = await supabase.auth.getUser()
 
-    if (authError || !user) {
-      logger.error('Authentication failed', { error: authError })
+    // Check for local/single user mode
+    let userContext
+    try {
+      userContext = getUserContext(authUser?.id)
+    } catch {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+
+    if (userContext.isSingleUser) {
+      logger.info('Local mode: returning empty watchlist')
+      return NextResponse.json({
+        success: true,
+        isLocalMode: true,
+        data: [],
+      })
+    }
+
+    // Use the auth user from earlier check
+    const user = authUser
+    if (!user) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -97,19 +115,37 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const body = await request.json()
+    let movieId = body.movie_id || body.movieId // Support both formats
+
     const supabase = await createServerClient()
     const {
       data: { user },
       error: authError,
     } = await supabase.auth.getUser()
 
+    // Check for local/single user mode
+    let userContext
+    try {
+      userContext = getUserContext(user?.id)
+    } catch {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+
+    if (userContext.isSingleUser) {
+      logger.info('Local mode: simulating watchlist add', { movieId })
+      return NextResponse.json({
+        success: true,
+        isLocalMode: true,
+        message: 'Movie added to watchlist (local mode)',
+      })
+    }
+
     if (authError || !user) {
       logger.error('Authentication failed', { error: authError })
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    let movieId = body.movie_id || body.movieId // Support both formats
     const notes = body.notes
 
     if (!movieId) {
@@ -189,19 +225,36 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url)
+    let movieId = searchParams.get('movie_id') || searchParams.get('movieId')
+
     const supabase = await createServerClient()
     const {
       data: { user },
       error: authError,
     } = await supabase.auth.getUser()
 
+    // Check for local/single user mode
+    let userContext
+    try {
+      userContext = getUserContext(user?.id)
+    } catch {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+
+    if (userContext.isSingleUser) {
+      logger.info('Local mode: simulating watchlist remove', { movieId })
+      return NextResponse.json({
+        success: true,
+        isLocalMode: true,
+        message: 'Movie removed from watchlist (local mode)',
+      })
+    }
+
     if (authError || !user) {
       logger.error('Authentication failed', { error: authError })
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
-
-    const { searchParams } = new URL(request.url)
-    let movieId = searchParams.get('movie_id') || searchParams.get('movieId')
 
     if (!movieId) {
       return NextResponse.json({ success: false, error: 'Movie ID is required' }, { status: 400 })
@@ -235,19 +288,36 @@ export async function DELETE(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
+    const body = await request.json()
+    const { movie_id, watchlist_id, watched, rating, notes } = body
+
     const supabase = await createServerClient()
     const {
       data: { user },
       error: authError,
     } = await supabase.auth.getUser()
 
+    // Check for local/single user mode
+    let userContext
+    try {
+      userContext = getUserContext(user?.id)
+    } catch {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+
+    if (userContext.isSingleUser) {
+      logger.info('Local mode: simulating watchlist update', { movie_id, watched, rating })
+      return NextResponse.json({
+        success: true,
+        isLocalMode: true,
+        message: 'Watchlist item updated (local mode)',
+      })
+    }
+
     if (authError || !user) {
       logger.error('Authentication failed', { error: authError })
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
-
-    const body = await request.json()
-    const { movie_id, watchlist_id, watched, rating, notes } = body
 
     if (!movie_id && !watchlist_id) {
       return NextResponse.json(

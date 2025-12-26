@@ -152,13 +152,13 @@ CREATE TABLE IF NOT EXISTS user_advanced_queries (
     recommended_movies TEXT[] DEFAULT ARRAY[]::TEXT[],
     
     -- Timestamps
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    
-    -- Indexes for performance
-    INDEX idx_user_advanced_queries_user_id ON user_advanced_queries(user_id),
-    INDEX idx_user_advanced_queries_created_at ON user_advanced_queries(created_at),
-    INDEX idx_user_advanced_queries_complexity ON user_advanced_queries(complexity_level)
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Create indexes for user_advanced_queries
+CREATE INDEX IF NOT EXISTS idx_user_advanced_queries_user_id ON user_advanced_queries(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_advanced_queries_created_at ON user_advanced_queries(created_at);
+CREATE INDEX IF NOT EXISTS idx_user_advanced_queries_complexity ON user_advanced_queries(complexity_level);
 
 -- User Emotional Preferences Table
 CREATE TABLE IF NOT EXISTS user_emotional_preferences (

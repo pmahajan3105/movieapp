@@ -3,6 +3,12 @@ import { useAuth } from '@/contexts/AuthContext'
 import { toast } from 'react-hot-toast'
 import { useRouter } from 'next/navigation'
 import { logger } from '@/lib/logger'
+import { 
+  getLocalWatchlist, 
+  addToLocalWatchlist, 
+  removeFromLocalWatchlist,
+  markAsWatched as markLocalAsWatched 
+} from '@/lib/utils/local-watchlist'
 
 // Simple interface for movies page watchlist needs
 interface WatchlistItem {
@@ -18,13 +24,26 @@ interface WatchlistItem {
 // Enhanced hook for all watchlist operations across the app
 export const useMoviesWatchlist = () => {
   const queryClient = useQueryClient()
-  const { user, isSessionValid, refreshUser, signOut } = useAuth()
+  const { user, isSessionValid, refreshUser, signOut, isLocalMode } = useAuth()
   const router = useRouter()
 
   // Fetch watchlist IDs
   const { data: watchlistData, isLoading } = useQuery<WatchlistItem[]>({
-    queryKey: ['movies-watchlist'],
+    queryKey: ['movies-watchlist', isLocalMode],
     queryFn: async () => {
+      // Check if in local mode first
+      if (isLocalMode) {
+        const localItems = getLocalWatchlist()
+        return localItems.map(item => ({
+          movie_id: item.movieId,
+          id: item.id,
+          watched: item.watched,
+          watched_at: item.watchedAt,
+          rating: item.rating,
+          notes: item.notes
+        }))
+      }
+      
       // Check if session is valid before making request
       if (!isSessionValid) {
         logger.debug('Session invalid, attempting to refresh')
@@ -85,6 +104,13 @@ export const useMoviesWatchlist = () => {
   // Add to watchlist
   const { mutate: addToWatchlist, isPending: isAdding } = useMutation({
     mutationFn: async (movieId: string) => {
+      // Handle local mode
+      if (isLocalMode) {
+        const item = addToLocalWatchlist(movieId)
+        logger.info('Added to local watchlist', { movieId })
+        return { success: true, data: item }
+      }
+      
       if (!user) {
         throw new Error('Please sign in to add movies to your watchlist')
       }
@@ -211,6 +237,13 @@ export const useMoviesWatchlist = () => {
   // Remove from watchlist
   const { mutate: removeFromWatchlist, isPending: isRemoving } = useMutation({
     mutationFn: async (movieId: string) => {
+      // Handle local mode
+      if (isLocalMode) {
+        const success = removeFromLocalWatchlist(movieId)
+        logger.info('Removed from local watchlist', { movieId, success })
+        return { success }
+      }
+      
       if (!user) {
         throw new Error('Please sign in to manage your watchlist')
       }

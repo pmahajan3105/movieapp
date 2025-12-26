@@ -212,7 +212,7 @@ export default function SettingsPage() {
         setLoading(false)
       })
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [user, loadAiPreferences, loadManualPreferences])
 
   const handleSaveManualPreferences = async (preferences: ManualPreferences) => {

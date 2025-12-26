@@ -54,3 +54,11 @@ test-*.js
 *.tmp
 *.temp
 .env
+
+# Supabase operational status files (keep migrations and seed)
+supabase/DATABASE_STATUS_REPORT.md
+supabase/MIGRATION_IMPROVEMENTS.md
+supabase/README_OPTIMIZATION.md
+supabase/RUN_ALL_FIXES.md
+supabase/WHAT_I_FIXED.md
+supabase/*.sql.bak

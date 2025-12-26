@@ -51,7 +51,7 @@ export function LocalWelcomeScreen({ onComplete }: LocalWelcomeScreenProps) {
               <div className="p-2 bg-primary/10 rounded-lg">
                 <Sparkles className="w-6 h-6 text-primary" />
               </div>
-              <h2 className="card-title text-2xl font-bold text-base-content">Let's get started!</h2>
+              <h2 className="card-title text-2xl font-bold text-base-content">Let&apos;s get started!</h2>
             </div>
             
             <p className="text-base-content/90 text-base mb-8 leading-relaxed">
@@ -75,7 +75,7 @@ export function LocalWelcomeScreen({ onComplete }: LocalWelcomeScreenProps) {
                 />
                 <label className="label pt-3">
                   <span className="label-text-alt text-base-content/70 text-sm">
-                    We'll use this to personalize your experience
+                    We&apos;ll use this to personalize your experience
                   </span>
                 </label>
               </div>
@@ -100,7 +100,7 @@ export function LocalWelcomeScreen({ onComplete }: LocalWelcomeScreenProps) {
             </form>
 
             {/* Features Preview */}
-            <div className="divider text-sm font-semibold text-base-content/60 my-8">What you'll get</div>
+            <div className="divider text-sm font-semibold text-base-content/60 my-8">What you&apos;ll get</div>
             <div className="space-y-4">
               <div className="flex items-start gap-4 p-4 rounded-lg bg-base-200/50 border border-base-300">
                 <div className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center mt-0.5">

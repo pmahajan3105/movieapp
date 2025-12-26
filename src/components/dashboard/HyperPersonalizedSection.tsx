@@ -10,7 +10,6 @@ import { useAuth } from '@/contexts/AuthContext'
 interface HyperPersonalizedSectionProps {
   className?: string
   onMovieView?: (movieId: string, movieData?: any) => void
-  onMovieSave?: (movieId: string) => void
   onMovieRate?: (movieId: string, rating: number) => void
 }
 
@@ -18,7 +17,6 @@ interface HyperPersonalizedSectionProps {
 const HyperPersonalizedSectionInternal: React.FC<HyperPersonalizedSectionProps> = ({
   className = '',
   onMovieView,
-  onMovieSave,
   onMovieRate
 }) => {
   const { user } = useAuth()
@@ -343,7 +341,6 @@ const HyperPersonalizedSectionInternal: React.FC<HyperPersonalizedSectionProps> 
             }}
             showPersonalizationDetails={true}
             onMovieView={onMovieView}
-            onMovieSave={onMovieSave}
             onMovieRate={onMovieRate}
           />
         </div>

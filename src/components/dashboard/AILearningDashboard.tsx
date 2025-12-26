@@ -8,7 +8,7 @@
 
 'use client'
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Brain, TrendingUp, Eye, BarChart3, Clock, Zap, AlertCircle, Star, MessageCircle, Sparkles } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { assessUserOnboardingStatus } from '@/lib/user-onboarding-utils'

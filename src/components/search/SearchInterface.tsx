@@ -73,7 +73,7 @@ export function SearchInterface({
         clearTimeout(timeoutRef.current)
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [query, showAutocomplete])
 
   // Handle search submission

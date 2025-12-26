@@ -11,12 +11,10 @@ import {
 import { logger } from '@/lib/logger'
 import type { UserProfile } from '@/lib/supabase/browser-client'
 import { isSingleUserMode, getSingleUserConfig } from '@/lib/utils/single-user-mode'
-import { 
-  isLocalMode, 
-  getLocalUser, 
-  createLocalUser, 
-  hasLocalUser,
-  type LocalUser 
+import {
+  isLocalMode,
+  getLocalUser,
+  createLocalUser
 } from '@/lib/utils/local-user'
 
 interface AuthUser extends User {

@@ -343,7 +343,7 @@ export class OptimizedSmartRecommender {
       options.mood,
       options.includeExplanations === true ? 'explain' : 'simple'
     ]
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+     
     // @ts-ignore
     return keyParts.filter((x): x is string => typeof x === 'string').join(':').replace(/[^a-zA-Z0-9:]/g, '_')
   }

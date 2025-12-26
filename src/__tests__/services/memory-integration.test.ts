@@ -112,7 +112,7 @@ describe('Memory Integration Tests', () => {
       const result = await memoryService.filterUnseenMovies('user-1', movies)
 
       expect(result).toHaveLength(1)
-      expect(result[0].id).toBe('movie-3')
+      expect(result[0]?.id).toBe('movie-3')
     })
 
     it('should apply novelty penalties correctly', async () => {
@@ -197,7 +197,7 @@ describe('Memory Integration Tests', () => {
       )
 
       expect(response.status).toBe(200)
-      expect(JSON.parse(response.body as string)).toEqual({
+      expect(JSON.parse(response.body as unknown as string)).toEqual({
         success: true,
         recommendations,
         message: 'Generated 2 recommendations',

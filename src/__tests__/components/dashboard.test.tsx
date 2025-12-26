@@ -50,6 +50,9 @@ describe('DashboardPage', () => {
       isSessionValid: true,
       signOut: jest.fn(),
       refreshUser: jest.fn(),
+      isLocalMode: false,
+      needsLocalSetup: false,
+      createLocalUserAccount: jest.fn(),
     })
 
     // Mock toast methods
@@ -65,6 +68,9 @@ describe('DashboardPage', () => {
         isSessionValid: false,
         signOut: jest.fn(),
         refreshUser: jest.fn(),
+        isLocalMode: false,
+        needsLocalSetup: false,
+        createLocalUserAccount: jest.fn(),
       })
 
       render(<DashboardPage />)

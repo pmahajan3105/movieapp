@@ -92,7 +92,7 @@ function watchlistReducer(state: WatchlistPageState, action: WatchlistAction): W
 }
 
 export function useWatchlistPage() {
-  const { user } = useAuth()
+  const { user, isLocalMode } = useAuth()
   const { showSuccess, showError } = useToast()
   const [state, dispatch] = useReducer(watchlistReducer, initialState)
 
@@ -104,6 +104,41 @@ export function useWatchlistPage() {
     dispatch({ type: 'SET_ERROR', payload: null })
 
     try {
+      // In local mode, load from localStorage
+      if (isLocalMode) {
+        const { getLocalWatchlist } = await import('@/lib/utils/local-watchlist')
+        const localItems = getLocalWatchlist()
+        
+        // Transform to expected format with required fields
+        const items: (WatchlistItem & { movies: Movie })[] = localItems.map(item => ({
+          id: item.id,
+          user_id: 'local-user',
+          movie_id: item.movieId,
+          watched: item.watched,
+          watched_at: item.watchedAt,
+          rating: item.rating,
+          notes: item.notes,
+          added_at: item.addedAt || new Date().toISOString(),
+          movies: {
+            id: item.movieId,
+            title: 'Loading...',
+            tmdb_id: parseInt(item.movieId.replace('tmdb_', ''), 10) || 0,
+            year: 0,
+            genre: [] as string[],
+            director: [] as string[],
+            rating: 0,
+            plot: '',
+            poster_url: '',
+            runtime: 0,
+            created_at: new Date().toISOString(),
+          } as Movie
+        }))
+
+        dispatch({ type: 'SET_ITEMS', payload: items })
+        dispatch({ type: 'SET_LOADING', payload: false })
+        return
+      }
+
       const response = await fetch('/api/watchlist')
 
       if (!response.ok) {
@@ -135,13 +170,22 @@ export function useWatchlistPage() {
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false })
     }
-  }, [user])
+  }, [user, isLocalMode])
 
   // Remove from watchlist
   const handleRemoveFromWatchlist = async (movieId: string) => {
     if (!user) return
 
     try {
+      // In local mode, update localStorage
+      if (isLocalMode) {
+        const { removeFromLocalWatchlist } = await import('@/lib/utils/local-watchlist')
+        removeFromLocalWatchlist(movieId)
+        dispatch({ type: 'REMOVE_ITEM', payload: movieId })
+        showSuccess('Movie removed from watchlist successfully')
+        return
+      }
+
       const url = new URL('/api/watchlist', window.location.origin)
       url.searchParams.append('movie_id', movieId)
 
@@ -195,6 +239,19 @@ export function useWatchlistPage() {
     dispatch({ type: 'SET_MARKING_WATCHED', payload: true })
 
     try {
+      // In local mode, update localStorage
+      if (isLocalMode) {
+        const { markAsWatched } = await import('@/lib/utils/local-watchlist')
+        const movieId = state.movieToMarkWatched?.id
+        if (movieId) {
+          markAsWatched(movieId, rating)
+          dispatch({ type: 'REMOVE_ITEM', payload: movieId })
+          dispatch({ type: 'SET_MARK_WATCHED_MOVIE', payload: { movie: null, watchlistId: null } })
+          showSuccess('Movie marked as watched!')
+        }
+        return
+      }
+
       const requestBody = {
         watched: true,
         rating,
@@ -311,7 +368,7 @@ export function useWatchlistPage() {
       dispatch({ type: 'SET_LOADING', payload: false })
       dispatch({ type: 'SET_ERROR', payload: 'Please log in to view your watchlist' })
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [loadWatchlist, user])
 
   return {

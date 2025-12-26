@@ -28,7 +28,7 @@ export default function WatchedMoviesPage() {
     if (!authLoading) {
       fetchWatchedMovies()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [authLoading])
 
   const fetchWatchedMovies = async () => {

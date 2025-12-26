@@ -34,7 +34,7 @@ export const OfflineIndicator: React.FC<OfflineIndicatorProps> = ({
     return () => {
       if (timer) clearTimeout(timer)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [isOnline, wasOffline])
 
   const getConnectionMessage = () => {

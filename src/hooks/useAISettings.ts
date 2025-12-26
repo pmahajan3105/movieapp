@@ -63,7 +63,7 @@ const DEFAULT_SETTINGS: AIControlSettings = {
 }
 
 export const useAISettings = () => {
-  const { user } = useAuth()
+  const { user, isLocalMode } = useAuth()
   const [settings, setSettings] = useState<AIControlSettings>(DEFAULT_SETTINGS)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -81,6 +81,13 @@ export const useAISettings = () => {
     try {
       setIsLoading(true)
       setError(null)
+
+      // In local mode, use default settings
+      if (isLocalMode) {
+        setSettings(DEFAULT_SETTINGS)
+        setIsLoading(false)
+        return
+      }
 
       const response = await fetch('/api/user/ai-settings')
       if (response.ok) {

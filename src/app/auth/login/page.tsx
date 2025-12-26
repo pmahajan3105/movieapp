@@ -23,7 +23,7 @@ function LoginPageContent() {
       setIsRedirecting(true)
       router.push(nextPath)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [user, isLoading, nextPath, router])
 
   const handleMagicLinkSent = (sentEmail: string) => {

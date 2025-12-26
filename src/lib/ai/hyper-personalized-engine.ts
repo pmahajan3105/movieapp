@@ -29,6 +29,7 @@ export interface HyperPersonalizedRecommendation {
   }
   explanation: string
   reasoning: string[]
+  noveltyPenalty?: number // Optional penalty for recently seen similar movies
 }
 
 export interface RealTimeLearningSignal {

@@ -142,7 +142,7 @@ function SearchPageContent() {
     if (filters.query || filters.genres?.length || filters.yearRange || filters.minRating) {
       performSearch(filters)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [filters, performSearch])
 
   // Update filters when URL search params change
@@ -152,7 +152,7 @@ function SearchPageContent() {
       setFilters(prev => ({ ...prev, query: queryFromUrl, offset: 0 }))
       setCurrentPage(1)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [searchParams, filters.query])
 
   const currentQuery = filters.query || searchParams.get('q') || ''

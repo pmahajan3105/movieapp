@@ -9,7 +9,6 @@ import { useLearningSignals } from '@/contexts/HyperPersonalizedContext'
 interface HyperPersonalizedMovieCardProps {
   recommendation: HyperPersonalizedRecommendation
   onView?: () => void
-  onSave?: () => void
   onRate?: (rating: number) => void
   context?: {
     page_type: string
@@ -23,7 +22,6 @@ interface HyperPersonalizedMovieCardProps {
 export const HyperPersonalizedMovieCard: React.FC<HyperPersonalizedMovieCardProps> = ({
   recommendation,
   onView,
-  onSave,
   onRate,
   context = { page_type: 'unknown' },
   showPersonalizationDetails = false
@@ -257,7 +255,6 @@ interface HyperPersonalizedMovieGridProps {
   }
   showPersonalizationDetails?: boolean
   onMovieView?: (movieId: string, movieData?: any) => void
-  onMovieSave?: (movieId: string) => void
   onMovieRate?: (movieId: string, rating: number) => void
 }
 
@@ -266,7 +263,6 @@ export const HyperPersonalizedMovieGrid: React.FC<HyperPersonalizedMovieGridProp
   context = { page_type: 'dashboard' },
   showPersonalizationDetails = false,
   onMovieView,
-  onMovieSave,
   onMovieRate
 }) => {
   if (!recommendations || recommendations.length === 0) {
@@ -293,7 +289,6 @@ export const HyperPersonalizedMovieGrid: React.FC<HyperPersonalizedMovieGridProp
           }}
           showPersonalizationDetails={showPersonalizationDetails}
           onView={() => onMovieView?.(String(recommendation.movie.id), recommendation.movie)}
-          onSave={() => onMovieSave?.(String(recommendation.movie.id))}
           onRate={(rating) => onMovieRate?.(String(recommendation.movie.id), rating)}
         />
       ))}

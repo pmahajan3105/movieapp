@@ -3,6 +3,7 @@ import { createRouteSupabaseClient } from '@/lib/supabase/route-client'
 import { z } from 'zod'
 import { logger } from '@/lib/logger'
 import { APIErrorHandler } from '@/lib/error-handling'
+import { getUserContext } from '@/lib/utils/single-user-mode'
 
 const profileUpdateSchema = z.object({
   fullName: z.string().optional(),
@@ -106,6 +107,29 @@ export async function PUT(request: NextRequest) {
 // PATCH - Update user profile information (alternative to PUT)
 export async function PATCH(request: NextRequest) {
   try {
+    const body = await request.json()
+
+    // Check for local user mode
+    const supabaseForAuth = createRouteSupabaseClient(request)
+    const { data: { user: authUser } } = await supabaseForAuth.auth.getUser()
+    const userContext = getUserContext(authUser?.id)
+
+    if (userContext.isSingleUser) {
+      // For local users, update localStorage on the client side
+      // The API just acknowledges the update
+      logger.info('Local user profile update', {
+        userId: userContext.id,
+        updates: body,
+      })
+      
+      return NextResponse.json({
+        success: true,
+        isLocalMode: true,
+        message: 'Profile updated successfully (local mode)',
+      })
+    }
+    
+    // Regular authenticated user flow
     const supabase = createRouteSupabaseClient(request)
     const {
       data: { user },
@@ -114,8 +138,6 @@ export async function PATCH(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
-
-    const body = await request.json()
 
     logger.info('PATCH request to update profile', {
       userId: user.id,

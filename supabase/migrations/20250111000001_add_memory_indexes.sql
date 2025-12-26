@@ -12,10 +12,7 @@ CREATE INDEX IF NOT EXISTS idx_ratings_user_rating ON ratings(user_id, rating DE
 CREATE INDEX IF NOT EXISTS idx_ratings_user_rated_at ON ratings(user_id, rated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_ratings_movie_user ON ratings(movie_id, user_id);
 
--- Indexes for user behavior signals
-CREATE INDEX IF NOT EXISTS idx_user_behavior_signals_user_time ON user_behavior_signals(user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_user_behavior_signals_user_type ON user_behavior_signals(user_id, event_type);
-CREATE INDEX IF NOT EXISTS idx_user_behavior_signals_movie_user ON user_behavior_signals(movie_id, user_id);
+-- Note: user_behavior_signals indexes moved to migration 20250130000000_add_user_behavior_signals.sql
 
 -- Indexes for movies table
 CREATE INDEX IF NOT EXISTS idx_movies_release_date ON movies(release_date DESC);
@@ -38,32 +35,15 @@ CREATE INDEX IF NOT EXISTS idx_watchlist_user_watched ON watchlist(user_id, watc
 CREATE INDEX IF NOT EXISTS idx_ratings_user_interested ON ratings(user_id, interested) WHERE interested = true;
 CREATE INDEX IF NOT EXISTS idx_movies_genre ON movies USING GIN(genre) WHERE genre IS NOT NULL;
 
--- Indexes for API usage logging
-CREATE INDEX IF NOT EXISTS idx_api_usage_log_user ON api_usage_log(user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_api_usage_log_service ON api_usage_log(service, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_api_usage_log_success ON api_usage_log(success, created_at DESC);
-
--- Indexes for hyper-personalized recommendations
-CREATE INDEX IF NOT EXISTS idx_hyper_personalized_recommendations_user ON hyper_personalized_recommendations(user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_hyper_personalized_recommendations_movie ON hyper_personalized_recommendations(movie_id, user_id);
-
--- Indexes for chat sessions
-CREATE INDEX IF NOT EXISTS idx_chat_sessions_user ON chat_sessions(user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_chat_sessions_session_id ON chat_sessions(session_id);
-
--- Indexes for chat messages
-CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_chat_messages_user ON chat_messages(user_id, created_at DESC);
+-- Note: Indexes for other tables will be created when those tables are created in their respective migrations
 
 -- Partial indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_movies_recent ON movies(release_date DESC) WHERE release_date >= '2020-01-01';
 CREATE INDEX IF NOT EXISTS idx_ratings_high_rated ON ratings(movie_id, rating DESC) WHERE rating >= 4.0;
 CREATE INDEX IF NOT EXISTS idx_watchlist_recent ON watchlist(user_id, added_at DESC) WHERE added_at >= NOW() - INTERVAL '30 days';
 
--- Analyze tables to update statistics
+-- Analyze tables to update statistics (only existing tables)
 ANALYZE watchlist;
 ANALYZE ratings;
-ANALYZE user_behavior_signals;
 ANALYZE movies;
 ANALYZE user_profiles;
-ANALYZE user_interactions;

@@ -10,6 +10,7 @@ import {
   useEnhancedRecommendations,
 } from './hooks'
 import type { PreferenceData } from '@/types/chat'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface ChatInterfaceProps {
   sessionId?: string
@@ -19,6 +20,8 @@ interface ChatInterfaceProps {
 }
 
 export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps = {}) {
+  const { isLocalMode } = useAuth()
+  
   // Session management
   const {
     messages,
@@ -42,6 +45,9 @@ export function ChatInterface({ onPreferencesExtracted }: ChatInterfaceProps = {
       onPreferencesExtracted(extractedPreferences)
     }
   }, [extractedPreferences, onPreferencesExtracted])
+  
+  // Note: Removed local mode check - chat will work with API keys
+  // even in local mode (single user mode)
 
   // Enhanced recommendations
   const { getEnhancedRecommendations, isRecommendationRequest } = useEnhancedRecommendations()

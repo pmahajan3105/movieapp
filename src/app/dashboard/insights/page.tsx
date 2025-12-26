@@ -18,7 +18,7 @@ export default function InsightsPage() {
       setExplanations((data as any[]) || [])
     }
     fetchData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [])
 
   return (

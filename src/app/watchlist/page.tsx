@@ -9,7 +9,7 @@ export default function WatchlistRedirect() {
   useEffect(() => {
     // Automatically redirect to the new watchlist location
     router.replace('/dashboard/watchlist')
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [router])
 
   return (

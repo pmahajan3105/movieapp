@@ -190,7 +190,7 @@ export const PrecomputedRecommendations: React.FC<PrecomputedRecommendationsProp
   onMovieView,
   onMovieSave
 }) => {
-  const { user } = useAuth()
+  const { user, isLocalMode } = useAuth()
   const [data, setData] = useState<RecommendationsResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -207,6 +207,13 @@ export const PrecomputedRecommendations: React.FC<PrecomputedRecommendationsProp
   // Load recommendations
   const loadRecommendations = useCallback(async (force = false) => {
     if (!user) return
+    
+    // In local mode, recommendations require backend
+    if (isLocalMode) {
+      setIsLoading(false)
+      setShowQuickRating(true) // Show quick rating instead
+      return
+    }
 
     const startTime = performance.now()
     setIsLoading(!force) // Don't show loading state for manual refresh

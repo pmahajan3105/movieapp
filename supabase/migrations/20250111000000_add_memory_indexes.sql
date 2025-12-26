@@ -10,8 +10,7 @@ CREATE INDEX IF NOT EXISTS idx_watchlist_user_id
 CREATE INDEX IF NOT EXISTS idx_ratings_user_id 
   ON ratings(user_id);
 
-CREATE INDEX IF NOT EXISTS idx_behavior_user_time 
-  ON user_behavior_signals(user_id, created_at DESC);
+-- Note: user_behavior_signals indexes moved to migration 20250130000000_add_user_behavior_signals.sql
 
 CREATE INDEX IF NOT EXISTS idx_movies_release_date 
   ON movies(release_date DESC);
