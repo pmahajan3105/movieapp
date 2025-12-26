@@ -1,6 +1,3 @@
-#!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
-
 # Run TypeScript type check before commit
 echo "🔍 Running TypeScript check..."
 npm run type-check
