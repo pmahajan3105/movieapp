@@ -408,7 +408,6 @@ recommendations.filter(r =>
 
 3. **Feature Richness**
    - Hyper-personalized recommendations ✅
-   - Voice chat integration ✅
    - Unified memory system ✅
    - Self-hosting utilities ✅
 

@@ -601,6 +601,5 @@ After setup, you should be able to:
 - [ ] Search for movies
 - [ ] Rate movies
 - [ ] Get AI recommendations
-- [ ] Use voice chat
 
 If all these work, your CineAI setup is complete! 🎉

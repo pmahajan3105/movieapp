@@ -123,7 +123,7 @@ export const useHyperPersonalizedRecommendations = (
           }
         }
 
-        const url = `/api/recommendations/hyper-personalized?${params.toString()}`
+        const url = `/api/ai/recommend?${params.toString()}`
         const cacheKey = `${stableUserId}:${params.toString()}`
 
         logger.info('🤖 Requesting hyper-personalized recommendations', {
@@ -210,7 +210,7 @@ export const useHyperPersonalizedRecommendations = (
           pageType: context.page_type,
         })
 
-        const response = await fetch('/api/recommendations/hyper-personalized', {
+        const response = await fetch('/api/ai/recommend', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

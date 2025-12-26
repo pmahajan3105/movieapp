@@ -1,126 +1,123 @@
 import { NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase/server-client'
+import { databaseExists, getDatabasePath } from '@/lib/db'
+import { ConfigService } from '@/lib/config/config-service'
 import { applyRateLimit, rateLimiters } from '@/lib/utils/rate-limiter'
 
 /**
  * Health Check API Endpoint
- * 
+ *
  * Returns the overall system status including:
- * - Supabase connection status
- * - Database migration status  
+ * - Local database status
+ * - Configuration status
  * - API key presence (not values)
- * - Required environment variables check
  * - Timestamp and version info
  */
 
 export async function GET(request: Request) {
   const startTime = Date.now()
-  
+
   try {
     // Apply rate limiting
     const rateLimitResponse = await applyRateLimit(request, rateLimiters.health)
     if (rateLimitResponse) {
       return rateLimitResponse
     }
+
     // Initialize response object
     const healthCheck = {
       status: 'healthy',
       timestamp: new Date().toISOString(),
       version: '2.0.0',
+      architecture: 'local-first',
       checks: {} as Record<string, string>,
       responseTime: 0
     }
 
-    // Check Supabase connection
+    // Check local database
     try {
-      const supabase = await createServerClient()
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('count')
-        .limit(1)
-      
-      if (error) {
-        healthCheck.checks.supabase = '❌ connection failed'
-        healthCheck.status = 'unhealthy'
+      const dbExists = databaseExists()
+      if (dbExists) {
+        healthCheck.checks.database = '✅ SQLite database exists'
+        healthCheck.checks.database_path = getDatabasePath()
       } else {
-        healthCheck.checks.supabase = '✅ connected'
+        healthCheck.checks.database = '⚠️ Database will be created on first use'
       }
     } catch (error) {
-      healthCheck.checks.supabase = '❌ connection error'
+      healthCheck.checks.database = '❌ Database error'
       healthCheck.status = 'unhealthy'
     }
 
-    // Check database migrations
+    // Check configuration
     try {
-      const supabase = await createServerClient()
-      const { data, error } = await supabase
-        .from('movies')
-        .select('count')
-        .limit(1)
-      
-      if (error) {
-        healthCheck.checks.database = '❌ migrations not applied'
-        healthCheck.status = 'unhealthy'
+      const configExists = ConfigService.configExists()
+      const setupCompleted = ConfigService.isSetupCompleted()
+
+      if (setupCompleted) {
+        healthCheck.checks.config = '✅ Setup completed'
+      } else if (configExists) {
+        healthCheck.checks.config = '⚠️ Config exists but setup not completed'
       } else {
-        healthCheck.checks.database = '✅ migrations applied'
+        healthCheck.checks.config = '⚠️ No config - run setup at /setup'
       }
     } catch (error) {
-      healthCheck.checks.database = '❌ database error'
-      healthCheck.status = 'unhealthy'
+      healthCheck.checks.config = '❌ Config error'
     }
 
-    // Check environment variables
-    const requiredEnvVars = [
-      'NEXT_PUBLIC_SUPABASE_URL',
-      'NEXT_PUBLIC_SUPABASE_ANON_KEY',
-      'OPENAI_API_KEY',
-      'ANTHROPIC_API_KEY',
-      'TMDB_API_KEY'
-    ]
+    // Check API keys
+    const apiKeys = ConfigService.getApiKeys()
 
-    let envVarsValid = true
-    for (const envVar of requiredEnvVars) {
-      const value = process.env[envVar]
-      if (!value || value.includes('your_') || value.includes('_here')) {
-        healthCheck.checks[envVar.toLowerCase()] = '❌ not configured'
-        envVarsValid = false
-        healthCheck.status = 'unhealthy'
-      } else {
-        healthCheck.checks[envVar.toLowerCase()] = '✅ configured'
-      }
+    // TMDB (required for movie data)
+    if (apiKeys.tmdb) {
+      healthCheck.checks.tmdb_api = '✅ configured'
+    } else if (process.env.TMDB_API_KEY) {
+      healthCheck.checks.tmdb_api = '✅ configured (env)'
+    } else {
+      healthCheck.checks.tmdb_api = '❌ not configured'
+      healthCheck.status = 'degraded'
     }
 
-    // Check API key formats (basic validation)
-    if (process.env.OPENAI_API_KEY && !process.env.OPENAI_API_KEY.startsWith('sk-')) {
-      healthCheck.checks.openai_format = '⚠️ invalid format'
+    // OpenAI (optional)
+    if (apiKeys.openai) {
+      healthCheck.checks.openai_api = '✅ configured'
     } else if (process.env.OPENAI_API_KEY) {
-      healthCheck.checks.openai_format = '✅ valid format'
+      healthCheck.checks.openai_api = '✅ configured (env)'
+    } else {
+      healthCheck.checks.openai_api = '⚠️ not configured (AI features limited)'
     }
 
-    if (process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_API_KEY.startsWith('sk-ant-')) {
-      healthCheck.checks.anthropic_format = '⚠️ invalid format'
+    // Anthropic (optional)
+    if (apiKeys.anthropic) {
+      healthCheck.checks.anthropic_api = '✅ configured'
     } else if (process.env.ANTHROPIC_API_KEY) {
-      healthCheck.checks.anthropic_format = '✅ valid format'
+      healthCheck.checks.anthropic_api = '✅ configured (env)'
+    } else {
+      healthCheck.checks.anthropic_api = '⚠️ not configured (AI features limited)'
     }
 
-    // Check if app is running in development mode
+    // Check if at least one AI provider is available
+    const hasAI = apiKeys.openai || apiKeys.anthropic ||
+                  process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY
+    healthCheck.checks.ai_available = hasAI ? '✅ at least one AI provider' : '⚠️ no AI provider'
+
+    // Environment info
     healthCheck.checks.environment = process.env.NODE_ENV === 'development' ? '✅ development' : '✅ production'
-    
-    // Check single user mode
-    const singleUserMode = process.env.SINGLE_USER_MODE === 'true'
-    healthCheck.checks.single_user_mode = singleUserMode ? '✅ enabled (frictionless)' : '✅ disabled (auth required)'
+    healthCheck.checks.data_directory = ConfigService.getDataDirectory()
 
     // Calculate response time
     healthCheck.responseTime = Date.now() - startTime
 
     // Determine overall status
-    const failedChecks = Object.values(healthCheck.checks).filter(check => check.includes('❌')).length
-    if (failedChecks > 0) {
+    const criticalFailed = Object.values(healthCheck.checks).filter(check =>
+      check.includes('❌') && !check.includes('not configured')
+    ).length
+
+    if (criticalFailed > 0) {
       healthCheck.status = 'unhealthy'
     }
 
     // Return appropriate status code
-    const statusCode = healthCheck.status === 'healthy' ? 200 : 503
+    const statusCode = healthCheck.status === 'healthy' ? 200 :
+                       healthCheck.status === 'degraded' ? 200 : 503
 
     return NextResponse.json(healthCheck, { status: statusCode })
 
@@ -130,6 +127,7 @@ export async function GET(request: Request) {
       status: 'unhealthy',
       timestamp: new Date().toISOString(),
       version: '2.0.0',
+      architecture: 'local-first',
       error: 'Health check failed',
       message: error instanceof Error ? error.message : 'Unknown error',
       responseTime: Date.now() - startTime

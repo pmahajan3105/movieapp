@@ -1,250 +1,193 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createRouteSupabaseClient } from '@/lib/supabase/route-client'
+import { LocalStorageService } from '@/lib/db'
+import { ConfigService } from '@/lib/config/config-service'
 import { z } from 'zod'
 import { logger } from '@/lib/logger'
 import { APIErrorHandler } from '@/lib/error-handling'
-import { getUserContext } from '@/lib/utils/single-user-mode'
 
 const profileUpdateSchema = z.object({
+  name: z.string().optional(),
+  full_name: z.string().optional(),
   fullName: z.string().optional(),
+  preferences: z.record(z.unknown()).optional(),
 })
 
-// GET - Get user profile information
-export async function GET(request: NextRequest) {
+/**
+ * GET /api/user/profile
+ * Get user profile information
+ */
+export async function GET(): Promise<NextResponse> {
   try {
-    const supabase = createRouteSupabaseClient(request)
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    const profile = LocalStorageService.getUserProfile()
+    const config = ConfigService.getConfig()
+    const stats = LocalStorageService.getStats()
 
-    if (!user) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
-
-    logger.info('Checking profile for user', {
-      userId: user.id,
-      email: user.email,
-      userMetadata: user.user_metadata,
-    })
-
-    const { data: userProfile, error } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single()
-
-    logger.info('Profile query result', {
-      found: !!userProfile,
-      profile: userProfile,
-      error: error?.message,
+    logger.info('Profile fetched', {
+      hasProfile: !!profile,
+      setupCompleted: config.setup_completed,
     })
 
     return NextResponse.json({
       success: true,
       user: {
-        id: user.id,
-        email: user.email,
-        metadata: user.user_metadata,
+        id: 'local-user',
+        name: profile?.name || config.user.name,
       },
-      profile: userProfile,
-      hasProfile: !!userProfile,
-      error: error?.message,
+      profile: {
+        id: 'local-user',
+        name: profile?.name || config.user.name,
+        preferences: profile?.preferences || {},
+        created_at: new Date().toISOString(),
+      },
+      hasProfile: !!profile,
+      setupCompleted: config.setup_completed,
+      stats,
+      source: 'local',
     })
   } catch (error) {
     return APIErrorHandler.handle(error, {
       endpoint: '/api/user/profile',
-      method: 'GET'
+      method: 'GET',
     })
   }
 }
 
-// PUT - Update user profile information
-export async function PUT(request: NextRequest) {
-  try {
-    const supabase = createRouteSupabaseClient(request)
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
-
-    const body = await request.json()
-    profileUpdateSchema.parse(body) // Validate input format
-
-    // Update user profile
-    const { data, error } = await supabase
-      .from('user_profiles')
-      .update({
-        full_name: body.fullName,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', user.id)
-      .select()
-      .single()
-
-    if (error) {
-      logger.dbError('profile update', error as Error)
-      throw error
-    }
-
-    logger.info('Profile updated successfully', { userId: user.id, fullName: body.fullName })
-
-    return NextResponse.json({
-      success: true,
-      profile: data,
-      message: 'Profile updated successfully',
-    })
-  } catch (error) {
-    return APIErrorHandler.handle(error, {
-      endpoint: '/api/user/profile',
-      method: 'PUT'
-    })
-  }
-}
-
-// PATCH - Update user profile information (alternative to PUT)
-export async function PATCH(request: NextRequest) {
+/**
+ * PUT /api/user/profile
+ * Update user profile information (full replacement)
+ */
+export async function PUT(request: NextRequest): Promise<NextResponse> {
   try {
     const body = await request.json()
+    const parsed = profileUpdateSchema.safeParse(body)
 
-    // Check for local user mode
-    const supabaseForAuth = createRouteSupabaseClient(request)
-    const { data: { user: authUser } } = await supabaseForAuth.auth.getUser()
-    const userContext = getUserContext(authUser?.id)
-
-    if (userContext.isSingleUser) {
-      // For local users, update localStorage on the client side
-      // The API just acknowledges the update
-      logger.info('Local user profile update', {
-        userId: userContext.id,
-        updates: body,
-      })
-      
-      return NextResponse.json({
-        success: true,
-        isLocalMode: true,
-        message: 'Profile updated successfully (local mode)',
-      })
-    }
-    
-    // Regular authenticated user flow
-    const supabase = createRouteSupabaseClient(request)
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid profile data' },
+        { status: 400 }
+      )
     }
 
-    logger.info('PATCH request to update profile', {
-      userId: user.id,
-      updates: body,
+    const { name, full_name, fullName, preferences } = parsed.data
+    const finalName = name || full_name || fullName
+
+    // Update profile in database
+    const profile = LocalStorageService.updateUserProfile({
+      name: finalName,
+      preferences,
     })
 
-    // Build update object dynamically
-    const updateData: any = {
-      updated_at: new Date().toISOString(),
+    // Also update config if name changed
+    if (finalName) {
+      ConfigService.updateUserName(finalName)
     }
 
-    if (body.full_name !== undefined) {
-      updateData.full_name = body.full_name
-    }
-
-    // Update user profile
-    const { data, error } = await supabase
-      .from('user_profiles')
-      .update(updateData)
-      .eq('id', user.id)
-      .select()
-      .single()
-
-    if (error) {
-      logger.dbError('profile update via PATCH', error as Error)
-      throw error
-    }
-
-    logger.info('Profile updated successfully via PATCH', {
-      userId: user.id,
-      updates: updateData,
-    })
+    logger.info('Profile updated successfully', { name: finalName })
 
     return NextResponse.json({
       success: true,
-      profile: data,
-      message: 'Profile updated successfully',
-    })
-  } catch (error) {
-    return APIErrorHandler.handle(error, {
-      endpoint: '/api/user/profile',
-      method: 'PATCH'
-    })
-  }
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const supabase = createRouteSupabaseClient(request)
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
-
-    logger.info('Creating/fixing profile for user', {
-      userId: user.id,
-      email: user.email,
-      userMetadata: user.user_metadata,
-    })
-
-    // Try to create or update the profile
-    const profileData = {
-      id: user.id,
-      email: user.email || `user-${user.id}@temp.com`,
-      full_name:
-        user.user_metadata?.full_name ||
-        user.user_metadata?.name ||
-        user.email?.split('@')[0] ||
-        'User',
-      onboarding_completed: false,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }
-
-    logger.debug('Profile data to upsert', { profileData })
-
-    const { data: profile, error } = await supabase
-      .from('user_profiles')
-      .upsert(profileData, {
-        onConflict: 'id',
-      })
-      .select()
-      .single()
-
-    if (error) {
-      logger.dbError('profile creation/update', error as Error, {
-        code: error.code,
-        details: error.details,
-        hint: error.hint,
-      })
-      throw error
-    }
-
-    logger.info('Successfully created/updated profile', { profile })
-
-    return NextResponse.json({
-      success: true,
-      message: 'Profile created/updated successfully',
       profile,
+      message: 'Profile updated successfully',
+      source: 'local',
     })
   } catch (error) {
     return APIErrorHandler.handle(error, {
       endpoint: '/api/user/profile',
-      method: 'POST'
+      method: 'PUT',
+    })
+  }
+}
+
+/**
+ * PATCH /api/user/profile
+ * Partially update user profile information
+ */
+export async function PATCH(request: NextRequest): Promise<NextResponse> {
+  try {
+    const body = await request.json()
+    const parsed = profileUpdateSchema.safeParse(body)
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid profile data' },
+        { status: 400 }
+      )
+    }
+
+    const { name, full_name, fullName, preferences } = parsed.data
+    const finalName = name || full_name || fullName
+
+    logger.info('PATCH request to update profile', { name: finalName, preferences })
+
+    // Update profile in database
+    const updateData: { name?: string; preferences?: Record<string, unknown> } = {}
+
+    if (finalName !== undefined) {
+      updateData.name = finalName
+    }
+
+    if (preferences !== undefined) {
+      updateData.preferences = preferences
+    }
+
+    const profile = LocalStorageService.updateUserProfile(updateData)
+
+    // Also update config if name changed
+    if (finalName) {
+      ConfigService.updateUserName(finalName)
+    }
+
+    logger.info('Profile updated successfully via PATCH', { updates: updateData })
+
+    return NextResponse.json({
+      success: true,
+      profile,
+      message: 'Profile updated successfully',
+      source: 'local',
+    })
+  } catch (error) {
+    return APIErrorHandler.handle(error, {
+      endpoint: '/api/user/profile',
+      method: 'PATCH',
+    })
+  }
+}
+
+/**
+ * POST /api/user/profile
+ * Create or initialize user profile
+ */
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  try {
+    const body = await request.json().catch(() => ({}))
+    const { name, full_name, fullName } = body
+    const finalName = name || full_name || fullName || 'User'
+
+    logger.info('Creating/initializing profile', { name: finalName })
+
+    // Create user profile in database
+    LocalStorageService.createUserProfile(finalName)
+
+    // Update config
+    ConfigService.updateConfig({
+      setup_completed: true,
+      user: { name: finalName },
+    })
+
+    const profile = LocalStorageService.getUserProfile()
+
+    logger.info('Successfully created/initialized profile', { profile })
+
+    return NextResponse.json({
+      success: true,
+      message: 'Profile created successfully',
+      profile,
+      source: 'local',
+    })
+  } catch (error) {
+    return APIErrorHandler.handle(error, {
+      endpoint: '/api/user/profile',
+      method: 'POST',
     })
   }
 }

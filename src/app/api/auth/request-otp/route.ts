@@ -1,109 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
-import { getAuthCallbackURL } from '@/lib/utils/url-helper'
-import { withRateLimit } from '@/lib/api/middleware/rate-limiter'
+import { NextResponse } from 'next/server'
 
-// Apply rate limiting: 3 requests per minute to prevent abuse
-export const POST = withRateLimit({
-  maxRequests: 3,
-  windowMs: 60000, // 1 minute
-  keyGenerator: request => {
-    // Rate limit by IP address for better security
-    const ip = request.headers.get('x-forwarded-for') || 'unknown'
-    return `otp-request:${ip}`
-  },
-})(async (request: NextRequest) => {
-  try {
-    const { email } = await request.json()
-
-    // Validate email
-    if (!email || typeof email !== 'string') {
-      return NextResponse.json({ error: 'Valid email is required' }, { status: 400 })
-    }
-
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(email)) {
-      return NextResponse.json({ error: 'Please enter a valid email address' }, { status: 400 })
-    }
-
-    // Create Supabase client with proper PKCE support
-    const cookieStore = await cookies()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll()
-          },
-          setAll(cookiesToSet) {
-            try {
-              cookiesToSet.forEach(({ name, value, options }) =>
-                cookieStore.set(name, value, options)
-              )
-            } catch {
-              // Cookie setting errors are expected in server context
-            }
-          },
-        },
-        auth: {
-          // Ensure PKCE flow is used
-          flowType: 'pkce',
-        },
-      }
-    )
-
-    // Get the proper callback URL for the current environment
-    const callbackURL = getAuthCallbackURL()
-
-    // Send magic link via Supabase
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email,
-      options: {
-        emailRedirectTo: callbackURL,
-        shouldCreateUser: true,
-      },
-    })
-
-    if (error) {
-      // Handle specific Supabase errors
-      if (error.message.includes('rate limit') || error.code === 'over_email_send_rate_limit') {
-        return NextResponse.json(
-          { error: 'Too many requests. Please wait a moment before trying again.' },
-          { status: 429 }
-        )
-      }
-
-      if (
-        error.message.includes('invalid email') ||
-        error.message.includes('Email address') ||
-        error.code === 'email_address_invalid'
-      ) {
-        return NextResponse.json(
-          {
-            error:
-              'Please enter a valid email address. Test emails like "test@example.com" are not supported.',
-          },
-          { status: 400 }
-        )
-      }
-
-      return NextResponse.json(
-        { error: 'Failed to send magic link. Please try again.' },
-        { status: 500 }
-      )
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: 'Magic link sent successfully! Check your email.',
-    })
-  } catch {
-    return NextResponse.json(
-      { error: 'Failed to send magic link. Please try again.' },
-      { status: 500 }
-    )
-  }
-})
+/**
+ * POST /api/auth/request-otp
+ * OTP not needed in local mode - redirect to setup
+ */
+export async function POST() {
+  return NextResponse.json({
+    success: false,
+    error: 'Authentication is not required in local mode',
+    message: 'CineAI is running in local mode. Visit /setup to configure your account.',
+    mode: 'local',
+    redirect: '/setup',
+  }, { status: 400 })
+}

@@ -2,7 +2,7 @@ import { anthropic } from '@/lib/anthropic/config'
 import { logger } from '../logger'
 
 export class ConversationMemoryService {
-  constructor(private enableTTS: boolean = false) {} // TTS now handled by Web Speech API
+  constructor(private enableTTS: boolean = false) {}
 
   /**
    * Generate a conversational AI response based on the user input.
@@ -40,11 +40,10 @@ export class ConversationMemoryService {
   }
 
   /**
-   * Text-to-speech is now handled by Web Speech API in the UI components.
+   * Text-to-speech is currently disabled.
    * This method is kept for compatibility but always returns null.
    */
   async maybeTextToSpeech(text: string): Promise<string | null> {
-    // TTS now handled by Web Speech API in UI components
     return null
   }
 

@@ -228,7 +228,7 @@ export const PrecomputedRecommendations: React.FC<PrecomputedRecommendationsProp
       }
 
       const response = await fetch(
-        `/api/recommendations/precomputed?limit=${limit}&includeInsights=${showInsights}`,
+        `/api/ai/recommend?count=${limit}&excludeWatched=true`,
         {
           method: 'GET',
           headers: {

@@ -370,7 +370,6 @@ npm run backup
 
 ### What Data is NOT Stored
 
-- **Audio recordings** - Voice chat uses browser APIs only
 - **Personal information** - No tracking or analytics
 - **Usage patterns** - No external analytics services
 
@@ -532,8 +531,7 @@ CineAI is now running locally with complete privacy and control. Your data stays
 1. Sign up for your account in the app
 2. Rate some movies to train your AI
 3. Start getting personalized recommendations
-4. Explore the voice chat features
-5. Customize your preferences
+4. Customize your preferences
 
 **Need Help?**
 - [Quick Start Guide](LOCAL_SETUP.md)

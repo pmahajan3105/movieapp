@@ -234,3 +234,25 @@ export const DECADES = ['1970s', '1980s', '1990s', '2000s', '2010s', '2020s'] as
 
 export type Genre = (typeof GENRES)[number]
 export type Decade = (typeof DECADES)[number]
+
+// Scored Recommendation for hyper-personalized engine
+export interface ScoredRecommendation {
+  movie: Movie
+  score?: number
+  confidence_score: number
+  reason?: string
+  reasoning?: string
+  noveltyPenalty?: boolean
+  originalScore?: number
+  personalization_factors?: Record<string, number>
+  explanation?: string
+}
+
+// Interaction metadata type
+export interface InteractionMetadata {
+  page_type?: string
+  recommendation_type?: string
+  position_in_list?: number
+  session_id?: string
+  [key: string]: unknown
+}

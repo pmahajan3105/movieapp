@@ -71,8 +71,8 @@ export const AILearningDashboard: React.FC = () => {
 
       // Load all AI learning data in parallel
       const [profileResponse, recommendationsResponse, userActivityResponse] = await Promise.allSettled([
-        fetch('/api/user/ai-profile'),
-        fetch('/api/recommendations/recent?limit=6'),
+        fetch('/api/user/profile'),
+        fetch('/api/ai/recommend?count=6&excludeWatched=true'),
         fetchUserActivityData(user?.id || '')
       ])
 

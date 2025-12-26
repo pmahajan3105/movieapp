@@ -109,7 +109,7 @@ export class UnifiedAIService {
     explanationService: true,
     smartRecommender: true,
     hyperPersonalized: true,
-    voiceService: true, // Web Speech API
+    voiceService: false,
     searchService: true,
     overall: 'healthy',
   }
@@ -124,7 +124,7 @@ export class UnifiedAIService {
     this.emotionalJourneyMapper = EmotionalJourneyMapper.getInstance()
     this.cinematicStyleAnalyzer = CinematicStyleAnalyzer.getInstance()
 
-    // Voice service now handled by Web Speech API in UI components
+    // Voice service is currently disabled per user preference
 
     this.updateOverallHealth()
   }

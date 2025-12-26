@@ -40,17 +40,24 @@ describe('DashboardPage', () => {
     mockUseAuth.mockReturnValue({
       isLoading: false,
       user: {
-        id: 'user-123',
+        id: 'local-user',
+        name: 'Test User',
         email: 'test@example.com',
         app_metadata: {},
         user_metadata: {},
         aud: 'authenticated',
         created_at: '2024-01-01T00:00:00Z',
+        profile: {
+          id: 'local-user',
+          full_name: 'Test User',
+          onboarding_completed: true,
+        },
       },
       isSessionValid: true,
       signOut: jest.fn(),
       refreshUser: jest.fn(),
-      isLocalMode: false,
+      isLocalMode: true,
+      needsSetup: false,
       needsLocalSetup: false,
       createLocalUserAccount: jest.fn(),
     })
@@ -68,7 +75,8 @@ describe('DashboardPage', () => {
         isSessionValid: false,
         signOut: jest.fn(),
         refreshUser: jest.fn(),
-        isLocalMode: false,
+        isLocalMode: true,
+        needsSetup: false,
         needsLocalSetup: false,
         createLocalUserAccount: jest.fn(),
       })

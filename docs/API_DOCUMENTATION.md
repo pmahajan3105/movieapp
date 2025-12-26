@@ -489,36 +489,6 @@ Authorization: Bearer <token>
 
 ---
 
-## 🎙️ Voice & Conversation
-
-### Start Conversation
-
-```http
-POST /api/conversations/start
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "context": "movie_recommendations"
-}
-```
-
-### Exchange Messages
-
-```http
-POST /api/conversations/exchange
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "sessionId": "uuid",
-  "message": "Tell me about this movie",
-  "movieId": "uuid"
-}
-```
-
----
-
 ## 🛠️ System & Health
 
 ### Health Check

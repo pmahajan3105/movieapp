@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { POST as chatPOST } from '@/app/api/ai/chat/route'
-import { GET as recommendationsGET } from '@/app/api/recommendations/hyper-personalized/route'
+import { GET as recommendationsGET } from '@/app/api/ai/recommend/route'
 import { POST as searchPOST } from '@/app/api/movies/search/route'
 import { UserMemoryService } from '@/lib/services/user-memory-service'
 
@@ -131,7 +131,7 @@ describe('Memory Integration Tests', () => {
         hyperPersonalizedEngine: mockEngine,
       }))
 
-      const request = new NextRequest('http://localhost:3000/api/recommendations/hyper-personalized?excludeWatched=true')
+      const request = new NextRequest('http://localhost:3000/api/ai/recommend?excludeWatched=true')
       const response = await recommendationsGET(request)
       const data = await response.json()
 
@@ -315,7 +315,7 @@ describe('Memory Integration Tests', () => {
         hyperPersonalizedEngine: mockEngine,
       }))
 
-      const request = new NextRequest('http://localhost:3000/api/recommendations/hyper-personalized?excludeWatched=true')
+      const request = new NextRequest('http://localhost:3000/api/ai/recommend?excludeWatched=true')
       const response = await recommendationsGET(request)
       const data = await response.json()
 

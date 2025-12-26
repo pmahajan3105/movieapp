@@ -117,9 +117,9 @@ describe('Memory Integration Tests', () => {
 
     it('should apply novelty penalties correctly', async () => {
       const recommendations = [
-        { movie: { tmdb_id: 123, title: 'Movie 1' }, score: 0.9 },
-        { movie: { tmdb_id: 456, title: 'Movie 2' }, score: 0.8 },
-        { movie: { tmdb_id: 789, title: 'Movie 3' }, score: 0.7 }
+        { movie: { id: 'movie-1', tmdb_id: 123, title: 'Movie 1' }, score: 0.9 },
+        { movie: { id: 'movie-2', tmdb_id: 456, title: 'Movie 2' }, score: 0.8 },
+        { movie: { id: 'movie-3', tmdb_id: 789, title: 'Movie 3' }, score: 0.7 }
       ]
 
       // Mock getUnifiedMemory to return recent movies
@@ -137,19 +137,19 @@ describe('Memory Integration Tests', () => {
       const result = await memoryService.applyNoveltyPenalties('user-1', recommendations)
 
       expect(result).toHaveLength(3)
-      
+
       // Movies 1 and 2 should have penalties applied
-      expect(result[0].noveltyPenalty).toBe(true)
-      expect(result[0].score).toBe(0.72) // 0.9 * 0.8
-      expect(result[0].originalScore).toBe(0.9)
-      
-      expect(result[1].noveltyPenalty).toBe(true)
-      expect(result[1].score).toBe(0.64) // 0.8 * 0.8
-      expect(result[1].originalScore).toBe(0.8)
-      
+      expect(result[0]!.noveltyPenalty).toBe(true)
+      expect(result[0]!.score).toBe(0.72) // 0.9 * 0.8
+      expect(result[0]!.originalScore).toBe(0.9)
+
+      expect(result[1]!.noveltyPenalty).toBe(true)
+      expect(result[1]!.score).toBe(0.64) // 0.8 * 0.8
+      expect(result[1]!.originalScore).toBe(0.8)
+
       // Movie 3 should not have penalty
-      expect(result[2].noveltyPenalty).toBeUndefined()
-      expect(result[2].score).toBe(0.7)
+      expect(result[2]!.noveltyPenalty).toBeUndefined()
+      expect(result[2]!.score).toBe(0.7)
     })
 
     it('should handle errors gracefully', async () => {

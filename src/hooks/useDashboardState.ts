@@ -1,22 +1,33 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
-import type { User } from '@supabase/supabase-js'
-import type { UserProfile } from '@/lib/supabase/browser-client'
 
-interface AuthUser extends User {
-  profile?: UserProfile
+interface LocalUser {
+  id: string
+  name: string
+  email: string
+  app_metadata?: Record<string, unknown>
+  user_metadata?: Record<string, unknown>
+  aud?: string
+  created_at?: string
+  last_sign_in_at?: string
+  profile?: {
+    id: string
+    full_name?: string
+    onboarding_completed?: boolean
+  }
 }
 
 export interface DashboardState {
   mounted: boolean
   isLoading: boolean
-  user: AuthUser | null
+  user: LocalUser | null
   shouldShowLoading: boolean
   shouldRedirect: boolean
+  needsSetup: boolean
 }
 
 export const useDashboardState = (): DashboardState => {
-  const { user, isLoading } = useAuth()
+  const { user, isLoading, needsSetup } = useAuth()
   const [mounted, setMounted] = useState(false)
 
   // Prevent hydration issues by ensuring we're mounted
@@ -24,14 +35,14 @@ export const useDashboardState = (): DashboardState => {
     setMounted(true)
   }, [])
 
-  // Handle redirect for unauthenticated users
+  // Handle redirect for unauthenticated users (redirect to setup instead of login)
   useEffect(() => {
-    if (mounted && !user && !isLoading) {
+    if (mounted && !user && !isLoading && needsSetup) {
       if (typeof window !== 'undefined') {
-        window.location.href = '/auth/login'
+        window.location.href = '/setup'
       }
     }
-  }, [mounted, user, isLoading])
+  }, [mounted, user, isLoading, needsSetup])
 
   const shouldShowLoading = !mounted || isLoading
   const shouldRedirect = mounted && !user && !isLoading
@@ -42,5 +53,6 @@ export const useDashboardState = (): DashboardState => {
     user,
     shouldShowLoading,
     shouldRedirect,
+    needsSetup,
   }
-} 
+}

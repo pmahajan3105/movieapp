@@ -2,6 +2,8 @@
  * Type definitions for AI services and advanced intelligence features
  */
 
+import type { Movie, ScoredRecommendation } from './index'
+
 // Base recommendation request and response types
 export interface UnifiedRecommendationRequest {
   strategy: 'hybrid' | 'smart' | 'hyper-personalized' | 'behavioral'
@@ -14,7 +16,7 @@ export interface UnifiedRecommendationRequest {
 }
 
 export interface UnifiedRecommendationResponse {
-  movies: any[]
+  movies: ScoredRecommendation[] | Movie[]
   metadata: {
     source: string
     personalization_applied?: boolean
@@ -36,18 +38,39 @@ export interface UnifiedRecommendationResponse {
 }
 
 // Query processing types
+export interface ExtractedEntities {
+  genres?: string[]
+  directors?: string[]
+  actors?: string[]
+  years?: number[]
+  keywords?: string[]
+}
+
+export interface DetectedIntents {
+  primary: 'search' | 'recommend' | 'explore' | 'similar' | 'info'
+  secondary?: string[]
+  confidence: number
+}
+
+export interface SearchFilters {
+  genres?: string[]
+  years?: { min?: number; max?: number }
+  rating?: { min?: number }
+  runtime?: { min?: number; max?: number }
+}
+
 export interface QueryProcessingResult {
   originalQuery: string
-  processedQuery: any
-  extractedEntities: any
-  detectedIntents: any
-  implicitPreferences: any
-  contextualFactors: any
-  queryComplexity: any
-  confidence: any
-  recommendationStrategy: any
-  requiresExplanation: any
-  searchFilters: any
+  processedQuery: string
+  extractedEntities: ExtractedEntities
+  detectedIntents: DetectedIntents
+  implicitPreferences: Record<string, number>
+  contextualFactors: Record<string, string | number | boolean>
+  queryComplexity: 'simple' | 'moderate' | 'complex'
+  confidence: number
+  recommendationStrategy: 'content-based' | 'collaborative' | 'hybrid' | 'exploratory'
+  requiresExplanation: boolean
+  searchFilters: SearchFilters
   timestamp: string
   recommendationsAvailable?: boolean
   recommendationEndpoint?: string
@@ -119,11 +142,11 @@ export interface WeightConfiguration {
 }
 
 // AI service response types
-export interface AIServiceResponse<T = any> {
+export interface AIServiceResponse<T = unknown> {
   success: boolean
   data?: T
   error?: string
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 // Behavioral analysis types
@@ -170,7 +193,7 @@ export interface APIError {
   code: string
   status: number
   message: string
-  details?: any
+  details?: Record<string, unknown>
   timestamp?: string
 }
 
@@ -181,9 +204,9 @@ export interface ErrorContext {
   userId?: string
   method?: string
   requestId: string
-  details: any
-  originalError: any
-  metadata?: Record<string, any>
+  details: Record<string, unknown>
+  originalError: Error | unknown
+  metadata?: Record<string, unknown>
 }
 
 // User interaction types
@@ -192,7 +215,7 @@ export interface UserInteraction {
   movie_id: string
   interaction_type: 'view' | 'rate' | 'save' | 'skip' | 'click'
   interaction_value: number
-  context?: Record<string, any>
+  context?: Record<string, unknown>
   created_at?: string
 }
 
@@ -200,7 +223,7 @@ export interface UserInteraction {
 export interface PreferenceInsight {
   user_id: string
   insight_type: string
-  insight_data: Record<string, any>
+  insight_data: Record<string, unknown>
   confidence: number
   computed_at?: string
 }
@@ -216,7 +239,7 @@ export interface ConversationalMemory {
   memory_text?: string
   preference_strength?: number
   times_reinforced?: number
-  context?: Record<string, any>
+  context?: Record<string, unknown>
   created_at?: string
   last_updated?: string
 }

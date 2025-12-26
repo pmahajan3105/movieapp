@@ -1,6 +1,6 @@
 # 🎬 CineAI - Your Personal Movie Companion
 
-> **Advanced AI-powered movie recommendations with voice conversation and hyper-personalized engine**
+> **Advanced AI-powered movie recommendations with hyper-personalized engine**
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat&logo=typescript&logoColor=white)](https://typescriptlang.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-000000?style=flat&logo=next.js&logoColor=white)](https://nextjs.org/)
@@ -32,13 +32,6 @@ CineAI is designed to run completely locally with your own data. No cloud depend
 - **Multi-factor Scoring** - Combines genre affinity, quality prediction, temporal patterns, and exploration
 - **Configurable AI** - Tune personalization factors to match your preferences
 - **95%+ Confidence** - Industry-leading accuracy in movie recommendations
-
-### 🎤 **Voice Conversation (Web Speech API)**
-
-- **Browser-native Voice Chat** – Uses the Web Speech API for speech recognition and synthesis (no external service needed)
-- **Privacy Friendly** – All processing happens in the browser; no audio leaves the device
-- **Accessible** – Works across Chromium-based browsers and Safari 17+
-- **Seamless Integration** – Voice input works alongside chat & hyper-personalized recommendations
 
 ### 🧠 **Intelligent Features**
 
@@ -192,12 +185,6 @@ const confidence_score =
 - Dynamic factor adjustment based on recent activity
 - Continuous model improvement with feedback loops
 
-#### Voice Integration
-
-- Web Speech Recognition (speech-to-text) in the browser
-- Speech Synthesis API for AI responses (text-to-speech)
-- Context-aware conversation memory (stored locally)
-
 ## 📖 Usage Guide
 
 ### Getting Personalized Recommendations
@@ -206,7 +193,6 @@ const confidence_score =
 2. **Set Preferences** - Use the chat interface to tell the AI your preferences
 3. **Explore F-1 Engine** - Visit the dashboard to see hyper-personalized recommendations
 4. **Tune Settings** - Adjust AI factors (behavioral weight, exploration, quality threshold)
-5. **Use Voice Chat** - Ask for recommendations using natural speech
 
 ### API Endpoints
 
@@ -381,13 +367,11 @@ chat_sessions          # Conversation history
 ### Current Version: 2.0
 
 - ✅ F-1 Hyper-Personalized Engine
-- ✅ Browser Voice Integration (Web Speech API)
 - ✅ 90%+ Test Coverage
 - ✅ Performance Monitoring
 
 ### Upcoming Features
 
-- **Social Features** - Share recommendations with friends
 - **Streaming Integration** - Direct links to Netflix, Disney+, etc.
 - **Advanced Analytics** - Detailed viewing pattern insights
 - **Mobile App** - React Native version
@@ -400,7 +384,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgments
 
 - [TMDB](https://www.themoviedb.org/) for movie data
-- Removed external voice AI dependency
 - [Anthropic](https://anthropic.com/) for Claude AI
 - [Supabase](https://supabase.com/) for backend infrastructure
 - [Vercel](https://vercel.com/) for hosting and deployment

@@ -1,62 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase/server-client'
-import { WatchlistRepository } from '@/repositories/WatchlistRepository'
-import { MovieRepository } from '@/repositories/MovieRepository'
+import { LocalStorageService } from '@/lib/db'
+import { APIErrorHandler } from '@/lib/error-handling'
 import { logger } from '@/lib/logger'
-import RecommendationCacheManager from '@/lib/utils/recommendation-cache'
 import { fetchTmdbMovieById } from '@/lib/utils/tmdb-helpers'
-import { getUserContext } from '@/lib/utils/single-user-mode'
 
-export async function GET(request: NextRequest) {
+/**
+ * GET /api/watchlist
+ * Fetch user's watchlist with movie details
+ */
+export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
-    const supabase = await createServerClient()
-    const {
-      data: { user: authUser },
-    } = await supabase.auth.getUser()
-
-    // Check for local/single user mode
-    let userContext
-    try {
-      userContext = getUserContext(authUser?.id)
-    } catch {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
-    }
-
-    if (userContext.isSingleUser) {
-      logger.info('Local mode: returning empty watchlist')
-      return NextResponse.json({
-        success: true,
-        isLocalMode: true,
-        data: [],
-      })
-    }
-
-    // Use the auth user from earlier check
-    const user = authUser
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Parse query parameters
     const { searchParams } = new URL(request.url)
     const watchedParam = searchParams.get('watched')
 
-    const filters: { watched?: boolean } = {}
+    // Get watchlist from local database
+    let watchlist = LocalStorageService.getWatchlist()
+
+    // Apply watched filter if specified
     if (watchedParam !== null) {
-      filters.watched = watchedParam === 'true'
+      const filterWatched = watchedParam === 'true'
+      watchlist = watchlist.filter(item => item.watched === filterWatched)
     }
 
-    const watchlistRepo = new WatchlistRepository(supabase)
-    const movieRepo = new MovieRepository(supabase)
-
-    logger.info('Fetching watchlist', { userId: user.id, filters })
-    const movies = await watchlistRepo.getUserWatchlist(user.id, filters)
-    logger.info('Watchlist fetched', { userId: user.id, count: movies.length, filters })
-
     // Auto-refresh stub movies with TMDB details
-    const refreshPromises = movies
+    const refreshPromises = watchlist
       .filter(item => {
-        const movie = item.movies
+        const movie = item.movie
         return (
           movie &&
           movie.tmdb_id &&
@@ -67,14 +36,18 @@ export async function GET(request: NextRequest) {
       })
       .map(async item => {
         try {
-          const movie = item.movies!
+          const movie = item.movie!
           logger.info('Auto-refreshing stub movie', { movieId: movie.id, tmdbId: movie.tmdb_id })
           const tmdbMovie = await fetchTmdbMovieById(movie.tmdb_id!)
           if (!tmdbMovie) {
             logger.warn('Failed to fetch TMDB movie data', { tmdbId: movie.tmdb_id })
             return
           }
-          const movieUpdate = {
+
+          // Update movie in database
+          LocalStorageService.upsertMovie({
+            id: movie.id,
+            tmdb_id: movie.tmdb_id,
             title: tmdbMovie.title,
             year: tmdbMovie.year,
             genre: tmdbMovie.genre,
@@ -84,16 +57,23 @@ export async function GET(request: NextRequest) {
             rating: tmdbMovie.rating,
             runtime: tmdbMovie.runtime,
             imdb_id: tmdbMovie.imdb_id || undefined,
+          })
+
+          // Update local reference
+          item.movie = {
+            ...item.movie!,
+            title: tmdbMovie.title,
+            year: tmdbMovie.year,
+            poster_url: tmdbMovie.poster_url || undefined,
           }
-          const updatedMovie = await movieRepo.update(movie.id, movieUpdate)
-          item.movies = updatedMovie
+
           logger.info('Auto-refreshed movie details', {
             movieId: movie.id,
-            title: updatedMovie.title,
+            title: tmdbMovie.title,
           })
         } catch (error) {
           logger.warn('Failed to auto-refresh movie', {
-            movieId: item.movies?.id,
+            movieId: item.movie?.id,
             error: String(error),
           })
         }
@@ -102,67 +82,65 @@ export async function GET(request: NextRequest) {
     // Wait for all refreshes to complete
     await Promise.all(refreshPromises)
 
-    // Return in the expected format
+    // Transform to expected format
+    const data = watchlist.map(item => ({
+      id: item.id,
+      movie_id: item.movie_id,
+      added_at: item.added_at,
+      watched: item.watched,
+      watched_at: item.watched_at,
+      notes: item.notes,
+      movies: item.movie ? {
+        id: item.movie.id,
+        title: item.movie.title,
+        year: item.movie.year,
+        poster_url: item.movie.poster_url,
+        tmdb_id: item.movie.tmdb_id,
+        genre: item.movie.genre,
+        rating: item.movie.rating,
+      } : null,
+    }))
+
+    logger.info('Watchlist fetched', { count: data.length })
+
     return NextResponse.json({
       success: true,
-      data: movies,
+      data,
+      source: 'local',
     })
   } catch (error) {
-    logger.error('Error fetching watchlist:', { error: String(error) })
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
+    return APIErrorHandler.handle(error, {
+      endpoint: '/api/watchlist',
+      method: 'GET',
+    })
   }
 }
 
-export async function POST(request: NextRequest) {
+/**
+ * POST /api/watchlist
+ * Add a movie to watchlist
+ */
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const body = await request.json()
-    let movieId = body.movie_id || body.movieId // Support both formats
-
-    const supabase = await createServerClient()
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    // Check for local/single user mode
-    let userContext
-    try {
-      userContext = getUserContext(user?.id)
-    } catch {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
-    }
-
-    if (userContext.isSingleUser) {
-      logger.info('Local mode: simulating watchlist add', { movieId })
-      return NextResponse.json({
-        success: true,
-        isLocalMode: true,
-        message: 'Movie added to watchlist (local mode)',
-      })
-    }
-
-    if (authError || !user) {
-      logger.error('Authentication failed', { error: authError })
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
-    }
-
+    let movieId = body.movie_id || body.movieId
     const notes = body.notes
 
     if (!movieId) {
-      return NextResponse.json({ success: false, error: 'Movie ID is required' }, { status: 400 })
+      return NextResponse.json(
+        { success: false, error: 'Movie ID is required' },
+        { status: 400 }
+      )
     }
 
-    const movieRepo = new MovieRepository(supabase)
-    const watchlistRepo = new WatchlistRepository(supabase)
-
-    logger.info('Adding to watchlist', { userId: user.id, movieId })
+    logger.info('Adding to watchlist', { movieId })
 
     // Handle TMDB IDs - find or create the movie in our database
     if (movieId.startsWith('tmdb_')) {
       const tmdbId = parseInt(movieId.replace('tmdb_', ''), 10)
 
       // Try to find existing movie by TMDB ID
-      let movie = await movieRepo.findByTmdbId(tmdbId)
+      let movie = LocalStorageService.getMovieByTmdbId(tmdbId)
 
       if (!movie) {
         // Movie doesn't exist, create it
@@ -171,7 +149,8 @@ export async function POST(request: NextRequest) {
           if (!tmdbMovie) {
             throw new Error('Failed to fetch movie from TMDB')
           }
-          const movieData = {
+
+          movie = LocalStorageService.upsertMovie({
             title: tmdbMovie.title,
             year: tmdbMovie.year,
             genre: tmdbMovie.genre,
@@ -182,17 +161,17 @@ export async function POST(request: NextRequest) {
             runtime: tmdbMovie.runtime,
             tmdb_id: tmdbId,
             imdb_id: tmdbMovie.imdb_id,
-          }
-          movie = await movieRepo.create(movieData)
+            source: 'tmdb',
+          })
           logger.info('Created movie from TMDB', { tmdbId, movieId: movie.id })
         } catch (error) {
-          // Fallback: create a better stub movie
-          logger.warn('TMDB fetch failed, creating enhanced stub', { tmdbId, error: String(error) })
-          movie = await movieRepo.create({
+          // Fallback: create a stub movie
+          logger.warn('TMDB fetch failed, creating stub', { tmdbId, error: String(error) })
+          movie = LocalStorageService.upsertMovie({
             title: `Movie ${tmdbId}`,
             tmdb_id: tmdbId,
             genre: [],
-            plot: 'Movie details will be loaded when TMDB API is available.',
+            source: 'tmdb-stub',
           })
         }
       }
@@ -202,122 +181,90 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if already in watchlist
-    const isInWatchlist = await watchlistRepo.checkIfInWatchlist(user.id, movieId)
-    if (isInWatchlist) {
+    const existing = LocalStorageService.getWatchlistItem(movieId)
+    if (existing) {
       return NextResponse.json(
         { success: false, error: 'Movie is already in watchlist' },
         { status: 400 }
       )
     }
 
-    const result = await watchlistRepo.addToWatchlist(user.id, movieId, notes)
-    logger.info('Movie added to watchlist', { userId: user.id, movieId })
+    // Add to watchlist
+    const result = LocalStorageService.addToWatchlist(movieId, notes)
+
+    // Record interaction
+    LocalStorageService.recordInteraction('watchlist_add', movieId, { notes })
+
+    logger.info('Movie added to watchlist', { movieId })
 
     return NextResponse.json({
       success: true,
       data: result,
+      source: 'local',
     })
   } catch (error) {
-    logger.error('Error adding to watchlist:', { error: String(error) })
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
+    return APIErrorHandler.handle(error, {
+      endpoint: '/api/watchlist',
+      method: 'POST',
+    })
   }
 }
 
-export async function DELETE(request: NextRequest) {
+/**
+ * DELETE /api/watchlist
+ * Remove a movie from watchlist
+ */
+export async function DELETE(request: NextRequest): Promise<NextResponse> {
   try {
     const { searchParams } = new URL(request.url)
     let movieId = searchParams.get('movie_id') || searchParams.get('movieId')
 
-    const supabase = await createServerClient()
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    // Check for local/single user mode
-    let userContext
-    try {
-      userContext = getUserContext(user?.id)
-    } catch {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
-    }
-
-    if (userContext.isSingleUser) {
-      logger.info('Local mode: simulating watchlist remove', { movieId })
-      return NextResponse.json({
-        success: true,
-        isLocalMode: true,
-        message: 'Movie removed from watchlist (local mode)',
-      })
-    }
-
-    if (authError || !user) {
-      logger.error('Authentication failed', { error: authError })
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
-    }
-
     if (!movieId) {
-      return NextResponse.json({ success: false, error: 'Movie ID is required' }, { status: 400 })
+      return NextResponse.json(
+        { success: false, error: 'Movie ID is required' },
+        { status: 400 }
+      )
     }
-
-    const movieRepo = new MovieRepository(supabase)
-    const watchlistRepo = new WatchlistRepository(supabase)
 
     // Handle TMDB IDs - convert to actual UUID
     if (movieId.startsWith('tmdb_')) {
       const tmdbId = parseInt(movieId.replace('tmdb_', ''), 10)
-      const movie = await movieRepo.findByTmdbId(tmdbId)
+      const movie = LocalStorageService.getMovieByTmdbId(tmdbId)
       if (movie) {
         movieId = movie.id
       }
     }
 
-    logger.info('Removing from watchlist', { userId: user.id, movieId })
-    await watchlistRepo.removeFromWatchlist(user.id, movieId)
-    logger.info('Movie removed from watchlist', { userId: user.id, movieId })
+    logger.info('Removing from watchlist', { movieId })
+
+    LocalStorageService.removeFromWatchlist(movieId)
+
+    // Record interaction
+    LocalStorageService.recordInteraction('watchlist_remove', movieId)
+
+    logger.info('Movie removed from watchlist', { movieId })
 
     return NextResponse.json({
       success: true,
       message: 'Removed from watchlist',
+      source: 'local',
     })
   } catch (error) {
-    logger.error('Error removing from watchlist:', { error: String(error) })
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
+    return APIErrorHandler.handle(error, {
+      endpoint: '/api/watchlist',
+      method: 'DELETE',
+    })
   }
 }
 
-export async function PATCH(request: NextRequest) {
+/**
+ * PATCH /api/watchlist
+ * Update a watchlist item (mark watched, update notes, etc.)
+ */
+export async function PATCH(request: NextRequest): Promise<NextResponse> {
   try {
     const body = await request.json()
-    const { movie_id, watchlist_id, watched, rating, notes } = body
-
-    const supabase = await createServerClient()
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    // Check for local/single user mode
-    let userContext
-    try {
-      userContext = getUserContext(user?.id)
-    } catch {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
-    }
-
-    if (userContext.isSingleUser) {
-      logger.info('Local mode: simulating watchlist update', { movie_id, watched, rating })
-      return NextResponse.json({
-        success: true,
-        isLocalMode: true,
-        message: 'Watchlist item updated (local mode)',
-      })
-    }
-
-    if (authError || !user) {
-      logger.error('Authentication failed', { error: authError })
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
-    }
+    const { movie_id, watchlist_id, watched, notes } = body
 
     if (!movie_id && !watchlist_id) {
       return NextResponse.json(
@@ -326,40 +273,59 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
-    const watchlistRepo = new WatchlistRepository(supabase)
+    // For watchlist_id, we need to find the movie_id
+    let targetMovieId = movie_id
 
-    // Use the general update method that handles both watched true/false
-    if (watchlist_id) {
-      const updates: { watched?: boolean; rating?: number; notes?: string } = {}
-
-      if (watched !== undefined) updates.watched = watched
-      if (rating !== undefined) updates.rating = rating
-      if (notes !== undefined) updates.notes = notes
-
-      const result = await watchlistRepo.updateWatchlistItem(watchlist_id, user.id, updates)
-      logger.info('Watchlist item updated', { watchlistId: watchlist_id, userId: user.id, updates })
-
-      // Clear recommendation cache if movie was marked as watched
-      if (updates.watched === true) {
-        RecommendationCacheManager.clearUserRecommendations(user.id)
-        logger.info('🗑️ Cleared recommendation cache due to movie marked as watched', {
-          userId: user.id,
-          watchlistId: watchlist_id
-        })
+    if (watchlist_id && !movie_id) {
+      // Get watchlist to find the movie_id
+      const watchlist = LocalStorageService.getWatchlist()
+      const item = watchlist.find(w => w.id === watchlist_id)
+      if (!item) {
+        return NextResponse.json(
+          { success: false, error: 'Watchlist item not found' },
+          { status: 404 }
+        )
       }
-
-      return NextResponse.json({
-        success: true,
-        data: result,
-      })
+      targetMovieId = item.movie_id
     }
 
-    return NextResponse.json(
-      { success: false, error: 'Watchlist ID is required for updates' },
-      { status: 400 }
-    )
+    logger.info('Updating watchlist item', { movieId: targetMovieId, watched, notes })
+
+    let result = null
+
+    // Update watched status
+    if (watched !== undefined) {
+      result = LocalStorageService.markWatched(targetMovieId, watched)
+
+      // Record interaction
+      LocalStorageService.recordInteraction(
+        watched ? 'movie_watched' : 'movie_unwatched',
+        targetMovieId
+      )
+    }
+
+    if (!result) {
+      result = LocalStorageService.getWatchlistItem(targetMovieId)
+    }
+
+    if (!result) {
+      return NextResponse.json(
+        { success: false, error: 'Watchlist item not found' },
+        { status: 404 }
+      )
+    }
+
+    logger.info('Watchlist item updated', { movieId: targetMovieId, watched: result.watched })
+
+    return NextResponse.json({
+      success: true,
+      data: result,
+      source: 'local',
+    })
   } catch (error) {
-    logger.error('Error updating watchlist:', { error: String(error) })
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
+    return APIErrorHandler.handle(error, {
+      endpoint: '/api/watchlist',
+      method: 'PATCH',
+    })
   }
 }

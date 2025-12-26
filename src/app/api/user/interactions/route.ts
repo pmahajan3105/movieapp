@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { LocalStorageService } from '@/lib/db'
 import { logger } from '@/lib/logger'
 
 /**
@@ -12,9 +12,9 @@ interface UserInteractionRequest {
   metadata?: {
     searchQuery?: string
     recommendationType?: string
-    timeSpent?: number // Time spent on movie details page
+    timeSpent?: number
     ratingValue?: number
-    position?: number // Position in search results or recommendations
+    position?: number
   }
   timestamp: string
   browserContext: {
@@ -49,95 +49,41 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create Supabase client
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return request.cookies.get(name)?.value
-          },
-          set() {
-            // API routes don't set cookies
-          },
-          remove() {
-            // API routes don't remove cookies
-          },
-        },
-      }
-    )
+    // Record interaction in local database
+    LocalStorageService.recordInteraction(type, movieId, {
+      context: context || [],
+      searchQuery: metadata?.searchQuery,
+      recommendationType: metadata?.recommendationType,
+      position: metadata?.position,
+      timeSpent: metadata?.timeSpent,
+      ratingValue: metadata?.ratingValue,
+      timeOfDay: browserContext?.timeOfDay,
+      dayOfWeek: browserContext?.dayOfWeek,
+    })
 
-    // Get authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Prepare interaction data
-    const interactionData = {
-      user_id: user.id,
-      movie_id: movieId,
-      interaction_type: type,
-      interaction_context: {
-        tags: context || [],
-        ...(metadata?.searchQuery && { searchQuery: metadata.searchQuery }),
-        ...(metadata?.recommendationType && { recommendationType: metadata.recommendationType }),
-        ...(metadata?.position && { position: metadata.position })
-      },
-      time_of_day: browserContext.timeOfDay,
-      day_of_week: browserContext.dayOfWeek,
-      metadata: {
-        ...(metadata?.timeSpent && { timeSpent: metadata.timeSpent }),
-        ...(metadata?.ratingValue && { ratingValue: metadata.ratingValue }),
-        userAgent: request.headers.get('user-agent') || 'unknown',
-        timestamp: new Date().toISOString()
-      },
-      created_at: new Date().toISOString()
-    }
-
-    // Insert interaction into database
-    const { error: insertError } = await supabase
-      .from('user_interactions')
-      .insert(interactionData)
-
-    if (insertError) {
-      logger.error('Failed to track user interaction', {
-        error: insertError.message,
-        userId: user.id,
-        movieId,
-        type
-      })
-      return NextResponse.json(
-        { error: 'Failed to track interaction' },
-        { status: 500 }
-      )
-    }
-
-    // Log successful tracking for analytics
+    // Log successful tracking
     logger.info('User interaction tracked', {
-      userId: user.id,
       movieId,
       type,
       context: context?.join(','),
-      timeOfDay: browserContext.timeOfDay
+      timeOfDay: browserContext?.timeOfDay
     })
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
       tracked: {
         movieId,
         type,
         timestamp: new Date().toISOString()
-      }
+      },
+      source: 'local',
     })
 
   } catch (error) {
-    logger.error('User interaction tracking endpoint error', { 
+    logger.error('User interaction tracking endpoint error', {
       error: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined
     })
-    
+
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -156,77 +102,39 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get('type')
     const movieId = searchParams.get('movieId')
 
-    // Create Supabase client
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return request.cookies.get(name)?.value
-          },
-          set() {},
-          remove() {},
-        },
-      }
-    )
-
-    // Get authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Build query
-    let query = supabase
-      .from('user_interactions')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(Math.min(limit, 100)) // Cap at 100 for performance
+    // Get interactions from local database
+    let interactions = LocalStorageService.getInteractions(Math.min(limit, 100))
 
     // Apply filters
     if (type) {
-      query = query.eq('interaction_type', type)
+      interactions = interactions.filter(i => i.interaction_type === type)
     }
     if (movieId) {
-      query = query.eq('movie_id', movieId)
+      interactions = interactions.filter(i => i.movie_id === movieId)
     }
 
-    const { data: interactions, error: fetchError } = await query
-
-    if (fetchError) {
-      logger.error('Failed to fetch user interactions', {
-        error: fetchError.message,
-        userId: user.id
-      })
-      return NextResponse.json(
-        { error: 'Failed to fetch interactions' },
-        { status: 500 }
-      )
-    }
-
-    // Return interactions with basic analytics
+    // Calculate basic analytics
     const analytics = {
-      totalInteractions: interactions?.length || 0,
-      typeBreakdown: interactions?.reduce((acc, interaction) => {
+      totalInteractions: interactions.length,
+      typeBreakdown: interactions.reduce((acc, interaction) => {
         acc[interaction.interaction_type] = (acc[interaction.interaction_type] || 0) + 1
         return acc
-      }, {} as Record<string, number>) || {},
-      recentActivity: interactions?.slice(0, 10) || []
+      }, {} as Record<string, number>),
+      recentActivity: interactions.slice(0, 10)
     }
 
     return NextResponse.json({
-      interactions: interactions || [],
+      interactions,
       analytics,
       pagination: {
         limit,
-        returned: interactions?.length || 0
-      }
+        returned: interactions.length
+      },
+      source: 'local',
     })
 
   } catch (error) {
-    logger.error('User interaction fetch endpoint error', { 
+    logger.error('User interaction fetch endpoint error', {
       error: error instanceof Error ? error.message : 'Unknown error'
     })
     return NextResponse.json(

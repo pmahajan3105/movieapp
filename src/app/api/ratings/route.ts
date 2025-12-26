@@ -1,48 +1,8 @@
-import { requireAuth, withError, ok, fail } from '@/lib/api/factory'
+import { NextRequest, NextResponse } from 'next/server'
+import { LocalStorageService } from '@/lib/db'
+import { APIErrorHandler } from '@/lib/error-handling'
+import { logger } from '@/lib/logger'
 import { z } from 'zod'
-
-// GET /api/ratings – get user's ratings with movie details for filtering
-export const GET = withError(
-  requireAuth(async ({ supabase, user }) => {
-    const { data: ratings, error } = await supabase
-      .from('ratings')
-      .select(`
-        movie_id, 
-        rating, 
-        interested, 
-        rated_at,
-        movies:movie_id (
-          title,
-          year,
-          tmdb_id
-        )
-      `)
-      .eq('user_id', user.id)
-      .order('rated_at', { ascending: false })
-
-    if (error) {
-      return fail('Failed to fetch ratings', 500)
-    }
-
-    // Transform the data to include movie_data for compatibility with QuickRatingWidget
-    const ratingsWithMovieData = (ratings || []).map((rating: any) => ({
-      movie_id: rating.movie_id,
-      rating: rating.rating,
-      interested: rating.interested,
-      rated_at: rating.rated_at,
-      movie_data: rating.movies ? {
-        title: rating.movies.title,
-        year: rating.movies.year,
-        tmdb_id: rating.movies.tmdb_id
-      } : null
-    }))
-
-    return ok({ 
-      ratings: ratingsWithMovieData, 
-      count: ratingsWithMovieData.length 
-    })
-  })
-)
 
 // Movie data schema for external movies
 const movieDataSchema = z.object({
@@ -58,22 +18,65 @@ const movieDataSchema = z.object({
 })
 
 const ratingSchema = z.object({
-  movie_id: z.string().uuid().optional(), // UUID for existing database movies
+  movie_id: z.string().optional(), // Movie ID in database
   movie_data: movieDataSchema.optional(), // Movie data for external movies
   interested: z.boolean().optional(), // like/dislike toggle
-  rating: z.number().min(1).max(5).optional(), // 1-5 stars (future)
+  rating: z.number().min(1).max(5).optional(), // 1-5 stars
 }).refine(data => data.movie_id || data.movie_data, {
   message: "Either movie_id or movie_data must be provided"
 })
 
-// POST /api/ratings – insert/update rating by movie/user
-export const POST = withError(
-  requireAuth(async ({ request, supabase, user }) => {
+/**
+ * GET /api/ratings
+ * Fetch all user ratings with movie details
+ */
+export async function GET(): Promise<NextResponse> {
+  try {
+    const ratings = LocalStorageService.getRatings()
+
+    // Transform to expected format
+    const ratingsWithMovieData = ratings.map((rating) => ({
+      movie_id: rating.movie_id,
+      rating: rating.rating,
+      interested: rating.interested,
+      rated_at: rating.rated_at,
+      movie_data: rating.movie ? {
+        title: rating.movie.title,
+        year: rating.movie.year,
+        tmdb_id: rating.movie.tmdb_id
+      } : null
+    }))
+
+    logger.info('Ratings fetched successfully', { count: ratingsWithMovieData.length })
+
+    return NextResponse.json({
+      success: true,
+      ratings: ratingsWithMovieData,
+      count: ratingsWithMovieData.length,
+      source: 'local',
+    })
+  } catch (error) {
+    return APIErrorHandler.handle(error, {
+      endpoint: '/api/ratings',
+      method: 'GET',
+    })
+  }
+}
+
+/**
+ * POST /api/ratings
+ * Create or update a rating for a movie
+ */
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  try {
     const json = await request.json().catch(() => null)
     const parsed = ratingSchema.safeParse(json)
 
     if (!parsed.success) {
-      return fail(parsed.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', '), 400)
+      return NextResponse.json(
+        { success: false, error: parsed.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ') },
+        { status: 400 }
+      )
     }
 
     const { movie_id, movie_data, interested, rating } = parsed.data
@@ -81,129 +84,101 @@ export const POST = withError(
 
     // If no movie_id provided, find or create the movie in database
     if (!movie_id && movie_data) {
-      try {
-        // Try to find existing movie by title and year first
-        let query = supabase
-          .from('movies')
-          .select('id')
-          .eq('title', movie_data.title)
-        
-        if (movie_data.year) {
-          query = query.eq('year', movie_data.year)
-        } else {
-          query = query.is('year', null)
+      // Try to find by TMDB ID first
+      if (movie_data.tmdb_id) {
+        const existing = LocalStorageService.getMovieByTmdbId(movie_data.tmdb_id)
+        if (existing) {
+          finalMovieId = existing.id
         }
-        
-        const { data: existingMovie } = await query.single()
+      }
 
-        if (existingMovie) {
-          finalMovieId = existingMovie.id
-        } else {
-          // Try to find by external IDs
-          let foundMovie = null
-          if (movie_data.tmdb_id) {
-            const { data } = await supabase
-              .from('movies')
-              .select('id')
-              .eq('tmdb_id', movie_data.tmdb_id)
-              .single()
-            foundMovie = data
-          }
-          
-          if (!foundMovie && movie_data.imdb_id) {
-            const { data } = await supabase
-              .from('movies')
-              .select('id')
-              .eq('imdb_id', movie_data.imdb_id)
-              .single()
-            foundMovie = data
-          }
-
-          if (foundMovie) {
-            finalMovieId = foundMovie.id
-          } else {
-            // Create new movie in database
-            const { data: newMovie, error: movieError } = await supabase
-              .from('movies')
-              .insert([{
-                title: movie_data.title,
-                year: movie_data.year,
-                genre: movie_data.genre,
-                director: movie_data.director,
-                plot: movie_data.plot,
-                poster_url: movie_data.poster_url,
-                rating: movie_data.rating,
-                tmdb_id: movie_data.tmdb_id,
-                imdb_id: movie_data.imdb_id,
-              }])
-              .select('id')
-              .single()
-
-            if (movieError) {
-              return fail(`Failed to create movie: ${movieError.message}`, 500)
-            }
-
-            finalMovieId = newMovie.id
-          }
-        }
-      } catch (error) {
-        return fail(`Failed to process movie: ${error instanceof Error ? error.message : 'Unknown error'}`, 500)
+      // If not found, create the movie
+      if (!finalMovieId) {
+        const newMovie = LocalStorageService.upsertMovie({
+          title: movie_data.title,
+          year: movie_data.year,
+          genre: movie_data.genre,
+          director: movie_data.director,
+          plot: movie_data.plot,
+          poster_url: movie_data.poster_url,
+          rating: movie_data.rating,
+          tmdb_id: movie_data.tmdb_id,
+          imdb_id: movie_data.imdb_id,
+          source: 'user-rating',
+        })
+        finalMovieId = newMovie.id
+        logger.info('Created movie from rating', { movieId: finalMovieId, title: movie_data.title })
       }
     }
 
     if (!finalMovieId) {
-      return fail('Could not determine movie ID', 400)
+      return NextResponse.json(
+        { success: false, error: 'Could not determine movie ID' },
+        { status: 400 }
+      )
     }
 
-    // Try to update existing rating first, then insert if not found
-    let data, error
-    
-    // Check if rating already exists
-    const { data: existingRating } = await supabase
-      .from('ratings')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('movie_id', finalMovieId)
-      .single()
-    
-    if (existingRating) {
-      // Update existing rating
-      const updateResult = await supabase
-        .from('ratings')
-        .update({
-          interested: interested ?? true,
-          rating,
-          rated_at: new Date().toISOString(),
-        })
-        .eq('user_id', user.id)
-        .eq('movie_id', finalMovieId)
-        .select('*')
-        .single()
-      
-      data = updateResult.data
-      error = updateResult.error
-    } else {
-      // Insert new rating
-      const insertResult = await supabase
-        .from('ratings')
-        .insert({
-          user_id: user.id,
-          movie_id: finalMovieId,
-          interested: interested ?? true,
-          rating,
-          rated_at: new Date().toISOString(),
-        })
-        .select('*')
-        .single()
-      
-      data = insertResult.data
-      error = insertResult.error
+    // Upsert the rating
+    const result = LocalStorageService.upsertRating(finalMovieId, {
+      rating,
+      interested: interested ?? true,
+    })
+
+    // Record the interaction for learning
+    LocalStorageService.recordInteraction(
+      rating ? 'rated' : (interested ? 'liked' : 'disliked'),
+      finalMovieId,
+      { rating, interested }
+    )
+
+    logger.info('Rating saved successfully', {
+      movieId: finalMovieId,
+      rating,
+      interested,
+    })
+
+    return NextResponse.json({
+      success: true,
+      data: result,
+      source: 'local',
+    })
+  } catch (error) {
+    return APIErrorHandler.handle(error, {
+      endpoint: '/api/ratings',
+      method: 'POST',
+    })
+  }
+}
+
+/**
+ * DELETE /api/ratings
+ * Delete a rating for a movie
+ */
+export async function DELETE(request: NextRequest): Promise<NextResponse> {
+  try {
+    const { searchParams } = new URL(request.url)
+    const movieId = searchParams.get('movie_id')
+
+    if (!movieId) {
+      return NextResponse.json(
+        { success: false, error: 'movie_id is required' },
+        { status: 400 }
+      )
     }
 
-    if (error) {
-      return fail(error.message, 500)
-    }
+    LocalStorageService.deleteRating(movieId)
 
-    return ok(data)
-  })
-)
+    logger.info('Rating deleted', { movieId })
+
+    return NextResponse.json({
+      success: true,
+      message: 'Rating deleted',
+      source: 'local',
+    })
+  } catch (error) {
+    return APIErrorHandler.handle(error, {
+      endpoint: '/api/ratings',
+      method: 'DELETE',
+    })
+  }
+}

@@ -1,111 +1,112 @@
 import { NextRequest, NextResponse } from 'next/server'
-
-import { createRouteSupabaseClient } from '@/lib/supabase/route-client'
+import { LocalStorageService } from '@/lib/db'
 import { APIErrorHandler } from '@/lib/error-handling'
-import { withErrorRecovery, ErrorRecoveryConfigs } from '@/lib/middleware/error-recovery'
-import {
-  handleLegacyRequest,
-  handleRealTimeMovies,
-  handleSmartRecommendations,
-  // handleBehavioralRecommendations  // Temporarily disabled - AI service under maintenance
-} from './handlers'
+import { logger } from '@/lib/logger'
 
-async function handleMoviesRequest(request: NextRequest): Promise<NextResponse> {
+/**
+ * GET /api/movies
+ * Fetch movies from local SQLite database with filtering and pagination
+ */
+export async function GET(request: NextRequest): Promise<NextResponse> {
   const { searchParams } = new URL(request.url)
-  const supabase = createRouteSupabaseClient(request)
 
-  const smartMode = searchParams.get('smart') === 'true'
-  const behavioralMode = searchParams.get('behavioral') === 'true'
-  const realTime = searchParams.get('realtime') === 'true'
-  const topRated = searchParams.get('top_rated') === 'true'
-  const databaseId = searchParams.get('database')
   const query = searchParams.get('query') || ''
-  const mood = searchParams.get('mood') || ''
   const genres = searchParams.get('genres')?.split(',').filter(Boolean) || []
-  const limit = Math.max(1, parseInt(searchParams.get('limit') || '12') || 12)
+  const limit = Math.min(50, Math.max(1, parseInt(searchParams.get('limit') || '12') || 12))
   const page = Math.max(1, parseInt(searchParams.get('page') || '1') || 1)
+  const topRated = searchParams.get('top_rated') === 'true'
+  const offset = (page - 1) * limit
 
   try {
-    // TODO: Re-enable after fixing hydration issues
-    // if (advancedMode && query) {
-    //   return await handleAdvancedIntelligenceRequest(supabase, query, limit, analysisDepth)
-    // }
+    const result = LocalStorageService.getMovies({
+      query: query || undefined,
+      genres: genres.length > 0 ? genres : undefined,
+      limit,
+      offset,
+      topRated,
+    })
 
-    // if (thematicMode && query) {
-    //   return await handleThematicRecommendations(supabase, query, limit, analysisDepth)
-    // }
+    const totalPages = Math.ceil(result.total / limit)
 
-    if (behavioralMode) {
-      // Temporarily disabled - AI service under maintenance
-      // const response = await handleBehavioralRecommendations(supabase, limit, page, includeExplanations, includePreferenceInsights)
-      // // Cache behavioral recommendations for 5 minutes
-      // response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
-      // return response
+    logger.info('Movies fetched successfully', {
+      count: result.movies.length,
+      total: result.total,
+      page,
+      query: query || undefined,
+    })
 
-      // Fallback to smart recommendations for now
-      const response = await handleSmartRecommendations(supabase, limit, page, query, mood, genres)
-      response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
-      return response
-    }
-
-    if (realTime || databaseId) {
-      const skipExplanations = searchParams.get('skipExplanations') === 'true'
-      const response = await handleRealTimeMovies(
+    const response = NextResponse.json({
+      success: true,
+      data: result.movies,
+      total: result.total,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        hasMore: page < totalPages,
         limit,
-        page,
-        query,
-        databaseId || undefined,
-        supabase,
-        smartMode,
-        skipExplanations,
-        topRated
-      )
-      // Cache TMDB data for 15 minutes
-      response.headers.set('Cache-Control', 'public, s-maxage=900, stale-while-revalidate=1800')
-      return response
-    }
+      },
+      source: 'local',
+    })
 
-    if (smartMode) {
-      const response = await handleSmartRecommendations(supabase, limit, page, query, mood, genres)
-      // Cache smart recommendations for 10 minutes
-      response.headers.set('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=1200')
-      return response
-    }
+    // Cache for 10 minutes
+    response.headers.set('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=1200')
 
-    // Default to legacy handling (which now uses the service)
-    return await handleLegacyRequest(request, supabase)
+    return response
   } catch (error) {
     return APIErrorHandler.handle(error, {
       endpoint: '/api/movies',
       method: 'GET',
-      metadata: {
-        smartMode: smartMode,
-        behavioralMode: behavioralMode,
-        realTime: realTime,
-        databaseId: databaseId,
-        query: query,
-        mood: mood,
-        genres: genres.join(','),
-        limit: limit,
-        page: page,
-      },
+      metadata: { query, genres: genres.join(','), limit, page },
     })
   }
 }
 
-// Wrap the handler with error recovery middleware
-export const GET = withErrorRecovery(handleMoviesRequest, {
-  ...ErrorRecoveryConfigs.dataFetch,
-  fallbackResponse: {
-    success: true,
-    data: [],
-    total: 0,
-    pagination: {
-      currentPage: 1,
-      hasMore: false,
-      totalPages: 0,
-    },
-    source: 'fallback',
-    message: 'Movies temporarily unavailable. Please try again later.',
-  },
-})
+/**
+ * POST /api/movies
+ * Add a movie to the local database (usually from TMDB)
+ */
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  try {
+    const body = await request.json()
+    const { tmdb_id, ...movieData } = body
+
+    if (!tmdb_id && !movieData.title) {
+      return NextResponse.json(
+        { success: false, error: 'Either TMDB ID or title is required' },
+        { status: 400 }
+      )
+    }
+
+    // Check if movie already exists by tmdb_id
+    if (tmdb_id) {
+      const existing = LocalStorageService.getMovieByTmdbId(tmdb_id)
+      if (existing) {
+        return NextResponse.json({
+          success: true,
+          data: existing,
+          message: 'Movie already exists',
+        })
+      }
+    }
+
+    // Insert/update movie
+    const movie = LocalStorageService.upsertMovie({
+      tmdb_id,
+      ...movieData,
+      source: 'tmdb',
+    })
+
+    logger.info('Movie added successfully', { tmdb_id, title: movieData.title })
+
+    return NextResponse.json({
+      success: true,
+      data: movie,
+      message: 'Movie added successfully',
+    })
+  } catch (error) {
+    return APIErrorHandler.handle(error, {
+      endpoint: '/api/movies',
+      method: 'POST',
+    })
+  }
+}

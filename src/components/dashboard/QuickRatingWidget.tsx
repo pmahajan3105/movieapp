@@ -106,14 +106,23 @@ export const QuickRatingWidget: React.FC<QuickRatingWidgetProps> = ({
           
           console.log('Loaded ratings from API:', ratings.length)
           
+          // Type for API rating response
+          interface RatingFromAPI {
+            movie_id: string
+            movie_data?: {
+              title?: string
+              year?: number
+            }
+          }
+
           // Create a set of rated movie IDs
-          const ratedIds = new Set<string>(ratings.map((rating: any) => String(rating.movie_id)))
+          const ratedIds = new Set<string>(ratings.map((rating: RatingFromAPI) => String(rating.movie_id)))
           setRatedMovieIds(ratedIds)
           setRatingsGiven(ratedIds.size)
-          
+
           // Also populate title+year keys for better matching
           const titleYearKeys = new Set<string>()
-          ratings.forEach((rating: any) => {
+          ratings.forEach((rating: RatingFromAPI) => {
             if (rating.movie_data?.title && rating.movie_data?.year) {
               const key = `${rating.movie_data.title.toLowerCase().trim()}_${rating.movie_data.year}`
               titleYearKeys.add(key)

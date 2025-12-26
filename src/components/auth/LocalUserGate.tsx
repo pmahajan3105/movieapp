@@ -1,17 +1,26 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { LocalWelcomeScreen } from './LocalWelcomeScreen'
+import { useEffect } from 'react'
 
 interface LocalUserGateProps {
   children: React.ReactNode
 }
 
 /**
- * Gate component that shows welcome screen for local users who haven't set up yet
+ * Gate component that redirects to setup if user hasn't completed setup
  */
 export function LocalUserGate({ children }: LocalUserGateProps) {
-  const { isLocalMode, needsLocalSetup, createLocalUserAccount, isLoading } = useAuth()
+  const { needsSetup, isLoading } = useAuth()
+  const router = useRouter()
+
+  // Redirect to setup if needed
+  useEffect(() => {
+    if (!isLoading && needsSetup) {
+      router.push('/setup')
+    }
+  }, [isLoading, needsSetup, router])
 
   // Show loading state
   if (isLoading) {
@@ -25,12 +34,18 @@ export function LocalUserGate({ children }: LocalUserGateProps) {
     )
   }
 
-  // Show welcome screen if local mode and needs setup
-  if (isLocalMode && needsLocalSetup) {
-    return <LocalWelcomeScreen onComplete={createLocalUserAccount} />
+  // If needs setup, show loading while redirect happens
+  if (needsSetup) {
+    return (
+      <div className="min-h-screen bg-base-100 flex items-center justify-center">
+        <div className="text-center">
+          <span className="loading loading-spinner loading-lg text-primary"></span>
+          <p className="mt-4 text-base-content/60">Redirecting to setup...</p>
+        </div>
+      </div>
+    )
   }
 
   // Otherwise render the app
   return <>{children}</>
 }
-

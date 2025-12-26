@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import PreferencesSetup from '@/components/PreferencesSetup'
 import { EditableTasteProfile } from '@/components/profile/EditableTasteProfile'
 import { AIControlPanel } from '@/components/ai/AIControlPanel'
-import { Settings, Brain, User, Trash2, AlertCircle, CheckCircle, Clock, X, Heart, Sliders } from 'lucide-react'
+import { Settings, Brain, User, Trash2, AlertCircle, CheckCircle, Clock, X, Heart, Sliders, Download, Upload, Database } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface PreferenceItem {
@@ -76,6 +76,13 @@ export default function SettingsPage() {
   const [hasManualPreferences, setHasManualPreferences] = useState(false)
   const [toast, setToast] = useState<ToastMessage | null>(null)
   const [activeTab, setActiveTab] = useState('ai-learned')
+  const [exporting, setExporting] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [importPreview, setImportPreview] = useState<{
+    ratings: number
+    watchlist: number
+    name?: string
+  } | null>(null)
 
   const showToast = useCallback((message: string, type: 'success' | 'error') => {
     setToast({ message, type })
@@ -278,6 +285,86 @@ export default function SettingsPage() {
     }
   }
 
+  const handleExportData = async () => {
+    setExporting(true)
+    try {
+      const response = await fetch('/api/backup')
+      if (!response.ok) {
+        throw new Error('Export failed')
+      }
+
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `cineai-backup-${new Date().toISOString().split('T')[0]}.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+
+      showToast('Data exported successfully!', 'success')
+    } catch (error) {
+      showToast('Failed to export data. Please try again.', 'error')
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    try {
+      const text = await file.text()
+      const backup = JSON.parse(text)
+
+      // Validate structure
+      if (!backup.version || !backup.ratings || !backup.watchlist) {
+        showToast('Invalid backup file format', 'error')
+        return
+      }
+
+      setImportPreview({
+        ratings: backup.ratings.length,
+        watchlist: backup.watchlist.length,
+        name: backup.profile?.name,
+      })
+    } catch (error) {
+      showToast('Failed to read backup file', 'error')
+    }
+  }
+
+  const handleImportData = async (file: File, mode: 'merge' | 'replace') => {
+    setImporting(true)
+    try {
+      const text = await file.text()
+      const backup = JSON.parse(text)
+
+      const response = await fetch('/api/backup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ backup, mode }),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        showToast(
+          `Imported ${data.imported.ratings} ratings and ${data.imported.watchlist} watchlist items!`,
+          'success'
+        )
+        setImportPreview(null)
+      } else {
+        showToast(data.error || 'Import failed', 'error')
+      }
+    } catch (error) {
+      showToast('Failed to import data', 'error')
+    } finally {
+      setImporting(false)
+    }
+  }
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString()
   }
@@ -362,22 +449,31 @@ export default function SettingsPage() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="ai-learned" className="flex items-center gap-2">
             <Brain className="h-4 w-4" />
-            AI Learned ({getTotalAiPreferences()})
+            <span className="hidden sm:inline">AI Learned ({getTotalAiPreferences()})</span>
+            <span className="sm:hidden">AI</span>
           </TabsTrigger>
           <TabsTrigger value="taste-profile" className="flex items-center gap-2">
             <Heart className="h-4 w-4" />
-            Taste Profile
+            <span className="hidden sm:inline">Taste Profile</span>
+            <span className="sm:hidden">Taste</span>
           </TabsTrigger>
           <TabsTrigger value="ai-controls" className="flex items-center gap-2">
             <Sliders className="h-4 w-4" />
-            AI Controls
+            <span className="hidden sm:inline">AI Controls</span>
+            <span className="sm:hidden">Controls</span>
           </TabsTrigger>
           <TabsTrigger value="manual-setup" className="flex items-center gap-2">
             <User className="h-4 w-4" />
-            Manual Setup {hasManualPreferences && '✓'}
+            <span className="hidden sm:inline">Manual Setup {hasManualPreferences && '✓'}</span>
+            <span className="sm:hidden">Manual</span>
+          </TabsTrigger>
+          <TabsTrigger value="data" className="flex items-center gap-2">
+            <Database className="h-4 w-4" />
+            <span className="hidden sm:inline">Data</span>
+            <span className="sm:hidden">Data</span>
           </TabsTrigger>
         </TabsList>
 
@@ -573,6 +669,139 @@ export default function SettingsPage() {
                   isLoading={saving}
                 />
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Data Management Tab */}
+        <TabsContent value="data" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Database className="h-5 w-5 text-purple-600" />
+                Data Management
+              </CardTitle>
+              <CardDescription>
+                Export your data for backup or import from a previous backup.
+                Your data is stored locally and never leaves your machine.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-8">
+              {/* Export Section */}
+              <div className="space-y-4">
+                <h3 className="font-semibold text-gray-900">Export Your Data</h3>
+                <p className="text-sm text-gray-600">
+                  Download all your ratings, watchlist, and preferences as a JSON file.
+                  Use this to backup your data or transfer to another device.
+                </p>
+                <Button
+                  onClick={handleExportData}
+                  disabled={exporting}
+                  className="flex items-center gap-2"
+                >
+                  <Download className="h-4 w-4" />
+                  {exporting ? 'Exporting...' : 'Download Backup'}
+                </Button>
+              </div>
+
+              <div className="border-t border-gray-200" />
+
+              {/* Import Section */}
+              <div className="space-y-4">
+                <h3 className="font-semibold text-gray-900">Import from Backup</h3>
+                <p className="text-sm text-gray-600">
+                  Restore data from a previous export. You can merge with existing data
+                  or replace everything.
+                </p>
+
+                {!importPreview ? (
+                  <div className="flex items-center gap-4">
+                    <label className="cursor-pointer">
+                      <input
+                        type="file"
+                        accept=".json"
+                        onChange={handleFileSelect}
+                        className="hidden"
+                      />
+                      <div className="flex items-center gap-2 rounded-lg border border-dashed border-gray-300 px-4 py-3 hover:border-gray-400 hover:bg-gray-50">
+                        <Upload className="h-4 w-4 text-gray-500" />
+                        <span className="text-sm text-gray-600">Select backup file</span>
+                      </div>
+                    </label>
+                  </div>
+                ) : (
+                  <div className="space-y-4 rounded-lg border bg-gray-50 p-4">
+                    <h4 className="font-medium text-gray-900">Backup Preview</h4>
+                    <div className="grid gap-2 text-sm">
+                      {importPreview.name && (
+                        <div>
+                          <span className="text-gray-500">Profile:</span>
+                          <span className="ml-2 font-medium">{importPreview.name}</span>
+                        </div>
+                      )}
+                      <div>
+                        <span className="text-gray-500">Ratings:</span>
+                        <span className="ml-2 font-medium">{importPreview.ratings} movies</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Watchlist:</span>
+                        <span className="ml-2 font-medium">{importPreview.watchlist} items</span>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 pt-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          const input = document.querySelector('input[type="file"]') as HTMLInputElement
+                          if (input?.files?.[0]) {
+                            handleImportData(input.files[0], 'merge')
+                          }
+                        }}
+                        disabled={importing}
+                        className="flex-1"
+                      >
+                        {importing ? 'Importing...' : 'Merge with Existing'}
+                      </Button>
+                      <Button
+                        variant="default"
+                        onClick={() => {
+                          const input = document.querySelector('input[type="file"]') as HTMLInputElement
+                          if (input?.files?.[0]) {
+                            handleImportData(input.files[0], 'replace')
+                          }
+                        }}
+                        disabled={importing}
+                        className="flex-1"
+                      >
+                        {importing ? 'Importing...' : 'Replace All'}
+                      </Button>
+                    </div>
+
+                    <Button
+                      variant="ghost"
+                      onClick={() => setImportPreview(null)}
+                      className="w-full text-gray-500"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              <div className="border-t border-gray-200" />
+
+              {/* Data Location Info */}
+              <div className="rounded-lg bg-blue-50 p-4">
+                <h4 className="mb-2 font-medium text-blue-900">Where is your data stored?</h4>
+                <p className="text-sm text-blue-700">
+                  All your data is stored locally in <code className="rounded bg-blue-100 px-1">~/.cineai/</code>
+                </p>
+                <ul className="mt-2 list-inside list-disc text-sm text-blue-600">
+                  <li><code>cineai.db</code> - SQLite database with movies, ratings, watchlist</li>
+                  <li><code>config.json</code> - Your settings and API keys</li>
+                </ul>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

@@ -79,7 +79,6 @@ Navigate to: **http://localhost:3000**
 ## 🎯 What You Get
 
 - **AI-Powered Recommendations** - GPT-5-mini + Claude 4.5 Sonnet
-- **Voice Conversations** - Talk to your AI movie assistant
 - **Personal Watchlist** - Track movies you want to watch
 - **Smart Ratings** - Rate movies and get better recommendations
 - **Cloud Data Storage** - Your data is safely stored in Supabase

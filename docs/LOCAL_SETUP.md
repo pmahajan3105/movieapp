@@ -77,7 +77,6 @@ Navigate to: **http://localhost:3000**
 - **100% Local Data** - Everything stored on your machine
 - **Complete Privacy** - No cloud dependencies except API calls
 - **AI-Powered Recommendations** - GPT-5-mini + Claude 4.5 Sonnet
-- **Voice Conversations** - Talk to your AI movie assistant
 - **Personal Watchlist** - Track movies you want to watch
 - **Smart Ratings** - Rate movies and get better recommendations
 
